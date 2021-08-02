@@ -16,7 +16,7 @@ namespace QLUtils {
         std::vector<pHelper> rateHelpers;
     public:
         PiecewiseCurveBuilder() {}
-		const std::vector<pHelper>& helpers() const {return rateHelpers;}
+        const std::vector<pHelper>& helpers() const {return rateHelpers;}
         void AddDeposit(const pQuote& quote, const pIndex& index) {
             pHelper rateHelper(new QuantLib::DepositRateHelper(QuantLib::Handle<QuantLib::Quote>(quote), index));
             rateHelpers.push_back(rateHelper);
