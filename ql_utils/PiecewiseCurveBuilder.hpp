@@ -16,6 +16,7 @@ namespace QLUtils {
         std::vector<pHelper> rateHelpers;
     public:
         PiecewiseCurveBuilder() {}
+		const std::vector<pHelper>& helpers() const {return rateHelpers;}
         void AddDeposit(const pQuote& quote, const pIndex& index) {
             pHelper rateHelper(new QuantLib::DepositRateHelper(QuantLib::Handle<QuantLib::Quote>(quote), index));
             rateHelpers.push_back(rateHelper);
@@ -66,6 +67,7 @@ namespace QLUtils {
         // T = traits, I = interpolation
         QuantLib::ext::shared_ptr<QuantLib::PiecewiseYieldCurve<T, I>> GetCurve(const QuantLib::Date& curveReferenceDate, const QuantLib::DayCounter& dayCounter, const I& interp = I()) {
             QuantLib::ext::shared_ptr<QuantLib::PiecewiseYieldCurve<T, I>> pTS(new QuantLib::PiecewiseYieldCurve<T, I>(curveReferenceDate, rateHelpers, dayCounter, interp));
+			pTS->discount(0);	// trigger the bootstrap
             return pTS;
         }
     };
