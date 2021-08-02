@@ -67,7 +67,7 @@ namespace QLUtils {
         // T = traits, I = interpolation
         QuantLib::ext::shared_ptr<QuantLib::PiecewiseYieldCurve<T, I>> GetCurve(const QuantLib::Date& curveReferenceDate, const QuantLib::DayCounter& dayCounter, const I& interp = I()) {
             QuantLib::ext::shared_ptr<QuantLib::PiecewiseYieldCurve<T, I>> pTS(new QuantLib::PiecewiseYieldCurve<T, I>(curveReferenceDate, rateHelpers, dayCounter, interp));
-			pTS->discount(0);	// trigger the bootstrap
+            pTS->discount(0);	// trigger the bootstrap
             return pTS;
         }
     };
