@@ -1,5 +1,6 @@
 #pragma once
 #include <ql/quantlib.hpp>
+#include <string>
 
 #ifdef QL_OVERNIGHT_INDEXED_SWAP_INDEX_MISSING_IMPL
 namespace QuantLib {
@@ -17,8 +18,15 @@ namespace QuantLib {
         ) : OvernightIndexedSwapIndex(familyName, tenor, settlementDays, currency, overnightIndex, telescopicValueDates, averagingMethod)
         {}
         // missing implementations from QuantLib
-        const bool& telescopicValueDates() const { return telescopicValueDates_; }
-        const RateAveraging::Type& averagingMethod() const { return averagingMethod_; }
+        bool telescopicValueDates() const;
+        RateAveraging::Type averagingMethod() const;
     };
+    // missing implementations from QuantLib
+    inline bool OvernightIndexedSwapIndexEx::telescopicValueDates() const {
+        return telescopicValueDates_;
+    }
+    inline RateAveraging::Type OvernightIndexedSwapIndexEx::averagingMethod() const {
+        return averagingMethod_;
+    }
 }
 #endif
