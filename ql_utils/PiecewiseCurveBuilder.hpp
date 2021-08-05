@@ -179,6 +179,7 @@ namespace QLUtils {
             const I& interp = I()   // custom interpretor of type I
         ) {
             QuantLib::ext::shared_ptr<QuantLib::PiecewiseYieldCurve<T, I>> pTS(new QuantLib::PiecewiseYieldCurve<T, I>(curveReferenceDate, rateHelpers, dayCounter, interp));
+            pTS->discount(0);   // trigger the bootstrap
             return pTS;
         }
     };
