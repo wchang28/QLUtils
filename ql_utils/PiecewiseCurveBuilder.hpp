@@ -71,24 +71,32 @@ namespace QLUtils {
             const pQuote& quote,
             QuantLib::Natural settlementDays,
             const QuantLib::Period& tenor,  // swap tenor
-            const QuantLib::Calendar& fixedCalendar,
-            QuantLib::Frequency fixedFrequency,
-            QuantLib::BusinessDayConvention fixedConvention,
-            const QuantLib::DayCounter& fixedDayCount,
+            const QuantLib::Calendar& calendar, // for both legs
+            QuantLib::Frequency fixedLegFrequency,
+            QuantLib::BusinessDayConvention fixedLegConvention,
+            const QuantLib::DayCounter& fixedLegDayCount,
             const pIborIndex& floatIndex,
-            const YieldTermStructureHandle& discountingCurve = YieldTermStructureHandle()  // exogenous discounting curve - for dual bootstrapping
+            const YieldTermStructureHandle& discountingCurve = YieldTermStructureHandle(),  // exogenous discounting curve - for dual bootstrapping
+            bool endOfMonth = false // for both legs
         ) {
-            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> rateHelper(new QuantLib::SwapRateHelper(QuoteHandle(quote), tenor, fixedCalendar, fixedFrequency, fixedConvention, fixedDayCount, floatIndex, QuoteHandle(), 0 * QuantLib::Days, discountingCurve, settlementDays));
-            rateHelpers.push_back(rateHelper);
-            return rateHelper;
-        }
-        // "indexed" version of AddSwap()
-        QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> AddSwap(
-            const pQuote& quote,
-            const pSwapIndex& swapIndex,
-            const YieldTermStructureHandle& discountingCurve = YieldTermStructureHandle()  // exogenous discounting curve - for dual bootstrapping
-        ) {
-            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> rateHelper(new QuantLib::SwapRateHelper(QuoteHandle(quote), swapIndex, QuantLib::Handle<QuantLib::Quote>(), 0 * QuantLib::Days, discountingCurve));
+            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> rateHelper(
+                new QuantLib::SwapRateHelper(
+                    QuoteHandle(quote),
+                    tenor,
+                    calendar,
+                    fixedLegFrequency,
+                    fixedLegConvention,
+                    fixedLegDayCount,
+                    floatIndex,
+                    QuoteHandle(),
+                    0 * QuantLib::Days,
+                    discountingCurve,
+                    settlementDays,
+                    QuantLib::Pillar::LastRelevantDate,
+                    QuantLib::Date(),
+                    endOfMonth
+                )
+            );
             rateHelpers.push_back(rateHelper);
             return rateHelper;
         }
