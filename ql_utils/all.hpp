@@ -7,3 +7,4 @@
 #include <ql_utils/ParYield.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/parshockzerocurve.hpp>
+#include <ql_utils/instrument.hpp>

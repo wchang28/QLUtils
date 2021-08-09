@@ -2,8 +2,10 @@
 
 #include <string>
 #include <ql/quantlib.hpp>
+#include <ql_utils/types.hpp>
 
 namespace QLUtils {
+    template<typename _Elem = char>
     class BootstrapInstrument {
     public:
         enum ValueType {
@@ -11,7 +13,7 @@ namespace QLUtils {
             Price = 1,
         };
     protected:
-        std::string ticker_;
+        string_t<_Elem> ticker_;
         QuantLib::Period tenor_;
         QuantLib::Date datedDate_;
         ValueType valueType_;
@@ -19,7 +21,7 @@ namespace QLUtils {
         bool use_;
     public:
         BootstrapInstrument(
-            const ValueType valueType,
+            const ValueType& valueType,
             const QuantLib::Period& tenor = QuantLib::Period(),
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) :
@@ -28,10 +30,10 @@ namespace QLUtils {
             datedDate_(datedDate),
             value_(QuantLib::Null < QuantLib::Real >()),
             use_(true) {}
-        const std::string& ticker() const {
+        const string_t<_Elem>& ticker() const {
             return ticker_;
         }
-        std::string& ticker() {
+        string_t<_Elem>& ticker() {
             return ticker_;
         }
         const QuantLib::Period& tenor() const {
@@ -78,12 +80,14 @@ namespace QLUtils {
         }
     };
 
-    class OISSwapIndex : public BootstrapInstrument {
+    template<typename _Elem = char>
+    class OISSwapIndex : public BootstrapInstrument<_Elem> {
     public:
-        OISSwapIndex(const QuantLib::Period& tenor) : BootstrapInstrument(Rate, tenor) {}
+        OISSwapIndex(const QuantLib::Period& tenor) : BootstrapInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, tenor) {}
     };
 
-    class SwapCurveInstrument : public BootstrapInstrument {
+    template<typename _Elem = char>
+    class SwapCurveInstrument : public BootstrapInstrument<_Elem> {
     public:
         enum InstType {
             Deposit = 0,
@@ -95,12 +99,14 @@ namespace QLUtils {
         InstType instType_;
     public:
         SwapCurveInstrument(
-        const ValueType valueType,
-        InstType instType,
-        const QuantLib::Period& tenor = QuantLib::Period(),
-        const QuantLib::Date& datedDate = QuantLib::Date()
-        ) : BootstrapInstrument(valueType, tenor, datedDate),
-            instType_(instType) {}
+            const BootstrapInstrument<_Elem>::ValueType& valueType,
+            const InstType& instType,
+            const QuantLib::Period& tenor = QuantLib::Period(),
+            const QuantLib::Date& datedDate = QuantLib::Date()
+        ) :
+            BootstrapInstrument<_Elem>(valueType, tenor, datedDate),
+            instType_(instType)
+        {}
         const InstType& instType() const {
             return instType_;
         }
@@ -109,7 +115,8 @@ namespace QLUtils {
         }
     };
 
-    class IMMFuture : public SwapCurveInstrument {
+    template<typename _Elem = char>
+    class IMMFuture : public SwapCurveInstrument<_Elem> {
     protected:
         QuantLib::Natural immOrdinal_;
         std::string immTicker_;
@@ -117,12 +124,16 @@ namespace QLUtils {
         static void ensureIMMDate(const QuantLib::Date& immDate) {
             QL_REQUIRE(QuantLib::IMM::isIMMdate(immDate, true), "specified date " << immDate << " is not a main cycle IMM date");
         }
-        static void ensureIMMDateNotExpired(const QuantLib::Date& immDate,
-            const QuantLib::Date& refDate) {
+        static void ensureIMMDateNotExpired(
+            const QuantLib::Date& immDate,
+            const QuantLib::Date& refDate
+        ) {
             QL_REQUIRE(immDate >= refDate, "IMM date " << immDate << " already expired");
         }
-        static QuantLib::Date IMMMainCycleStartDateForOrdinal(QuantLib::Natural iMMOrdinal,
-            const QuantLib::Date& today = QuantLib::Date()) {
+        static QuantLib::Date IMMMainCycleStartDateForOrdinal(
+            QuantLib::Natural iMMOrdinal,
+            const QuantLib::Date& today = QuantLib::Date()
+        ) {
             QL_REQUIRE(iMMOrdinal > 0, "IMM ordinal must be an integer greater than 0");
             QuantLib::Date d = (today == QuantLib::Date() ? QuantLib::Settings::instance().evaluationDate() : today);
             d += 2;
@@ -137,8 +148,10 @@ namespace QLUtils {
             }
             return d;
         }
-        static QuantLib::Natural IMMMainCycleOrdinalForStartDate(const QuantLib::Date& immDate,
-            const QuantLib::Date& today = QuantLib::Date()) {
+        static QuantLib::Natural IMMMainCycleOrdinalForStartDate(
+            const QuantLib::Date& immDate,
+            const QuantLib::Date& today = QuantLib::Date()
+        ) {
             ensureIMMDate(immDate);
             QuantLib::Date d = (today == QuantLib::Date() ? QuantLib::Settings::instance().evaluationDate() : today);
             d += 2;
@@ -154,8 +167,10 @@ namespace QLUtils {
             }
             return ordinal;
         }
-        static QuantLib::Period calculateTenor(const QuantLib::Date& immDate,
-            const QuantLib::Date& today = QuantLib::Date()) {
+        static QuantLib::Period calculateTenor(
+            const QuantLib::Date& immDate,
+            const QuantLib::Date& today = QuantLib::Date()
+        ) {
             ensureIMMDate(immDate);
             QuantLib::Date d = (today == QuantLib::Date() ? QuantLib::Settings::instance().evaluationDate() : today);
             d += 2;
@@ -163,17 +178,19 @@ namespace QLUtils {
             auto days = immDate - d;
             return days * QuantLib::Days;
         }
-        IMMFuture(QuantLib::Natural immOrdinal) : SwapCurveInstrument(Price, Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
+        IMMFuture(QuantLib::Natural immOrdinal) :
+            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
             immOrdinal_(immOrdinal) {
-            datedDate_ = IMMMainCycleStartDateForOrdinal(immOrdinal);
-            tenor_ = calculateTenor(datedDate_);
-            immTicker_ = QuantLib::IMM::code(datedDate_);
+            this->datedDate_ = IMMMainCycleStartDateForOrdinal(immOrdinal);
+            this->tenor_ = calculateTenor(this->datedDate_);
+            this->immTicker_ = QuantLib::IMM::code(this->datedDate_);
         }
-        IMMFuture(const QuantLib::Date& immDate) : SwapCurveInstrument(Price, Future, calculateTenor(immDate), immDate),
+        IMMFuture(const QuantLib::Date& immDate) :
+            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, calculateTenor(immDate), immDate),
             immOrdinal_(IMMMainCycleOrdinalForStartDate(immDate)),
             immTicker_(QuantLib::IMM::code(immDate)) {}
         const QuantLib::Date& immDate() const {
-            return datedDate_;
+            return this->datedDate_;
         }
         const QuantLib::Natural& immOrdinal() const {
             return immOrdinal_;
@@ -183,18 +200,21 @@ namespace QLUtils {
         }
     };
 
-    class CashDepositIndex : public SwapCurveInstrument {
+    template<typename _Elem = char>
+    class CashDepositIndex : public SwapCurveInstrument<_Elem> {
     public:
-        CashDepositIndex(const QuantLib::Period& tenor) : SwapCurveInstrument(Rate, Deposit, tenor) {}
+        CashDepositIndex(const QuantLib::Period& tenor) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Deposit, tenor) {}
     };
 
-    class ForwardRateAgreement : public SwapCurveInstrument {
+    template<typename _Elem = char>
+    class ForwardRateAgreement : public SwapCurveInstrument<_Elem> {
     public:
-        ForwardRateAgreement(const QuantLib::Period& tenor) : SwapCurveInstrument(Rate, FRA, tenor) {}
+        ForwardRateAgreement(const QuantLib::Period& tenor) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::FRA, tenor) {}
     };
 
-    class SwapIndex : public SwapCurveInstrument {
+    template<typename _Elem = char>
+    class SwapIndex : public SwapCurveInstrument<_Elem> {
     public:
-        SwapIndex(const QuantLib::Period& tenor) : SwapCurveInstrument(Rate, Swap, tenor) {}
+        SwapIndex(const QuantLib::Period& tenor) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Swap, tenor) {}
     };
 }
