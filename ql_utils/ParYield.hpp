@@ -42,48 +42,73 @@ namespace QLUtils {
     }
     ;
     // calculate theoretical (spot or forward) bond schedule and settlement date
-    template <QuantLib::Frequency FREQ = QuantLib::Semiannual>
-    class TheoreticalBondSchedule {
+    template <QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual>
+    class TheoreticalBondScheduler {
     protected:
-        QuantLib::Date settlementDate_;
-        QuantLib::Natural settlementDays_;
-        QuantLib::Date maturityDate_;
-        QuantLib::Date startDate_;
-        QuantLib::Schedule schedule_;
-    public:
-        QuantLib::Period tenor;
-        QuantLib::Period settlePeriod;
+        QuantLib::Period timeToMaturity_;    // bond time to maturity from settlement date
+        QuantLib::Period forwardSettlePeriod_;  // forward settle period
+        QuantLib::Date baseReferenceDate_;  // base reference date
 
+        QuantLib::Date settlementDate_; // bond settlement date
+        QuantLib::Natural settlementDays_;  // bond # of days to settle from today
+        QuantLib::Date maturityDate_; // bond maturity date
+        QuantLib::Date startDate_;  // bond starting date
+        bool settleOnCouponPayment_;
+        QuantLib::Schedule schedule_;   // calculated bond schedule
+    public:
         static QuantLib::Frequency frequency() {
-            return FREQ;
+            return COUPON_FREQ;
         }
-        // returns number of months between cashflows
-        static QuantLib::Natural cashflowTenorMonths() {
+        // returns number of months between coupon payments
+        static QuantLib::Natural couponTenorMonths() {
             return 12 / (QuantLib::Natural)frequency();
         }
     protected:
         void initialize() {
             QuantLib::Date today = QuantLib::Settings::instance().evaluationDate();
-            settlementDate_ = today + settlePeriod;
+            auto baseReferenceDate = (baseReferenceDate_ == QuantLib::Date() ? today : baseReferenceDate_);
+            QL_REQUIRE(baseReferenceDate >= today, "base reference date must be greater or equal to today");
+            settlementDate_ = baseReferenceDate + forwardSettlePeriod_;
             settlementDays_ = settlementDate_ - today;
-            maturityDate_ = settlementDate_ + tenor;
+            maturityDate_ = settlementDate_ + timeToMaturity_;
             // calculate theoretical start date of the bond
-            auto cfTenorMonths = cashflowTenorMonths();
+            auto couponMonths = couponTenorMonths();
             auto d = maturityDate_; // starting with the maturity and project backward
             while (d > settlementDate_) {
-                d -= cfTenorMonths * QuantLib::Months;
+                d -= couponMonths * QuantLib::Months;
             }
+            // d <= settlementDate_ at this point
+            settleOnCouponPayment_ = (d == settlementDate_);
             startDate_ = d;
             schedule_ = QuantLib::Schedule(startDate_, maturityDate_, QuantLib::Period(frequency()), QuantLib::NullCalendar(), QuantLib::Unadjusted, QuantLib::Unadjusted, QuantLib::DateGeneration::Backward, false);
         }
     public:
-        TheoreticalBondSchedule(
-            const QuantLib::Period& tenor_,    // tenor of the bonds - time to maturity from settlement
-            const QuantLib::Period& forwardSettlePeriod = QuantLib::Period(0, QuantLib::Days)   // forward settle period
-        ) : tenor(tenor_), settlePeriod(forwardSettlePeriod) {
-            QL_REQUIRE(tenor_.length() > 0, "tenor must be positive in time");
+        TheoreticalBondScheduler(
+            const QuantLib::Period& timeToMaturity,    // bond time to maturity from settlement date
+            const QuantLib::Period& forwardSettlePeriod = QuantLib::Period(0, QuantLib::Days),   // forward settle period
+            const QuantLib::Date& baseReferenceDate = QuantLib::Date()    // base reference date
+        ) :
+            timeToMaturity_(timeToMaturity),
+            forwardSettlePeriod_(forwardSettlePeriod),
+            baseReferenceDate_(baseReferenceDate),
+            settlementDate_(QuantLib::Date()),
+            settlementDays_(QuantLib::Null<QuantLib::Natural>()),
+            maturityDate_(QuantLib::Date()),
+            startDate_(QuantLib::Date()),
+            settleOnCouponPayment_(QuantLib::Null<bool>())
+        {
+            QL_REQUIRE(timeToMaturity.length() > 0, "bond's time to maturity must be positive in time");
             QL_REQUIRE(forwardSettlePeriod.length() >= 0, "forward settle cannot be negative in time");
             initialize();
+        }
+        const QuantLib::Period& timeToMaturity() const {
+            return timeToMaturity_;
+        }
+        const QuantLib::Period& forwardSettlePeriod() const {
+            return forwardSettlePeriod_;
+        }
+        const QuantLib::Date& baseReferenceDate() const {
+            return baseReferenceDate_;
         }
         const QuantLib::Date& settlementDate() const {
             return settlementDate_;
@@ -97,24 +122,35 @@ namespace QLUtils {
         const QuantLib::Date& startDate() const {   // theoretical start date of the bond
             return startDate_;
         }
+        const bool& settleOnCouponPayment() const {
+            return settleOnCouponPayment_;
+        }
         const QuantLib::Schedule& schedule() const {
             return schedule_;
         }
     };
 
-    template <QuantLib::Frequency FREQ = QuantLib::Semiannual, typename TENOR_COUPONED = ParBondTenorCouponedWithCutoffMonths<>>
+    template <QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual, typename TENOR_COUPONED = ParBondTenorCouponedWithCutoffMonths<>>
     class ParYieldHelper {
     protected:
+        typedef TheoreticalBondScheduler<COUPON_FREQ> ParBondScheduler;
         QuantLib::Period tenor_;
         QuantLib::Rate parYield_;
+        QuantLib::Date baseReferenceDate_;  // base reference date
     public:
-        ParYieldHelper(const QuantLib::Period& tenor)
-            : tenor_(tenor),
-            parYield_(QuantLib::Null<QuantLib::Rate>()) {}
+        ParYieldHelper(const QuantLib::Period& tenor) :
+            tenor_(tenor),
+            parYield_(QuantLib::Null<QuantLib::Rate>()),
+            baseReferenceDate_(QuantLib::Date())
+        {}
         const QuantLib::Period& tenor() const { return tenor_; }
-        const QuantLib::Rate& parYield() const { return parYield_; }
+        
         ParYieldHelper& withParYield(const QuantLib::Rate& parYield) {
             parYield_ = parYield;
+            return *this;
+        }
+        ParYieldHelper& withBaseReferenceDate(const QuantLib::Date& baseReferenceDate) {
+            baseReferenceDate_ = baseReferenceDate;
             return *this;
         }
         static bool tenorIsCouponed(const QuantLib::Period& tenor) {
@@ -122,11 +158,11 @@ namespace QLUtils {
             return tenorCouponed(tenor);
         }
         static QuantLib::Frequency frequency() {
-            return TheoreticalBondSchedule<FREQ>::frequency();
+            return ParBondScheduler::frequency();
         }
-        // returns number of months between cashflows
-        static QuantLib::Natural cashflowTenorMonths() {
-            return TheoreticalBondSchedule<FREQ>::cashflowTenorMonths();
+        // returns number of months between coupon payments
+        static QuantLib::Natural couponTenorMonths() {
+            return ParBondScheduler::couponTenorMonths();
         }
         // returns day counter for the par bond calculation
         static QuantLib::DayCounter parBondDayCounter() {
@@ -136,11 +172,11 @@ namespace QLUtils {
         // create spot FixedRateBondHelper for discount curve bootstraping (par yield => zero curve)
         operator QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>() const {
             QL_REQUIRE(parYield_ != QuantLib::Null<QuantLib::Rate>(), "par yield not set");
-            TheoreticalBondSchedule<FREQ> theoreticalBondDef(tenor_); // for theoretical bond settle on the spot
-            auto const& schedule = theoreticalBondDef.schedule();
-            auto const& settlementDate = theoreticalBondDef.settlementDate();
-            auto const& maturityDate = theoreticalBondDef.maturityDate();
-            auto const& settlementDays = theoreticalBondDef.settlementDays();
+            ParBondScheduler parBondSched(tenor_, 0 * QuantLib::Days, baseReferenceDate_); // for theoretical bond settle on the spot
+            auto const& schedule = parBondSched.schedule();
+            auto const& settlementDate = parBondSched.settlementDate();
+            auto const& maturityDate = parBondSched.maturityDate();
+            auto const& settlementDays = parBondSched.settlementDays();
             QuantLib::DayCounter dc = parBondDayCounter();
             QuantLib::Real notional = 100.0;
             QuantLib::Rate coupon = QuantLib::Null<QuantLib::Rate>();
@@ -166,23 +202,37 @@ namespace QLUtils {
         // calculate par yield for the given the discounting term structure (zero curve => par yield)
         static QuantLib::Rate parYield(const QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure>& discountTermStructure, const QuantLib::Period& tenor, const QuantLib::Period& forwardTerm = QuantLib::Period(0, QuantLib::Days)) {
             QL_REQUIRE(discountTermStructure != nullptr, "discount term structure not set");
-            TheoreticalBondSchedule<FREQ> theoreticalBondDef(tenor, forwardTerm);
-            auto const& schedule = theoreticalBondDef.schedule();
-            auto const& settlementDate = theoreticalBondDef.settlementDate();
-            auto const& maturityDate = theoreticalBondDef.maturityDate();
-            auto const& settlementDays = theoreticalBondDef.settlementDays();
+            ParBondScheduler parBondSched(tenor, forwardTerm, discountTermStructure->referenceDate());
+            auto const& schedule = parBondSched.schedule();
+            auto const& settlementDate = parBondSched.settlementDate();
+            auto const& maturityDate = parBondSched.maturityDate();
+            auto const& settlementDays = parBondSched.settlementDays();
             QuantLib::DayCounter dc = parBondDayCounter();
             if (tenorIsCouponed(tenor)) { // couponed bond
-                QuantLib::RelinkableHandle<QuantLib::YieldTermStructure> discountCurve;
-                QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountCurve));
-                discountCurve.linkTo(discountTermStructure);
-                ParCouponSolverFunctor<> f(pricingEngine, settlementDays, schedule, dc);
-                QuantLib::Solver1D<QuantLib::Bisection> solver;
-                QuantLib::Real accuracy = 1.0e-16;
-                QuantLib::Real guess = discountTermStructure->zeroRate(maturityDate, dc, QuantLib::Compounding::Compounded, frequency());
-                solver.setMaxEvaluations(200);
-                QuantLib::Rate parYield = solver.solve(f, accuracy, guess, guess / 10.0);
-                return parYield;
+                auto const& settleOnCouponPaymeny = parBondSched.settleOnCouponPayment();
+                if (settleOnCouponPaymeny) {   // bond's time to maturity is an integer multiple of coupon tenor
+                    QuantLib::Real annuity = 0.0;
+                    QuantLib::DiscountFactor dfLast = 1.0;
+                    for (auto it = schedule.begin() + 1; it != schedule.end(); ++it) {
+                        auto const& cfDate = *it;
+                        dfLast = discountTermStructure->discount(cfDate);
+                        annuity += dfLast;
+                    }
+                    QuantLib::Rate parYield = (1.0 - dfLast) / annuity * (double)frequency();
+                    return parYield;
+                }
+                else {
+                    QuantLib::RelinkableHandle<QuantLib::YieldTermStructure> discountCurve;
+                    QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountCurve));
+                    discountCurve.linkTo(discountTermStructure);
+                    ParCouponSolverFunctor<> f(pricingEngine, settlementDays, schedule, dc);
+                    QuantLib::Solver1D<QuantLib::Bisection> solver;
+                    QuantLib::Real accuracy = 1.0e-16;
+                    QuantLib::Real guess = discountTermStructure->zeroRate(maturityDate, dc, QuantLib::Compounding::Compounded, frequency());
+                    solver.setMaxEvaluations(200);
+                    QuantLib::Rate parYield = solver.solve(f, accuracy, guess, guess / 10.0);
+                    return parYield;
+                }
             }
             else {  // zero coupon bond => no need to use solver
                 auto dfStart = discountTermStructure->discount(settlementDate);
