@@ -8,12 +8,12 @@
 
 namespace QLUtils {
     template <typename I = QuantLib::Linear, QuantLib::Frequency PAR_YIELD_COUPON_FREQ = QuantLib::Semiannual>
-    class ParShockZeroCurve {
+    class ParShockYieldTermStructure {
     protected:
         typedef ParYieldHelper<PAR_YIELD_COUPON_FREQ> ParYieldHelper;
     public:
         // input
-        QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> zeroCurve;    // input zero curve
+        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> yieldTermStructure;    // input yield term structure
         // output
         std::shared_ptr<std::vector<QuantLib::Period>> monthlyTenors;   // monthly tenor
         std::shared_ptr<std::vector<QuantLib::Rate>> monthlyParYields;  // original monthly par yields
@@ -26,8 +26,8 @@ namespace QLUtils {
             const MONTHLY_PAR_SHOCKER& monthlyParShocker,
             const I& interp = I()   // custom interpretor of type I
         ) {
-            auto curveReferenceDate = zeroCurve->referenceDate();
-            auto maxDate = zeroCurve->maxDate();
+            auto curveReferenceDate = yieldTermStructure->referenceDate();
+            auto maxDate = yieldTermStructure->maxDate();
             auto d = curveReferenceDate;
             d += 1 * QuantLib::Months;
             QuantLib::Natural month = 0;
@@ -38,7 +38,7 @@ namespace QLUtils {
             while (d <= maxDate) {
                 QuantLib::Period tenor(++month, QuantLib::Months);
                 monthlyTenors->push_back(tenor);
-                auto parYield = ParYieldHelper::parYield(zeroCurve, tenor); // calculate the original par yield for the tenor
+                auto parYield = ParYieldHelper::parYield(yieldTermStructure, tenor); // calculate the original par yield for the tenor
                 monthlyParYields->push_back(parYield);
                 auto parShock = monthlyParShocker(month);   // get the amount of shock from the rate shocker
                 monthlyParShocks->push_back(parShock);
