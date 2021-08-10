@@ -56,7 +56,7 @@ namespace QLUtils {
         for (auto it = instruments->begin(); it != instruments->end(); ++it) {
             auto const& inst = *it;
             if (inst->use()) {
-                auto quote = QuantLib::ext::make_shared < QuantLib::SimpleQuote >(inst->value());
+                auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(inst->value());
                 this->curveBuilder_->AddOIS(
                     quote,
                     swapTraits_.settlementDays(),
