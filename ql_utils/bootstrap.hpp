@@ -1,7 +1,8 @@
 #pragma once
 
 #include <ql/quantlib.hpp>
-#include <ql_utils/all.hpp>
+#include <ql_utils/PiecewiseCurveBuilder.hpp>
+#include <ql_utils/dateformat.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
