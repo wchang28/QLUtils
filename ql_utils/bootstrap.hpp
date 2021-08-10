@@ -59,12 +59,12 @@ namespace QLUtils {
                 auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(inst->value());
                 this->curveBuilder_->AddOIS(
                     quote,
-                    swapTraits_.settlementDays(),
+                    swapTraits_.settlementDays(inst->tenor()),
                     inst->tenor(),
                     overnightIndex,
-                    swapTraits_.telescopicValueDates(),
-                    swapTraits_.averagingMethod(),
-                    swapTraits_.paymentAdjustment()
+                    swapTraits_.telescopicValueDates(inst->tenor()),
+                    swapTraits_.averagingMethod(inst->tenor()),
+                    swapTraits_.paymentAdjustment(inst->tenor())
                 );
             }
         }
@@ -86,10 +86,10 @@ namespace QLUtils {
             if (inst->use()) {
                 auto const& actual = inst->value();
                 QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(inst->tenor(), overnightIndex)
-                    .withSettlementDays(swapTraits_.settlementDays())
-                    .withTelescopicValueDates(swapTraits_.telescopicValueDates())
-                    .withPaymentAdjustment(swapTraits_.paymentAdjustment())
-                    .withAveragingMethod(swapTraits_.averagingMethod());
+                    .withSettlementDays(swapTraits_.settlementDays(inst->tenor()))
+                    .withTelescopicValueDates(swapTraits_.telescopicValueDates(inst->tenor()))
+                    .withPaymentAdjustment(swapTraits_.paymentAdjustment(inst->tenor()))
+                    .withAveragingMethod(swapTraits_.averagingMethod(inst->tenor()));
                 auto calculated = swap->fairRate();
                 auto startDate = swap->startDate();
                 auto maturityDate = swap->maturityDate();
@@ -136,30 +136,30 @@ namespace QLUtils {
         auto targetIndex = QuantLib::ext::make_shared<TargetIndex>(TargetIndexTenorMonths * QuantLib::Months);
         this->curveBuilder_.reset(new PiecewiseCurveBuilder<QuantLib::ZeroYield, I>());
         for (auto it = instruments->begin(); it != instruments->end(); ++it) {
-            auto const& instrument = *it;
-            if (instrument->use()) {
-                auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(instrument->value());
-                if (instrument->instType() == SwapCurveInstrument<>::Deposit) {
+            auto const& inst = *it;
+            if (inst->use()) {
+                auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(inst->value());
+                if (inst->instType() == SwapCurveInstrument<>::Deposit) {
                     this->curveBuilder_->AddDeposit(quote, targetIndex);
                 }
-                else if (instrument->instType() == SwapCurveInstrument<>::Future) {
-                    this->curveBuilder_->AddFuture(quote, instrument->datedDate(), targetIndex);
+                else if (inst->instType() == SwapCurveInstrument<>::Future) {
+                    this->curveBuilder_->AddFuture(quote, inst->datedDate(), targetIndex);
                 }
-                else if (instrument->instType() == SwapCurveInstrument<>::FRA) {
-                    this->curveBuilder_->AddFRA(quote, instrument->tenor(), targetIndex);
+                else if (inst->instType() == SwapCurveInstrument<>::FRA) {
+                    this->curveBuilder_->AddFRA(quote, inst->tenor(), targetIndex);
                 }
-                else if (instrument->instType() == SwapCurveInstrument<>::Swap) {
+                else if (inst->instType() == SwapCurveInstrument<>::Swap) {
                     this->curveBuilder_->AddSwap(
                         quote,
-                        swapTraits_.settlementDays(),
-                        instrument->tenor(),
-                        swapTraits_.fixingCalendar(),
-                        swapTraits_.fixedLegFrequency(),
-                        swapTraits_.fixedLegConvention(),
-                        swapTraits_.fixedLegDayCount(),
+                        swapTraits_.settlementDays(inst->tenor()),
+                        inst->tenor(),
+                        swapTraits_.fixingCalendar(inst->tenor()),
+                        swapTraits_.fixedLegFrequency(inst->tenor()),
+                        swapTraits_.fixedLegConvention(inst->tenor()),
+                        swapTraits_.fixedLegDayCount(inst->tenor()),
                         targetIndex,
                         discountingCurve,
-                        swapTraits_.endOfMonth()
+                        swapTraits_.endOfMonth(inst->tenor())
                     );
                 }
             }
@@ -213,18 +213,18 @@ namespace QLUtils {
                     QuantLib::SwapRateHelper rateHelper(
                         0.0,
                         inst->tenor,
-                        swapTraits_.fixingCalendar(),
-                        swapTraits_.fixedLegFrequency(),
-                        swapTraits_.fixedLegConvention(),
-                        swapTraits_.fixedLegDayCount(),
+                        swapTraits_.fixingCalendar(inst->tenor()),
+                        swapTraits_.fixedLegFrequency(inst->tenor()),
+                        swapTraits_.fixedLegConvention(inst->tenor()),
+                        swapTraits_.fixedLegDayCount(inst->tenor()),
                         targetIndex,
                         QuantLib::Handle<QuantLib::Quote>(),
                         0 * QuantLib::Days,
                         discountCurve,
-                        swapTraits_.settlementDays(),
+                        swapTraits_.settlementDays(inst->tenor()),
                         QuantLib::Pillar::LastRelevantDate,
                         QuantLib::Date(),
-                        swapTraits_.endOfMonth()
+                        swapTraits_.endOfMonth(inst->tenor())
                     );
                     rateHelper.setTermStructure(&(*estimatingZeroCurve));
                     calculated = rateHelper.impliedQuote();
@@ -233,14 +233,14 @@ namespace QLUtils {
                     */
                     // create a vanilla swap and price it with the discounting curve and the estimating curve
                     QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(inst->tenor(), targetIndex)
-                        .withSettlementDays(swapTraits_.settlementDays())
-                        .withFixedLegCalendar(swapTraits_.fixingCalendar())
-                        .withFixedLegTenor(swapTraits_.fixedLegTenor())
-                        .withFixedLegConvention(swapTraits_.fixedLegConvention())
-                        .withFixedLegDayCount(swapTraits_.fixedLegDayCount())
-                        .withFixedLegEndOfMonth(swapTraits_.endOfMonth())
-                        .withFloatingLegCalendar(swapTraits_.fixingCalendar())
-                        .withFloatingLegEndOfMonth(swapTraits_.endOfMonth())
+                        .withSettlementDays(swapTraits_.settlementDays(inst->tenor()))
+                        .withFixedLegCalendar(swapTraits_.fixingCalendar(inst->tenor()))
+                        .withFixedLegTenor(swapTraits_.fixedLegTenor(inst->tenor()))
+                        .withFixedLegConvention(swapTraits_.fixedLegConvention(inst->tenor()))
+                        .withFixedLegDayCount(swapTraits_.fixedLegDayCount(inst->tenor()))
+                        .withFixedLegEndOfMonth(swapTraits_.endOfMonth(inst->tenor()))
+                        .withFloatingLegCalendar(swapTraits_.fixingCalendar(inst->tenor()))
+                        .withFloatingLegEndOfMonth(swapTraits_.endOfMonth(inst->tenor()))
                         .withDiscountingTermStructure(discountCurve);
                     swap->setPricingEngine(swapPricingEngine);
                     calculated = swap->fairRate();
