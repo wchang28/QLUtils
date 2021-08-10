@@ -8,3 +8,4 @@
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/parshockyieldtermstructure.hpp>
 #include <ql_utils/instrument.hpp>
+#include <ql_utils/bootstrap.hpp>
