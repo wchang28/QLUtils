@@ -1,9 +1,9 @@
 #pragma once
 
-#include <memory>
-#include <vector>
 #include <ql/quantlib.hpp>
 #include <ql_utils/all.hpp>
+#include <memory>
+#include <vector>
 #include <iostream>
 #include <iomanip>
 
@@ -116,16 +116,16 @@ namespace QLUtils {
         template <typename INSTRUMENT>
         using pInstruments = std::shared_ptr<Instruments<INSTRUMENT>>;
 
-          // input
-          pInstruments<SwapCurveInstrument<>> instruments;
-          QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;
+        // input
+        pInstruments<SwapCurveInstrument<>> instruments;
+        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;
 
-          // output
-          QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> estimatingZeroCurve;
+        // output
+        QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> estimatingZeroCurve;
 
-          SwapEstimatingZeroCurveBootstrap() : Bootstrapper<I>() {}
-          void bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp = I());
-          void verify(std::ostream& os);
+        SwapEstimatingZeroCurveBootstrap() : Bootstrapper<I>() {}
+        void bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp = I());
+        void verify(std::ostream& os);
     };
 
     template <typename TargetIndex, QuantLib::Natural TargetIndexTenorMonths, typename SwapTraits, typename I>
