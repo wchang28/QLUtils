@@ -3,33 +3,6 @@
 #include <ql/quantlib.hpp>
 
 namespace QLUtils {
-    // par coupon solver functor for fixed rate couponed bond
-    // given a settlement days, fixed rate bond schedule, accrual day counter, and a bond pricing engine, can we find it's par coupon?
-    template <QuantLib::Natural NOTIONAL = 100>
-    class ParCouponSolverFunctor {
-    public:
-        ParCouponSolverFunctor(QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine, QuantLib::Natural settlementDays, const QuantLib::Schedule& sched, const QuantLib::DayCounter& accrualDayCounter)
-            : pricingEngine_(pricingEngine),
-            settlementDays_(settlementDays),
-            sched_(sched),
-            accrualDayCounter_(accrualDayCounter)
-        {
-            QL_REQUIRE(pricingEngine_ != nullptr, "bond pricing engine not set");
-        }
-        QuantLib::Real operator()(QuantLib::Rate coupon) const {
-            auto notional = (QuantLib::Real)NOTIONAL;
-            QuantLib::FixedRateBond bond(settlementDays_, notional, sched_, std::vector<QuantLib::Rate>(1, coupon), accrualDayCounter_, QuantLib::Unadjusted, notional);
-            bond.setPricingEngine(pricingEngine_);
-            auto targetCleanPrice = notional;    // target clean price at par
-            return bond.cleanPrice() - targetCleanPrice;
-        }
-    private:
-        QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine_;
-        QuantLib::Natural settlementDays_;
-        QuantLib::Schedule sched_;
-        QuantLib::DayCounter accrualDayCounter_;
-    };
-
     // functor that determines whether the given bond tenor is a par couponed bond based on a cutoff months
     template <template<typename> typename COMP = std::greater, QuantLib::Natural COUPON_CUTOFF_MONTHS = 12>
     struct ParBondTenorCouponedWithCutoffMonths {
@@ -39,8 +12,8 @@ namespace QLUtils {
             QuantLib::Period tenorCutoff = COUPON_CUTOFF_MONTHS * QuantLib::Months;
             return compare(tenor, tenorCutoff);
         }
-    }
-    ;
+    };
+
     // calculate theoretical (spot or forward) bond schedule and settlement date
     template <QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual>
     class TheoreticalBondScheduler {
@@ -181,9 +154,10 @@ namespace QLUtils {
             QuantLib::Real notional = 100.0;
             QuantLib::Rate coupon = QuantLib::Null<QuantLib::Rate>();
             QuantLib::Real targetPrice = QuantLib::Null<QuantLib::Real>();    // target price
+            QuantLib::Bond::Price::Type targetPriceType = QuantLib::Bond::Price::Clean;     // target for the clean price. for zero coupon bond, dirty price = clean price because accrued interest is 0 (coupon = 0)
             if (tenorIsCouponed(tenor_)) {   // couponed bond
                 coupon = parYield_;  // for par bond, coupon is par yield
-                targetPrice = notional;  // target the price at par
+                targetPrice = notional;  // target the clean price at par
             }
             else {  // zero coupon bond
                 coupon = 0.0;  // zero coupon bond
@@ -193,7 +167,23 @@ namespace QLUtils {
                 targetPrice = discountFactor * notional; // zero coupon bond is sold at a discount, so this is the target price
             }
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);    // make target price the quote
-            return QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>(new QuantLib::FixedRateBondHelper(QuantLib::Handle<QuantLib::Quote>(quote), settlementDays, notional, schedule, std::vector<QuantLib::Rate>(1, coupon), dc, QuantLib::Unadjusted, notional));
+            return QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>(new QuantLib::FixedRateBondHelper(
+                QuantLib::Handle<QuantLib::Quote>(quote),
+                settlementDays,
+                notional,
+                schedule,
+                std::vector<QuantLib::Rate>(1, coupon),
+                dc,
+                QuantLib::Unadjusted,
+                notional,
+                QuantLib::Date(),
+                QuantLib::Calendar(),
+                QuantLib::Period(),
+                QuantLib::Calendar(),
+                QuantLib::Unadjusted,
+                false,
+                targetPriceType
+            ));
         }
         QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() {
             auto helper = this->operator boost::shared_ptr<QuantLib::FixedRateBondHelper>();
@@ -209,28 +199,39 @@ namespace QLUtils {
             auto const& settlementDays = parBondSched.settlementDays();
             QuantLib::DayCounter dc = parBondDayCounter();
             if (tenorIsCouponed(tenor)) { // couponed bond
-                auto const& settleOnCouponPaymeny = parBondSched.settleOnCouponPayment();
-                if (settleOnCouponPaymeny) {   // bond's time to maturity is an integer multiple of coupon tenor
+                auto const& settleOnCouponPayment = parBondSched.settleOnCouponPayment();
+                if (settleOnCouponPayment) {   // bond's time to maturity is an integer multiple of coupon tenor
+                    // par yield can be solved analytically
                     QuantLib::Real annuity = 0.0;
                     QuantLib::DiscountFactor dfLast = 1.0;
+                    auto dfStart = discountTermStructure->discount(settlementDate);
                     for (auto it = schedule.begin() + 1; it != schedule.end(); ++it) {
                         auto const& cfDate = *it;
-                        dfLast = discountTermStructure->discount(cfDate);
+                        dfLast = discountTermStructure->discount(cfDate)/ dfStart;
                         annuity += dfLast;
                     }
                     QuantLib::Rate parYield = (1.0 - dfLast) / annuity * (double)frequency();
                     return parYield;
                 }
                 else {
+                    // need a solver to solve for par yield
                     QuantLib::RelinkableHandle<QuantLib::YieldTermStructure> discountCurve;
                     QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountCurve));
                     discountCurve.linkTo(discountTermStructure);
-                    ParCouponSolverFunctor<> f(pricingEngine, settlementDays, schedule, dc);
+                    auto accrualDayCounter = dc; 
                     QuantLib::Solver1D<QuantLib::Bisection> solver;
-                    QuantLib::Real accuracy = 1.0e-16;
+                    QuantLib::Real accuracy = 1.0e-18;
                     QuantLib::Real guess = discountTermStructure->zeroRate(maturityDate, dc, QuantLib::Compounding::Compounded, frequency());
-                    solver.setMaxEvaluations(200);
-                    QuantLib::Rate parYield = solver.solve(f, accuracy, guess, guess / 10.0);
+                    solver.setMaxEvaluations(1000);
+                    QuantLib::Rate parYield = solver.solve([&pricingEngine, &settlementDays, &schedule, &accrualDayCounter](const QuantLib::Rate& coupon) -> QuantLib::Real {
+                        // par coupon solver functor for fixed rate couponed bond
+                        // given a settlement days, fixed rate bond schedule, accrual day counter, and a bond pricing engine, can we find it's par coupon?
+                        QuantLib::Real notional = 100.0;
+                        QuantLib::FixedRateBond bond(settlementDays, notional, schedule, std::vector<QuantLib::Rate>(1, coupon), accrualDayCounter, QuantLib::Unadjusted, notional);
+                        bond.setPricingEngine(pricingEngine);
+                        auto targetCleanPrice = notional;    // target clean price at par
+                        return bond.cleanPrice() - targetCleanPrice;
+                    }, accuracy, guess, guess / 10.0);
                     return parYield;
                 }
             }
