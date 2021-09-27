@@ -4,7 +4,7 @@
 
 #ifdef QL_OVERNIGHT_INDEXED_SWAP_INDEX_MISSING_IMPL
 namespace QuantLib {
-	// this class is needed because OvernightIndexedSwapIndex did not implement telescopicValueDates() and averagingMethod()
+	// this class is needed because OvernightIndexedSwapIndex did not implement telescopicValueDates()
     class OvernightIndexedSwapIndexEx : public OvernightIndexedSwapIndex {
     public:
         OvernightIndexedSwapIndexEx(
@@ -17,16 +17,12 @@ namespace QuantLib {
             RateAveraging::Type averagingMethod = RateAveraging::Compound
         ) : OvernightIndexedSwapIndex(familyName, tenor, settlementDays, currency, overnightIndex, telescopicValueDates, averagingMethod)
         {}
-        // missing implementations from QuantLib
+        // missing implementation from QuantLib
         bool telescopicValueDates() const;
-        RateAveraging::Type averagingMethod() const;
     };
-    // missing implementations from QuantLib
+    // missing implementation from QuantLib
     inline bool OvernightIndexedSwapIndexEx::telescopicValueDates() const {
         return telescopicValueDates_;
-    }
-    inline RateAveraging::Type OvernightIndexedSwapIndexEx::averagingMethod() const {
-        return averagingMethod_;
     }
 }
 #endif

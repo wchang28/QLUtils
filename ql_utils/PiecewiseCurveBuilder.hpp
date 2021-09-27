@@ -138,6 +138,7 @@ namespace QLUtils {
             pOvernightIndexedSwapIndex oisSwapIndex,
             const YieldTermStructureHandle& discountingCurve = YieldTermStructureHandle()  // exogenous discounting curve - for dual bootstrapping
         ) {
+            auto underlyingSwap = oisSwapIndex->underlyingSwap(QuantLib::Settings::instance().evaluationDate());
             QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> rateHelper(
                 new QuantLib::OISRateHelper(
                     oisSwapIndex->fixingDays(),
@@ -154,7 +155,7 @@ namespace QLUtils {
                     0.0,
                     QuantLib::Pillar::LastRelevantDate,
                     QuantLib::Date(),
-                    oisSwapIndex->averagingMethod()
+                    underlyingSwap->averagingMethod()
                 )
             );
             rateHelpers.push_back(rateHelper);
