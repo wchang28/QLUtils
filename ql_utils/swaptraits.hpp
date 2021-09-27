@@ -22,7 +22,8 @@ namespace QLUtils {
         }
         QuantLib::RateAveraging::Type averagingMethod(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
-            return swapIndex.averagingMethod();
+            auto underlyingSwap = swapIndex.underlyingSwap(QuantLib::Settings::instance().evaluationDate());
+            return underlyingSwap->averagingMethod();
         }
     };
 
