@@ -161,6 +161,10 @@ namespace QLUtils {
             rateHelpers.push_back(rateHelper);
             return rateHelper;
         }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> AddHelper(const QuantLib::ext::shared_ptr<QuantLib::RateHelper>& rateHelper) {
+            rateHelpers.push_back(rateHelper);
+            return rateHelper;
+        }
         // T = traits, I = interpolation
         QuantLib::ext::shared_ptr<QuantLib::PiecewiseYieldCurve<T, I>> GetCurve(
             const QuantLib::Date& curveReferenceDate,
