@@ -215,7 +215,7 @@ namespace QLUtils {
                 QuantLib::Rate parYield = (1.0 - dfLast) / A;
                 return parYield;
             }
-            else {  // zero coupon bond => no need to use solver
+            else {  // zero coupon bond
                 auto dfStart = discountTermStructure->discount(settlementDate);
                 auto dfEnd = discountTermStructure->discount(maturityDate);
                 auto compound = dfStart / dfEnd;
