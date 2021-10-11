@@ -63,7 +63,7 @@ namespace QLUtils {
             const pIborIndex& iborIndex,
             const pQuote& convexityAdjustment = pQuote()
         ) {
-            QuantLib::ext::shared_ptr<QuantLib::FuturesRateHelper> rateHelper(new QuantLib::FuturesRateHelper(QuoteHandle(quote), IMMDate, iborIndex, QuoteHandle(convexityAdjustment)));
+            QuantLib::ext::shared_ptr<QuantLib::FuturesRateHelper> rateHelper(new QuantLib::FuturesRateHelper(QuoteHandle(quote), IMMDate, QuantLib::Date(), iborIndex->dayCounter(), QuoteHandle(convexityAdjustment)));
             rateHelpers.push_back(rateHelper);
             return rateHelper;
         }
