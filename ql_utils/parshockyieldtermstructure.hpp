@@ -46,21 +46,18 @@ namespace QLUtils {
                 monthlyParYieldsShocked->push_back(shockedParYield);
                 d += 1 * QuantLib::Months;
             };
-            std::vector<QuantLib::ext::shared_ptr<QuantLib::RateHelper>> helpers;
+            PiecewiseCurveBuilder<QuantLib::ZeroYield, I> builder;
             auto it_r = monthlyParYieldsShocked->begin();
             for (auto it = monthlyTenors->begin(); it != monthlyTenors->end(); ++it, ++it_r) {
                 auto const& tenor = *it;
                 auto const& parYieldShocked = *it_r;
-                // get the rate helper
                 QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper(tenor)
                     .withBaseReferenceDate(curveReferenceDate)
                     .withParYield(parYieldShocked);
-                helpers.push_back(helper);
+                builder.AddHelper(helper);
             }
-            QuantLib::DayCounter termStructureDayCounter = QuantLib::Actual365Fixed();
-            QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> discountingTermStructure(new QuantLib::PiecewiseYieldCurve<QuantLib::ZeroYield, I>(curveReferenceDate, helpers, termStructureDayCounter, interp));
-            discountingTermStructure->discount(0);  // trigger the bootstrapping
-            zeroCurveShocked = discountingTermStructure;
+            auto termStructure = builder.GetCurve(curveReferenceDate, QuantLib::Actual365Fixed(), interp);
+            zeroCurveShocked = termStructure;
         }
         void verify(std::ostream& os) {
             os << std::fixed;
@@ -70,7 +67,7 @@ namespace QLUtils {
                 auto const& tenor = *it;
                 auto const& parYieldShockedActual = *it_r;
                 auto parYieldShockedCalculated = ParYieldHelper::parYield(zeroCurveShocked, tenor);
-                os << "tenor=" << tenor;
+                os << tenor;
                 os << "," << "parYieldShockedActual=" << parYieldShockedActual * 100.0;
                 os << "," << "parYieldShockedCalculated=" << parYieldShockedCalculated * 100.0;
                 os << std::endl;
