@@ -198,6 +198,9 @@ namespace QLUtils {
         const std::string& immTicker() const {
             return immTicker_;
         }
+        QuantLib::Date immEndDate() const {
+            return QuantLib::IMM::nextDate(immDate(), true);
+        }
     };
 
     template<typename _Elem = char>
