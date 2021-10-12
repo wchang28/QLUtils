@@ -23,6 +23,11 @@ namespace QLUtils {
             QL_REQUIRE(curveBuilder_ != nullptr, "must perform the bootstrapping first");
             return curveBuilder_->helpers();
         }
+        template<typename INSTRUMENT>
+        void checkInstruments(const std::shared_ptr<std::vector<std::shared_ptr<INSTRUMENT>>>& instruments) const {
+            QL_REQUIRE(instruments != nullptr, "instruments is not set");
+            QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
+        }
     };
 
     // overnight indexed swap bootstrapping
@@ -50,12 +55,10 @@ namespace QLUtils {
 
     template <typename OvernightIndex, typename SwapTraits, typename I>
     void OISZeroCurveBootstrap<OvernightIndex, SwapTraits, I>::bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp) {
-        QL_REQUIRE(instruments != nullptr, "instruments is not set");
-        QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
+        this->checkInstruments(instruments);
         auto overnightIndex = QuantLib::ext::make_shared<OvernightIndex>();
         this->curveBuilder_.reset(new PiecewiseCurveBuilder<QuantLib::ZeroYield, I>());
-        for (auto it = instruments->begin(); it != instruments->end(); ++it) {
-            auto const& inst = *it;
+        for (auto const& inst: *instruments) { // for each instrument
             if (inst->use()) {
                 auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(inst->value());
                 this->curveBuilder_->AddOIS(
@@ -75,6 +78,7 @@ namespace QLUtils {
     // verify the bootstrapping
     template <typename OvernightIndex, typename SwapTraits, typename I>
     void OISZeroCurveBootstrap<OvernightIndex, SwapTraits, I>::verify(std::ostream& os) {
+        this->checkInstruments(instruments);
         os << std::fixed;
         os << std::setprecision(16);
         zeroCurve->enableExtrapolation(true);
@@ -82,8 +86,7 @@ namespace QLUtils {
         QuantLib::RelinkableHandle<QuantLib::YieldTermStructure> estimatingCurve(zeroCurve);
         auto overnightIndex = QuantLib::ext::make_shared<OvernightIndex>(estimatingCurve);
         QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountCurve));
-        for (auto it = instruments->begin(); it != instruments->end(); ++it) {
-            auto const& inst = *it;
+        for (auto const& inst : *instruments) { // for each instrument
             if (inst->use()) {
                 auto const& actual = inst->value();
                 QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(inst->tenor(), overnightIndex)
@@ -94,7 +97,7 @@ namespace QLUtils {
                 auto calculated = swap->fairRate();
                 auto startDate = swap->startDate();
                 auto maturityDate = swap->maturityDate();
-                os << "tenor=" << inst->tenor();
+                os << inst->tenor();
                 os << "," << "ticker=" << inst->ticker();
                 os << "," << "start=" << DateFormat<char>::to_yyyymmdd(startDate, true);
                 os << "," << "maturity=" << DateFormat<char>::to_yyyymmdd(maturityDate, true);
@@ -107,7 +110,7 @@ namespace QLUtils {
 
     // index estimating zero curve bootstrapping
     template <typename TargetIndex, QuantLib::Natural TargetIndexTenorMonths, typename SwapTraits, typename I = QuantLib::Linear>
-    class SwapEstimatingZeroCurveBootstrap : public Bootstrapper<I> {
+    class SwapZeroCurveBootstrap : public Bootstrapper<I> {
     private:
         SwapTraits swapTraits_; // swap traits
     public:
@@ -119,32 +122,34 @@ namespace QLUtils {
 
         // input
         pInstruments<SwapCurveInstrument<>> instruments;
-        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;
+        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;   // this can be nullptr
 
         // output
+        QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> discountZeroCurve;   // this can be nullptr
         QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> estimatingZeroCurve;
 
-        SwapEstimatingZeroCurveBootstrap() : Bootstrapper<I>() {}
+        SwapZeroCurveBootstrap() : Bootstrapper<I>() {}
         void bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp = I());
         void verify(std::ostream& os);
     };
 
     template <typename TargetIndex, QuantLib::Natural TargetIndexTenorMonths, typename SwapTraits, typename I>
-    void SwapEstimatingZeroCurveBootstrap<TargetIndex, TargetIndexTenorMonths, SwapTraits, I>::bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp) {
-        QL_REQUIRE(instruments != nullptr, "instruments is not set");
-        QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
+    void SwapZeroCurveBootstrap<TargetIndex, TargetIndexTenorMonths, SwapTraits, I>::bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp) {
+        this->checkInstruments(instruments);
         QuantLib::Handle<QuantLib::YieldTermStructure> discountingCurve(discountingTermStructure);
         auto targetIndex = QuantLib::ext::make_shared<TargetIndex>(TargetIndexTenorMonths * QuantLib::Months);
         this->curveBuilder_.reset(new PiecewiseCurveBuilder<QuantLib::ZeroYield, I>());
-        for (auto it = instruments->begin(); it != instruments->end(); ++it) {
-            auto const& inst = *it;
+        for (auto const& inst : *instruments) { // for each instrument
             if (inst->use()) {
                 auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(inst->value());
                 if (inst->instType() == SwapCurveInstrument<>::Deposit) {
                     this->curveBuilder_->AddDeposit(quote, targetIndex);
                 }
                 else if (inst->instType() == SwapCurveInstrument<>::Future) {
-                    this->curveBuilder_->AddFuture(quote, inst->datedDate(), targetIndex);
+                    auto future = std::static_pointer_cast<IMMFuture<>>(inst);
+                    auto const& convexityAdj = future->convexityAdj();
+                    auto convexityAdjQuote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(convexityAdj);
+                    this->curveBuilder_->AddFuture(quote, future->immDate(), targetIndex, convexityAdjQuote);
                 }
                 else if (inst->instType() == SwapCurveInstrument<>::FRA) {
                     this->curveBuilder_->AddFRA(quote, inst->tenor(), targetIndex);
@@ -166,21 +171,23 @@ namespace QLUtils {
             }
         }
         estimatingZeroCurve = this->curveBuilder_->GetCurve(curveReferenceDate, QuantLib::Actual365Fixed(), interp);
+        discountZeroCurve = (discountingCurve.empty() ? estimatingZeroCurve : nullptr);
     }
 
     // verify the bootstrapping
     template <typename TargetIndex, QuantLib::Natural TargetIndexTenorMonths, typename SwapTraits, typename I>
-    void SwapEstimatingZeroCurveBootstrap<TargetIndex, TargetIndexTenorMonths, SwapTraits, I>::verify(std::ostream& os) {
+    void SwapZeroCurveBootstrap<TargetIndex, TargetIndexTenorMonths, SwapTraits, I>::verify(std::ostream& os) {
+        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountTS = (discountingTermStructure ? discountingTermStructure : discountZeroCurve);
+        QL_REQUIRE(discountTS != nullptr, "discount term structure cannot be null");
+        QL_REQUIRE(estimatingZeroCurve != nullptr, "estimating zero curve cannot be null");
+        this->checkInstruments(instruments);
         os << std::fixed;
         os << std::setprecision(16);
-        discountingTermStructure->enableExtrapolation(true);
-        estimatingZeroCurve->enableExtrapolation(true);
-        QuantLib::RelinkableHandle<QuantLib::YieldTermStructure> discountCurve(discountingTermStructure);
-        QuantLib::RelinkableHandle<QuantLib::YieldTermStructure> estimatingCurve(estimatingZeroCurve);
+        QuantLib::Handle<QuantLib::YieldTermStructure> discountCurve(discountTS);
+        QuantLib::Handle<QuantLib::YieldTermStructure> estimatingCurve(estimatingZeroCurve);
         QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountCurve));
         auto targetIndex = QuantLib::ext::make_shared<TargetIndex>(TargetIndexTenorMonths * QuantLib::Months, estimatingCurve);
-        for (auto it = instruments->begin(); it != instruments->end(); ++it) { // for each instrument
-            auto const& inst = *it;
+        for (auto const& inst : *instruments) { // for each instrument
             if (inst->use()) {
                 auto const& actual = inst->value();
                 auto valueIsPrice = (inst->valueType() == SwapCurveInstrument<>::Price);
@@ -188,19 +195,22 @@ namespace QLUtils {
                 QuantLib::Date startDate;
                 QuantLib::Date maturityDate;
                 if (inst->instType() == SwapCurveInstrument<>::Deposit && inst->tenor() == TargetIndexTenorMonths * QuantLib::Months) {
-                    QuantLib::DepositRateHelper rateHelper(0.0, targetIndex);
-                    rateHelper.setTermStructure(&(*estimatingZeroCurve));
-                    calculated = rateHelper.impliedQuote();
-                    startDate = rateHelper.earliestDate();
-                    maturityDate = rateHelper.maturityDate();
+                    auto fixingDate = targetIndex->fixingCalendar().adjust(QuantLib::Settings::instance().evaluationDate());
+                    calculated = targetIndex->forecastFixing(fixingDate);
+                    auto valueDate = targetIndex->valueDate(fixingDate);
+                    startDate = valueDate;
+                    maturityDate = targetIndex->maturityDate(valueDate);
                 }
                 else if (inst->instType() == SwapCurveInstrument<>::Future) {
-                    // inst->datedDate() is the IMM date
-                    QuantLib::FuturesRateHelper rateHelper(100.0, inst->datedDate(), targetIndex);
-                    rateHelper.setTermStructure(&(*estimatingZeroCurve));
-                    calculated = rateHelper.impliedQuote();
-                    startDate = rateHelper.earliestDate(); // IMM date
-                    maturityDate = rateHelper.maturityDate();
+                    auto future = std::static_pointer_cast<IMMFuture<>>(inst);
+                    startDate = future->immDate();
+                    maturityDate = future->immEndDate();
+                    auto compounding = estimatingCurve->discount(startDate)/ estimatingCurve->discount(maturityDate);
+                    auto t = targetIndex->dayCounter().yearFraction(startDate, maturityDate);
+                    QuantLib::Rate forwardRate = (compounding - 1.0) / t;
+                    auto const& convexityAdj = future->convexityAdj();
+                    auto futureRate = forwardRate + convexityAdj;
+                    calculated = 100.0 * (1.0 - futureRate);
                 }
                 else if (inst->instType() == SwapCurveInstrument<>::FRA) {
                     QuantLib::FraRateHelper rateHelper(0.0, inst->tenor(), targetIndex);
@@ -210,28 +220,6 @@ namespace QLUtils {
                     maturityDate = rateHelper.maturityDate();
                 }
                 else if (inst->instType() == SwapCurveInstrument<>::Swap) {
-                    /*
-                    QuantLib::SwapRateHelper rateHelper(
-                        0.0,
-                        inst->tenor,
-                        swapTraits_.fixingCalendar(inst->tenor()),
-                        swapTraits_.fixedLegFrequency(inst->tenor()),
-                        swapTraits_.fixedLegConvention(inst->tenor()),
-                        swapTraits_.fixedLegDayCount(inst->tenor()),
-                        targetIndex,
-                        QuantLib::Handle<QuantLib::Quote>(),
-                        0 * QuantLib::Days,
-                        discountCurve,
-                        swapTraits_.settlementDays(inst->tenor()),
-                        QuantLib::Pillar::LastRelevantDate,
-                        QuantLib::Date(),
-                        swapTraits_.endOfMonth(inst->tenor())
-                    );
-                    rateHelper.setTermStructure(&(*estimatingZeroCurve));
-                    calculated = rateHelper.impliedQuote();
-                    startDate = rateHelper.earliestDate();
-                    maturityDate = rateHelper.maturityDate();
-                    */
                     // create a vanilla swap and price it with the discounting curve and the estimating curve
                     QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(inst->tenor(), targetIndex)
                         .withSettlementDays(swapTraits_.settlementDays(inst->tenor()))
@@ -248,7 +236,7 @@ namespace QLUtils {
                     startDate = swap->startDate();
                     maturityDate = swap->maturityDate();
                 }
-                os << "tenor=" << inst->tenor();
+                os << inst->tenor();
                 os << "," << "ticker=" << inst->ticker();
                 os << "," << "start=" << DateFormat<char>::to_yyyymmdd(startDate, true);
                 os << "," << "maturity=" << DateFormat<char>::to_yyyymmdd(maturityDate, true);

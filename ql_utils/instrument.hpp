@@ -120,6 +120,7 @@ namespace QLUtils {
     protected:
         QuantLib::Natural immOrdinal_;
         std::string immTicker_;
+        QuantLib::Rate convexityAdj_;
     public:
         static void ensureIMMDate(const QuantLib::Date& immDate) {
             QL_REQUIRE(QuantLib::IMM::isIMMdate(immDate, true), "specified date " << immDate << " is not a main cycle IMM date");
@@ -180,7 +181,7 @@ namespace QLUtils {
         }
         IMMFuture(QuantLib::Natural immOrdinal) :
             SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
-            immOrdinal_(immOrdinal) {
+            immOrdinal_(immOrdinal), convexityAdj_(0.0) {
             this->datedDate_ = IMMMainCycleStartDateForOrdinal(immOrdinal);
             this->tenor_ = calculateTenor(this->datedDate_);
             this->immTicker_ = QuantLib::IMM::code(this->datedDate_);
@@ -188,7 +189,8 @@ namespace QLUtils {
         IMMFuture(const QuantLib::Date& immDate) :
             SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, calculateTenor(immDate), immDate),
             immOrdinal_(IMMMainCycleOrdinalForStartDate(immDate)),
-            immTicker_(QuantLib::IMM::code(immDate)) {}
+            immTicker_(QuantLib::IMM::code(immDate)),
+            convexityAdj_(0.0){}
         const QuantLib::Date& immDate() const {
             return this->datedDate_;
         }
@@ -197,6 +199,12 @@ namespace QLUtils {
         }
         const std::string& immTicker() const {
             return immTicker_;
+        }
+        const QuantLib::Rate& convexityAdj() const {
+            return convexityAdj_;
+        }
+        QuantLib::Rate& convexityAdj() {
+            return convexityAdj_;
         }
         QuantLib::Date immEndDate() const {
             return QuantLib::IMM::nextDate(immDate(), true);
