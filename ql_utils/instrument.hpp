@@ -97,21 +97,30 @@ namespace QLUtils {
         };
     protected:
         InstType instType_;
+        IborIndexFactory iborIndexFactory_;
     public:
         SwapCurveInstrument(
             const BootstrapInstrument<_Elem>::ValueType& valueType,
             const InstType& instType,
+            const IborIndexFactory& iborIndexFactory,
             const QuantLib::Period& tenor = QuantLib::Period(),
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) :
             BootstrapInstrument<_Elem>(valueType, tenor, datedDate),
-            instType_(instType)
+            instType_(instType),
+            iborIndexFactory_(iborIndexFactory)
         {}
         const InstType& instType() const {
             return instType_;
         }
         InstType& instType() {
             return instType_;
+        }
+        const IborIndexFactory& iborIndexFactory() const {
+            return iborIndexFactory_;
+        }
+        IborIndexFactory& iborIndexFactory() {
+            return iborIndexFactory_;
         }
     };
 
@@ -179,15 +188,15 @@ namespace QLUtils {
             auto days = immDate - d;
             return days * QuantLib::Days;
         }
-        IMMFuture(QuantLib::Natural immOrdinal) :
-            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
+        IMMFuture(QuantLib::Natural immOrdinal, const IborIndexFactory& iborIndexFactory) :
+            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, iborIndexFactory, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
             immOrdinal_(immOrdinal), convexityAdj_(0.0) {
             this->datedDate_ = IMMMainCycleStartDateForOrdinal(immOrdinal);
             this->tenor_ = calculateTenor(this->datedDate_);
             this->immTicker_ = QuantLib::IMM::code(this->datedDate_);
         }
-        IMMFuture(const QuantLib::Date& immDate) :
-            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, calculateTenor(immDate), immDate),
+        IMMFuture(const QuantLib::Date& immDate, const IborIndexFactory& iborIndexFactory) :
+            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, iborIndexFactory, calculateTenor(immDate), immDate),
             immOrdinal_(IMMMainCycleOrdinalForStartDate(immDate)),
             immTicker_(QuantLib::IMM::code(immDate)),
             convexityAdj_(0.0){}
@@ -214,18 +223,18 @@ namespace QLUtils {
     template<typename _Elem = char>
     class CashDepositIndex : public SwapCurveInstrument<_Elem> {
     public:
-        CashDepositIndex(const QuantLib::Period& tenor) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Deposit, tenor) {}
+        CashDepositIndex(const QuantLib::Period& tenor, const IborIndexFactory& iborIndexFactory) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Deposit, iborIndexFactory, tenor) {}
     };
 
     template<typename _Elem = char>
     class ForwardRateAgreement : public SwapCurveInstrument<_Elem> {
     public:
-        ForwardRateAgreement(const QuantLib::Period& tenor) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::FRA, tenor) {}
+        ForwardRateAgreement(const QuantLib::Period& tenor, const IborIndexFactory& iborIndexFactory) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::FRA, iborIndexFactory, tenor) {}
     };
 
     template<typename _Elem = char>
     class SwapIndex : public SwapCurveInstrument<_Elem> {
     public:
-        SwapIndex(const QuantLib::Period& tenor) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Swap, tenor) {}
+        SwapIndex(const QuantLib::Period& tenor, const IborIndexFactory& iborIndexFactory) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Swap, iborIndexFactory, tenor) {}
     };
 }
