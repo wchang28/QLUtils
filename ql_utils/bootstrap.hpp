@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
+#include <ql_utils/instrument.hpp>
 #include <ql_utils/dateformat.hpp>
 #include <memory>
 #include <vector>
@@ -61,7 +62,7 @@ namespace QLUtils {
                     this->curveBuilder_->AddHelper(inst->rateHelper(discountingCurve));
                 }
             }
-            estimatingZeroCurve = this->curveBuilder_->GetCurve(curveReferenceDate, QuantLib::Actual365Fixed(), interp);
+            estimatingZeroCurve = curveBuilder()->GetCurve(curveReferenceDate, QuantLib::Actual365Fixed(), interp);
             discountZeroCurve = (bootstrapMode() == BothCurvesConcurrently ? estimatingZeroCurve : nullptr);
         }
         void verify(std::ostream& os) const {
