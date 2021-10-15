@@ -5,7 +5,6 @@
 #include <ql_utils/types.hpp>
 
 namespace QLUtils {
-    template<typename _Elem = char>
     class BootstrapInstrument {
     public:
         enum ValueType {
@@ -13,7 +12,7 @@ namespace QLUtils {
             Price = 1,
         };
     protected:
-        string_t<_Elem> ticker_;
+        std::string ticker_;
         QuantLib::Period tenor_;
         QuantLib::Date datedDate_;
         ValueType valueType_;
@@ -30,10 +29,10 @@ namespace QLUtils {
             datedDate_(datedDate),
             value_(QuantLib::Null < QuantLib::Real >()),
             use_(true) {}
-        const string_t<_Elem>& ticker() const {
+        const std::string& ticker() const {
             return ticker_;
         }
-        string_t<_Elem>& ticker() {
+        std::string& ticker() {
             return ticker_;
         }
         const QuantLib::Period& tenor() const {
@@ -78,16 +77,117 @@ namespace QLUtils {
         QuantLib::Real& price() {
             return value_;
         }
-    };
+        QuantLib::Handle<QuantLib::Quote> quote() const {
+            QuantLib::Handle<QuantLib::Quote> q(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(value())));
+            return q;
+        }
+        virtual QuantLib::Date startDate() const = 0;
+        virtual QuantLib::Date maturityDate() const = 0;
+        virtual QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const = 0;
+        virtual QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const = 0;
 
-    template<typename _Elem = char>
-    class OISSwapIndex : public BootstrapInstrument<_Elem> {
+        static QuantLib::Rate simpleForwardRate(const QuantLib::Date& start, const QuantLib::Date& end, const QuantLib::DayCounter& dayCounter, const QuantLib::Handle<QuantLib::YieldTermStructure>& h) {
+            auto t = dayCounter.yearFraction(start, end);
+            auto compounding = h->discount(start) / h->discount(end);
+            return (compounding - 1.0) / t;
+        }
+    };
+    class IborIndexInstrument : public BootstrapInstrument {
+    protected:
+        IborIndexFactory iborIndexFactory_;
     public:
-        OISSwapIndex(const QuantLib::Period& tenor) : BootstrapInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, tenor) {}
+        IborIndexInstrument(
+            const IborIndexFactory& iborIndexFactory,
+            const BootstrapInstrument::ValueType& valueType,
+            const QuantLib::Period& tenor = QuantLib::Period(),
+            const QuantLib::Date& datedDate = QuantLib::Date()
+        ) : BootstrapInstrument(valueType, tenor, datedDate), iborIndexFactory_(iborIndexFactory) {}
+        const IborIndexFactory& iborIndexFactory() const {
+            return iborIndexFactory_;
+        }
+        IborIndexFactory& iborIndexFactory() {
+            return iborIndexFactory_;
+        }
+        QuantLib::ext::shared_ptr<QuantLib::IborIndex> iborIndex(const QuantLib::Handle<QuantLib::YieldTermStructure>& h = QuantLib::Handle<QuantLib::YieldTermStructure>()) const {
+            return iborIndexFactory()(h);
+        }
     };
 
-    template<typename _Elem = char>
-    class SwapCurveInstrument : public BootstrapInstrument<_Elem> {
+    template<typename SwapTraits>
+    class OISSwapIndex: public IborIndexInstrument {
+    private:
+        SwapTraits swapTraits_;
+    public:
+        OISSwapIndex(
+            const IborIndexFactory& iborIndexFactory,
+            const QuantLib::Period& tenor
+        ) : IborIndexInstrument(iborIndexFactory, BootstrapInstrument::Rate, tenor) {}
+    private:
+        static QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> castToOvernightIndex(
+            const QuantLib::ext::shared_ptr<QuantLib::IborIndex>& iborIndex
+        ) {
+            return QuantLib::ext::dynamic_pointer_cast<QuantLib::OvernightIndex>(iborIndex);
+        }
+        QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> createSwap(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto overnightIndex = castToOvernightIndex(this->iborIndex(estimatingTermStructure));
+            QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
+                .withSettlementDays(swapTraits_.settlementDays(tenor()))
+                .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
+                .withPaymentAdjustment(swapTraits_.paymentAdjustment(tenor()))
+                .withAveragingMethod(swapTraits_.averagingMethod(tenor()));
+            return swap;
+        }
+        QuantLib::Date startDate() const {
+            return createSwap()->startDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return createSwap()->maturityDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto overnightIndex = castToOvernightIndex(this->iborIndex());
+            QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
+                new QuantLib::OISRateHelper(
+                    swapTraits_.settlementDays(tenor()),
+                    tenor(),
+                    quote(),
+                    overnightIndex,
+                    discounteringTermStructure,   // exogenous discounting curve
+                    swapTraits_.telescopicValueDates(tenor()),
+                    0,
+                    swapTraits_.paymentAdjustment(tenor()),
+                    QuantLib::Annual,
+                    QuantLib::Calendar(),
+                    0 * QuantLib::Days,
+                    0.0,
+                    QuantLib::Pillar::LastRelevantDate,
+                    QuantLib::Date(),
+                    swapTraits_.averagingMethod(tenor())
+                )
+            );
+            return helper;
+        }
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discounteringTermStructure));
+            auto swap = createSwap(estimatingTermStructure);
+            swap->setPricingEngine(swapPricingEngine);
+            auto swapRate = swap->fairRate();
+            return swapRate;
+        }
+    };
+
+    class SwapCurveInstrument : public IborIndexInstrument {
     public:
         enum InstType {
             Deposit = 0,
@@ -97,18 +197,14 @@ namespace QLUtils {
         };
     protected:
         InstType instType_;
-        IborIndexFactory iborIndexFactory_;
     public:
         SwapCurveInstrument(
-            const BootstrapInstrument<_Elem>::ValueType& valueType,
-            const InstType& instType,
             const IborIndexFactory& iborIndexFactory,
+            const BootstrapInstrument::ValueType& valueType,
+            const InstType& instType,
             const QuantLib::Period& tenor = QuantLib::Period(),
             const QuantLib::Date& datedDate = QuantLib::Date()
-        ) :
-            BootstrapInstrument<_Elem>(valueType, tenor, datedDate),
-            instType_(instType),
-            iborIndexFactory_(iborIndexFactory)
+        ) : IborIndexInstrument(iborIndexFactory, valueType, tenor, datedDate), instType_(instType)
         {}
         const InstType& instType() const {
             return instType_;
@@ -116,16 +212,9 @@ namespace QLUtils {
         InstType& instType() {
             return instType_;
         }
-        const IborIndexFactory& iborIndexFactory() const {
-            return iborIndexFactory_;
-        }
-        IborIndexFactory& iborIndexFactory() {
-            return iborIndexFactory_;
-        }
     };
 
-    template<typename _Elem = char>
-    class IMMFuture : public SwapCurveInstrument<_Elem> {
+    class IMMFuture : public SwapCurveInstrument {
     protected:
         QuantLib::Natural immOrdinal_;
         std::string immTicker_;
@@ -188,15 +277,15 @@ namespace QLUtils {
             auto days = immDate - d;
             return days * QuantLib::Days;
         }
-        IMMFuture(QuantLib::Natural immOrdinal, const IborIndexFactory& iborIndexFactory) :
-            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, iborIndexFactory, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
+        IMMFuture(const IborIndexFactory& iborIndexFactory, QuantLib::Natural immOrdinal) :
+            SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Price, SwapCurveInstrument::Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
             immOrdinal_(immOrdinal), convexityAdj_(0.0) {
             this->datedDate_ = IMMMainCycleStartDateForOrdinal(immOrdinal);
             this->tenor_ = calculateTenor(this->datedDate_);
             this->immTicker_ = QuantLib::IMM::code(this->datedDate_);
         }
-        IMMFuture(const QuantLib::Date& immDate, const IborIndexFactory& iborIndexFactory) :
-            SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Price, SwapCurveInstrument<_Elem>::Future, iborIndexFactory, calculateTenor(immDate), immDate),
+        IMMFuture(const IborIndexFactory& iborIndexFactory, const QuantLib::Date& immDate) :
+            SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Price, SwapCurveInstrument::Future, calculateTenor(immDate), immDate),
             immOrdinal_(IMMMainCycleOrdinalForStartDate(immDate)),
             immTicker_(QuantLib::IMM::code(immDate)),
             convexityAdj_(0.0){}
@@ -218,23 +307,159 @@ namespace QLUtils {
         QuantLib::Date immEndDate() const {
             return QuantLib::IMM::nextDate(immDate(), true);
         }
+        QuantLib::Date startDate() const {
+            return immDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return immEndDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto iborIndex = this->iborIndex();
+            QuantLib::Handle<QuantLib::Quote> convAdjQuote(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(convexityAdj())));
+            QuantLib::ext::shared_ptr<QuantLib::FuturesRateHelper> helper(
+                new QuantLib::FuturesRateHelper(
+                    quote(),
+                    immDate(),
+                    QuantLib::Date(),
+                    iborIndex->dayCounter(),
+                    convAdjQuote
+                )
+            );
+            return helper;
+        }
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto iborIndex = this->iborIndex();
+            auto forwardRate = this->simpleForwardRate(immDate(), immEndDate(), iborIndex->dayCounter(), estimatingTermStructure);
+            auto const& convAdj = convexityAdj();
+            auto futureRate = forwardRate + convAdj;
+            return 100.0 * (1.0 - futureRate);
+        }
     };
 
-    template<typename _Elem = char>
-    class CashDepositIndex : public SwapCurveInstrument<_Elem> {
+    class CashDepositIndex : public SwapCurveInstrument {
     public:
-        CashDepositIndex(const QuantLib::Period& tenor, const IborIndexFactory& iborIndexFactory) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Deposit, iborIndexFactory, tenor) {}
+        CashDepositIndex(
+            const IborIndexFactory& iborIndexFactory,
+            const QuantLib::Period& tenor
+        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::Deposit, tenor) {}
+    private:
+        std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter> getValueMaturityDates() const {
+            auto iborIndex = this->iborIndex();
+            auto fixingDate = iborIndex->fixingCalendar().adjust(QuantLib::Settings::instance().evaluationDate());
+            auto valueDate = iborIndex->valueDate(fixingDate);
+            auto maturityDate = iborIndex->maturityDate(valueDate);
+            return std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter>(valueDate, maturityDate, iborIndex->dayCounter());
+        }
+    public:
+        QuantLib::Date startDate() const {
+            return std::get<0>(getValueMaturityDates());
+        }
+        QuantLib::Date maturityDate() const {
+            return std::get<1>(getValueMaturityDates());
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto iborIndex = this->iborIndex();
+            QuantLib::ext::shared_ptr<QuantLib::DepositRateHelper> helper(
+                new QuantLib::DepositRateHelper(
+                    quote(),
+                    iborIndex
+                )
+            );
+            return helper;
+        }
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto result = getValueMaturityDates();
+            auto const& start = std::get<0>(result);
+            auto const& end = std::get<1>(result);
+            auto const& dayCounter = std::get<2>(result);
+            auto rate = this->simpleForwardRate(start, end, dayCounter, estimatingTermStructure);
+            return rate;
+        }
     };
-
-    template<typename _Elem = char>
+    /* TODO:
     class ForwardRateAgreement : public SwapCurveInstrument<_Elem> {
     public:
-        ForwardRateAgreement(const QuantLib::Period& tenor, const IborIndexFactory& iborIndexFactory) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::FRA, iborIndexFactory, tenor) {}
+        ForwardRateAgreement(const IborIndexFactory& iborIndexFactory, const QuantLib::Period& tenor) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::FRA, tenor) {}
+        QuantLib::Date startDate() const {
+            return immDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return immEndDate();
+        }
     };
+    */
 
-    template<typename _Elem = char>
-    class SwapIndex : public SwapCurveInstrument<_Elem> {
+    template<typename SwapTraits>
+    class SwapIndex : public SwapCurveInstrument {
+    private:
+        SwapTraits swapTraits_;
     public:
-        SwapIndex(const QuantLib::Period& tenor, const IborIndexFactory& iborIndexFactory) : SwapCurveInstrument<_Elem>(BootstrapInstrument<_Elem>::Rate, SwapCurveInstrument<_Elem>::Swap, iborIndexFactory, tenor) {}
+        SwapIndex(
+            const IborIndexFactory& iborIndexFactory,
+            const QuantLib::Period& tenor
+        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::Swap, tenor) {}
+    private:
+        QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> createSwap(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto iborIndex = this->iborIndex(estimatingTermStructure);
+            QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
+                .withSettlementDays(swapTraits_.settlementDays(tenor()))
+                .withFixedLegCalendar(swapTraits_.fixingCalendar(tenor()))
+                .withFixedLegTenor(swapTraits_.fixedLegTenor(tenor()))
+                .withFixedLegConvention(swapTraits_.fixedLegConvention(tenor()))
+                .withFixedLegDayCount(swapTraits_.fixedLegDayCount(tenor()))
+                .withFixedLegEndOfMonth(swapTraits_.endOfMonth(tenor()))
+                .withFloatingLegCalendar(swapTraits_.fixingCalendar(tenor()))
+                .withFloatingLegEndOfMonth(swapTraits_.endOfMonth(tenor()));
+            return swap;
+        }
+        QuantLib::Date startDate() const {
+            return createSwap()->startDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return createSwap()->maturityDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto iborIndex = this->iborIndex();
+            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
+                new QuantLib::SwapRateHelper(
+                    quote(),
+                    tenor(),
+                    swapTraits_.fixingCalendar(tenor()),
+                    swapTraits_.fixedLegFrequency(tenor()),
+                    swapTraits_.fixedLegConvention(tenor()),
+                    swapTraits_.fixedLegDayCount(tenor()),
+                    iborIndex,
+                    QuantLib::Handle<QuantLib::Quote>(),
+                    0 * QuantLib::Days,
+                    discounteringTermStructure,
+                    swapTraits_.settlementDays(tenor()),
+                    QuantLib::Pillar::LastRelevantDate,
+                    QuantLib::Date(),
+                    swapTraits_.endOfMonth(tenor())
+                )
+            );
+            return helper;
+        }
+        QuantLib::Real impliedQuote(const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure, const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()) const {
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discounteringTermStructure));
+            auto swap = createSwap(estimatingTermStructure);
+            swap->setPricingEngine(swapPricingEngine);
+            auto swapRate = swap->fairRate();
+            return swapRate;
+        }
     };
 }
