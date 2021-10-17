@@ -97,6 +97,54 @@ namespace QLUtils {
             return (compounding - 1.0) / t;
         }
     };
+
+    template <QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual>
+    class ParRate : public BootstrapInstrument {
+    private:
+        QuantLib::Date baseReferenceDate_;
+    public:
+        ParRate(
+            const QuantLib::Period& tenor,
+            const QuantLib::Date& baseReferenceDate
+        ): BootstrapInstrument(BootstrapInstrument::Rate, tenor), baseReferenceDate_(baseReferenceDate) {}
+    public:
+        QuantLib::Date& baseReferenceDate() {
+            return baseReferenceDate_;
+        }
+        const QuantLib::Date& baseReferenceDate() const {
+            return baseReferenceDate_;
+        }
+    private:
+        QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() const {
+            return ParYieldHelper<COUPON_FREQ>(tenor())
+                .withParYield(rate())
+                .withBaseReferenceDate(baseReferenceDate())
+                .parBond();
+        }
+    public:
+        QuantLib::Date startDate() const {
+            return parBond()->settlementDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return parBond()->maturityDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper<COUPON_FREQ>(tenor())
+                .withParYield(rate())
+                .withBaseReferenceDate(baseReferenceDate());
+            return helper;
+        };
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            QL_ASSERT(discounteringTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discounteringTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
+            return ParYieldHelper<COUPON_FREQ>::parYield(discounteringTermStructure.currentLink(), tenor());
+        }
+    };
+
     class IborIndexInstrument : public BootstrapInstrument {
     protected:
         IborIndexFactory iborIndexFactory_;

@@ -188,7 +188,7 @@ namespace QLUtils {
             ));
         }
         QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() {
-            auto helper = this->operator boost::shared_ptr<QuantLib::FixedRateBondHelper>();
+            auto helper = this->operator QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>();
             return helper->bond();
         }
         // calculate par yield for the given the discounting term structure (zero curve => par yield)

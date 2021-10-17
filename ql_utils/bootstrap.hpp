@@ -4,6 +4,7 @@
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/dateformat.hpp>
+#include <ql_utils/types.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -11,7 +12,7 @@
 
 namespace QLUtils {
     template <typename I = QuantLib::Linear>
-    class ZeroCurvesBootstrap {
+    class ZeroCurvesBootstrap : public Verifiable {
     protected:
         std::shared_ptr<PiecewiseCurveBuilder<QuantLib::ZeroYield, I>> curveBuilder_;
     public:
