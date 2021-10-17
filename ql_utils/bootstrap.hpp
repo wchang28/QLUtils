@@ -53,9 +53,17 @@ namespace QLUtils {
             discountZeroCurve = nullptr;
             estimatingZeroCurve = nullptr;
         }
-        void bootstrap(const QuantLib::Date& curveReferenceDate, const I& interp = I()) {
+        void bootstrap(
+            const QuantLib::Date& curveReferenceDate,
+            const QuantLib::DayCounter& dayCounter = QuantLib::Actual365Fixed(),
+            const I& interp = I()
+        ) {
             clearOutputs();
             checkInstruments();
+            if (bootstrapMode() == EstimatingCurveOnly) {
+                auto expected = discountingTermStructure->referenceDate();
+                QL_REQUIRE(curveReferenceDate == expected, "curve ref. date (" << DateFormat<char>::to_yyyymmdd(curveReferenceDate, true)  << ") is not what's expected ("<< expected << ")");
+            }
             QuantLib::Handle<QuantLib::YieldTermStructure> discountingCurve(discountingTermStructure);
             curveBuilder().reset(new PiecewiseCurveBuilder<QuantLib::ZeroYield, I>());
             for (auto const& inst : *instruments) { // for each instrument
@@ -63,16 +71,16 @@ namespace QLUtils {
                     this->curveBuilder_->AddHelper(inst->rateHelper(discountingCurve));
                 }
             }
-            estimatingZeroCurve = curveBuilder()->GetCurve(curveReferenceDate, QuantLib::Actual365Fixed(), interp);
+            estimatingZeroCurve = curveBuilder()->GetCurve(curveReferenceDate, dayCounter, interp);
             discountZeroCurve = (bootstrapMode() == BothCurvesConcurrently ? estimatingZeroCurve : nullptr);
         }
-        void verify(std::ostream& os) const {
+        void verify(std::ostream& os, std::streamsize precision = 16) const {
             QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountTS = verificationDiscountTermStructure();
             QL_REQUIRE(discountTS != nullptr, "discount term structure cannot be null");
             QL_REQUIRE(estimatingZeroCurve != nullptr, "estimating zero curve cannot be null");
             checkInstruments();
             os << std::fixed;
-            os << std::setprecision(16);
+            os << std::setprecision(precision);
             QuantLib::Handle<QuantLib::YieldTermStructure> discountCurve(discountTS);
             QuantLib::Handle<QuantLib::YieldTermStructure> estimatingCurve(estimatingZeroCurve);
             for (auto const& inst : *instruments) { // for each instrument

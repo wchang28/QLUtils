@@ -11,7 +11,7 @@ namespace QLUtils {
     template<typename _Elem> using ostringstream_t = std::basic_ostringstream<_Elem>;
 
     struct Verifiable {
-        virtual void verify(std::ostream& os) const = 0;
+        virtual void verify(std::ostream& os, std::streamsize precision = 16) const = 0;
     };
     using IborIndexFactory = std::function<QuantLib::ext::shared_ptr<QuantLib::IborIndex>(const QuantLib::Handle<QuantLib::YieldTermStructure>&)>;
 }

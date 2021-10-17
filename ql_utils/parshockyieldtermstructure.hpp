@@ -39,6 +39,7 @@ namespace QLUtils {
         template <typename MONTHLY_PAR_SHOCKER>
         void shock(
             const MONTHLY_PAR_SHOCKER& monthlyParShocker,
+            const QuantLib::DayCounter& dayCounter = QuantLib::Actual365Fixed(),
             const I& interp = I()   // custom interpretor of type I
         ) {
             clearOutputs();
@@ -67,14 +68,14 @@ namespace QLUtils {
             };
             ZeroCurvesBootstrap<I> bootstrap;
             bootstrap.instruments = shockedParRateQuotes;
-            bootstrap.bootstrap(curveReferenceDate, interp);
+            bootstrap.bootstrap(curveReferenceDate, dayCounter, interp);
             zeroCurveShocked = bootstrap.discountZeroCurve;
         }
-        void verify(std::ostream& os) const {
+        void verify(std::ostream& os, std::streamsize precision = 16) const {
             QL_REQUIRE(zeroCurveShocked != nullptr, "shocked zero curve cannot be null");
             checkInstruments();
             os << std::fixed;
-            os << std::setprecision(16);
+            os << std::setprecision(precision);
             QuantLib::Handle<QuantLib::YieldTermStructure> discountCurve(zeroCurveShocked);
             QuantLib::Handle<QuantLib::YieldTermStructure> estimatingCurve(zeroCurveShocked);
             for (auto const& inst : *shockedParRateQuotes) {
