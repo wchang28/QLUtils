@@ -106,12 +106,12 @@ namespace QLUtils {
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) : BootstrapInstrument(BootstrapInstrument::Rate, tenor, datedDate) {}
     protected:
-        virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixRateBondHelper() const = 0;
+        virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
         virtual QuantLib::Rate impliedParRate(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
         ) const = 0;
         QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() const {
-            return fixRateBondHelper()->bond();
+            return fixedRateBondHelper()->bond();
         }
     public:
         const QuantLib::Rate& parRate() const {
@@ -129,7 +129,7 @@ namespace QLUtils {
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            return fixRateBondHelper();
+            return fixedRateBondHelper();
         };
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
@@ -156,7 +156,7 @@ namespace QLUtils {
             return baseReferenceDate_;
         }
     protected:
-        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixRateBondHelper() const {
+        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper<COUPON_FREQ>(tenor())
                 .withParYield(parRate())
                 .withBaseReferenceDate(baseReferenceDate());
@@ -310,7 +310,7 @@ namespace QLUtils {
             auto df = discounteringTermStructure->discount(d2) / discounteringTermStructure->discount(d1);
             return df;
         }
-        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixRateBondHelper() const {
+        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto targetPrice = discountFactorFromYield(yield()) * this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
             BondSechdulerWithoutIssueDate scheduler(this->settlementDays(), this->settlementCalendar(), referenceCouponFrequency(), false);
@@ -423,7 +423,7 @@ namespace QLUtils {
             return *this;
         }
     protected:
-        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixRateBondHelper() const {
+        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto schedule = bondSchedule();
             auto targetPrice = this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
