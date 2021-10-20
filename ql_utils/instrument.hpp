@@ -167,7 +167,7 @@ namespace QLUtils {
         ) const {
             QL_ASSERT(discounteringTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discounteringTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
             return ParYieldHelper<COUPON_FREQ>::parYield(discounteringTermStructure.currentLink(), tenor());
-        };
+        }
     };
 
     // SecurityTraits
@@ -189,8 +189,15 @@ namespace QLUtils {
             const ParSecurityType& securityType,
             const QuantLib::Period& tenor,
              const QuantLib::Date& bondMaturityDate = QuantLib::Date()
-        ) : ParInstrument(tenor, bondMaturityDate), securityType_(securityType) {}
+        ) : ParInstrument(tenor, bondMaturityDate), securityType_(securityType) {
+            if (bondMaturityDate == QuantLib::Date()) {
+                datedDate() = settlementDate() + tenor;
+            }
+        }
         const QuantLib::Date& bondMaturityDate() const {
+            return datedDate();
+        }
+        QuantLib::Date& bondMaturityDate() {
             return datedDate();
         }
         QuantLib::Calendar settlementCalendar() const {
@@ -291,17 +298,19 @@ namespace QLUtils {
             return (1.0 - discountFactor)/t;
         }
         ////////////////////////////////////////////////////////////////////////////////////////////////
+        // set the yield by discount factor
         ZeroCouponBill<ZeroCouponBillTraits>& withDiscountFactor(QuantLib::DiscountFactor discountFactor) {
             yield() = yieldFromDiscountFactor(discountFactor);
             return *this;
         }
+        // set the yield by price
         ZeroCouponBill<ZeroCouponBillTraits>& withPrice(QuantLib::Real price) {
             return withDiscountFactor(price / this->parNotional());
         }
+        // set the yield by discount rate
         ZeroCouponBill<ZeroCouponBillTraits>& withDiscountRate(QuantLib::Rate discountRate) {
             return withDiscountFactor(discountFactorFromDiscountRate(discountRate));
         }
-    protected:
         QuantLib::DiscountFactor impliedDiscountFactor(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
         ) const {
@@ -310,6 +319,19 @@ namespace QLUtils {
             auto df = discounteringTermStructure->discount(d2) / discounteringTermStructure->discount(d1);
             return df;
         }
+        QuantLib::DiscountFactor impliedPrice(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+        ) const {
+            auto df = impliedDiscountFactor(discounteringTermStructure);
+            return df * this->parNotional();
+        }
+        QuantLib::Rate impliedDiscountRate(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+        ) const {
+            auto df = impliedDiscountFactor(discounteringTermStructure);
+            return discountRateFromDiscountFactor(df);
+        }
+    protected:
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto targetPrice = discountFactorFromYield(yield()) * this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
@@ -331,19 +353,6 @@ namespace QLUtils {
         ) const {
             auto df = impliedDiscountFactor(discounteringTermStructure);
             return yieldFromDiscountFactor(df);
-        };
-    public:
-        QuantLib::DiscountFactor impliedPrice(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
-        ) const {
-            auto df = impliedDiscountFactor(discounteringTermStructure);
-            return df * this->parNotional();
-        }
-        QuantLib::Rate impliedDiscountRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
-        ) const {
-            auto df = impliedDiscountFactor(discounteringTermStructure);
-            return discountRateFromDiscountFactor(df);
         }
     };
 
@@ -363,9 +372,7 @@ namespace QLUtils {
         ParBond(
             const QuantLib::Period& tenor,
             const QuantLib::Date& bondMaturityDate = QuantLib::Date()
-        ) : BaseType(BaseType::CouponedBond, tenor, bondMaturityDate) {
-            // TODO: calculate a bondMaturityDate here
-        }
+        ) : BaseType(BaseType::CouponedBond, tenor, bondMaturityDate) {}
         QuantLib::DayCounter accruedDayCounter() const {
             return bondTraits_.accruedDayCounter(this->tenor());
         }
@@ -408,21 +415,50 @@ namespace QLUtils {
                     this->parNotional()
                 ));
         }
-    protected:
-        QuantLib::Rate bondYield(
-            const std::shared_ptr<QuantLib::FixedRateBond>& bond,
-            QuantLib::Real cleanPrice
-        ) const {
-            auto yield = bond->yield(cleanPrice, accruedDayCounter(), QuantLib::Compounded, this->settlementDate()); // TODO:
-            return yield;
-        }
-    public:
+        // set the par rate by a bond's clean price and it's coupon
         ParBond<BondTraits>& withBondCleanPrice(QuantLib::Rate bondCoupon, QuantLib::Real cleanPrice) {
             auto bond = makeFixedRateBond(bondCoupon);
             this->parRate() = bondYield(bond, cleanPrice);
             return *this;
         }
+        std::pair<QuantLib::Real, QuantLib::Rate> impliedBondCleanPriceAndYield(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure,
+            QuantLib::Rate bondCoupon
+        ) const {
+            auto bond = makeFixedRateBond(bondCoupon);
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discounteringTermStructure));
+            bond->setPricingEngine(pricingEngine);
+            auto cleanPrice = bond->cleanPrice();
+            auto yield = bondYield(bond, cleanPrice);
+            return std::pair<QuantLib::Real, QuantLib::Rate>(cleanPrice, yield);
+        }
     protected:
+        static QuantLib::Real solverAccuracy() {
+            return 1.0e-16;
+        }
+        static QuantLib::Real solverQuess() {
+            return 0.05;
+        }
+        static QuantLib::Size solverMaxIterations() {
+            return 300;
+        }
+        QuantLib::Rate bondYield(
+            const std::shared_ptr<QuantLib::FixedRateBond>& bond,
+            QuantLib::Real cleanPrice
+        ) const {
+            auto yield = bond->yield(
+                cleanPrice,
+                accruedDayCounter(),
+                QuantLib::Compounded,
+                couponFrequency(),
+                this->settlementDate(),
+                solverAccuracy(),
+                solverMaxIterations(),
+                solverQuess(),
+                QuantLib::Bond::Price::Clean
+            );
+            return yield;
+        }
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto schedule = bondSchedule();
             auto targetPrice = this->parNotional();
@@ -442,10 +478,10 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
         ) const {
             QuantLib::Brent solver;
-            QuantLib::Real accuracy = 1.0e-12;
-            QuantLib::Rate guess = 0.05;
-            QuantLib::Rate step = 0.01;
-            solver.setMaxEvaluations(500);  // TODO:
+            QuantLib::Real accuracy = solverAccuracy();
+            QuantLib::Rate guess = solverQuess();
+            QuantLib::Rate step = guess/10.0;
+            solver.setMaxEvaluations(solverMaxIterations());
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discounteringTermStructure));
             auto const& me = *this;
             auto parRate = solver.solve([&pricingEngine, &me](const QuantLib::Rate& coupon) -> QuantLib::Real {
@@ -454,18 +490,6 @@ namespace QLUtils {
                 return bond->cleanPrice() - me.parNotional();
             }, accuracy, guess, step);
             return parRate;
-        };
-    public:
-        std::pair<QuantLib::Real, QuantLib::Rate> impliedBondCleanPriceAndYield(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure,
-            QuantLib::Rate bondCoupon
-        ) const {
-            auto bond = makeFixedRateBond(bondCoupon);
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discounteringTermStructure));
-            bond->setPricingEngine(pricingEngine);
-            auto cleanPrice = bond->cleanPrice();
-            auto yield = bondYield(bond, cleanPrice);
-            return std::pair<QuantLib::Real, QuantLib::Rate>(cleanPrice, yield);
         }
     };
 
