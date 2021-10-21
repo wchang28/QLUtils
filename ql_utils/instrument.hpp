@@ -107,8 +107,9 @@ namespace QLUtils {
     // scheduleCalendar(tenor)
     // convention(tenor)
     // terminationDateConvention(tenor)
+    // parYieldSplineDayCounter(tenor)
     template <typename BondTraits>
-    class CouponedBond : public BootstrapInstrument {
+    class CouponedBond : public BootstrapInstrument, public ParYieldTermStructInstrument {
     private:
         typename BondTraits::SecurityTraits securityTraits_;
         BondTraits bondTraits_;
@@ -163,6 +164,9 @@ namespace QLUtils {
         }
         QuantLib::BusinessDayConvention terminationDateConvention() const {
             return bondTraits_.terminationDateConvention(tenor());
+        }
+        QuantLib::DayCounter parYieldSplineDayCounter() const {
+            return bondTraits_.parYieldSplineDayCounter(this->tenor());
         }
         const QuantLib::Real& cleanPrice() const {
             return price();
@@ -219,6 +223,12 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             return impliedCleanPrice(discountingTermStructure);
+        }
+        QuantLib::Rate parYield() const {
+            return yield();
+        }
+        QuantLib::Time parTerm() const {
+            return parYieldSplineDayCounter().yearFraction(settlementDate(), bondMaturityDate());
         }
     protected:
         static QuantLib::Real solverAccuracy() {
@@ -283,7 +293,7 @@ namespace QLUtils {
 
     // base class for all par instruments
     // par instrument is a for rate-based (not price-based) bootstrap bacause the price is anchored at 100 (par)
-    class ParInstrument : public BootstrapInstrument {
+    class ParInstrument : public BootstrapInstrument, public ParYieldTermStructInstrument {
     public:
         ParInstrument(
             const QuantLib::Period& tenor,
@@ -298,6 +308,7 @@ namespace QLUtils {
             return fixedRateBondHelper()->bond();
         }
     public:
+        virtual QuantLib::DayCounter parYieldSplineDayCounter() const = 0;
         const QuantLib::Rate& parRate() const {
             return rate();
         }
@@ -325,11 +336,18 @@ namespace QLUtils {
         ) const {
             return impliedParRate(discountingTermStructure);
         }
+        QuantLib::Rate parYield() const {
+            return parRate();
+        }
+        QuantLib::Time parTerm() const {
+            return parYieldSplineDayCounter().yearFraction(parBond()->settlementDate(), parBond()->maturityDate());
+        }
     };
 
     template <QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual>
     class ParRate : public ParInstrument {
     private:
+        using ParYieldHelper = ParYieldHelper<COUPON_FREQ>;
         QuantLib::Date baseReferenceDate_;
     public:
         ParRate(
@@ -342,9 +360,12 @@ namespace QLUtils {
         const QuantLib::Date& baseReferenceDate() const {
             return baseReferenceDate_;
         }
+        QuantLib::DayCounter parYieldSplineDayCounter() const {
+            return ParYieldHelper::parBondDayCounter();
+        }
     protected:
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
-            QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper<COUPON_FREQ>(tenor())
+            QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper(tenor())
                 .withParYield(parRate())
                 .withBaseReferenceDate(baseReferenceDate());
             return helper;
@@ -353,7 +374,7 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
             QL_ASSERT(discountingTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discountingTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
-            return ParYieldHelper<COUPON_FREQ>::parYield(discountingTermStructure.currentLink(), tenor());
+            return ParYieldHelper::parYield(discountingTermStructure.currentLink(), tenor());
         }
     };
 
@@ -412,6 +433,7 @@ namespace QLUtils {
     // dayCounter(tenor)
     // referenceCouponFrequency(tenor)
     // discountRateDayCounter(tenor)
+    // parYieldSplineDayCounter(tenor)
     template <typename ZeroCouponBillTraits>
     class ZeroCouponBill : public ParBondSecurity<typename ZeroCouponBillTraits::SecurityTraits> {
     private:
@@ -433,6 +455,9 @@ namespace QLUtils {
         }
         QuantLib::Time referenceCouponInterval() const {
             return 1.0 / referenceCouponFrequency();
+        }
+        QuantLib::DayCounter parYieldSplineDayCounter() const {
+            return billTraits_.parYieldSplineDayCounter(this->tenor());
         }
         // convert between discount factor and yield
         ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -564,6 +589,7 @@ namespace QLUtils {
     // scheduleCalendar(tenor)
     // convention(tenor)
     // terminationDateConvention(tenor)
+    // parYieldSplineDayCounter(tenor)
     template <typename BondTraits>
     class ParBond : public ParBondSecurity<typename BondTraits::SecurityTraits> {
     private:
@@ -595,6 +621,9 @@ namespace QLUtils {
         }
         QuantLib::BusinessDayConvention terminationDateConvention() const {
             return bondTraits_.terminationDateConvention(this->tenor());
+        }
+        QuantLib::DayCounter parYieldSplineDayCounter() const {
+            return bondTraits_.parYieldSplineDayCounter(this->tenor());
         }
         QuantLib::Schedule bondSchedule() const {
             QuantLib::Period couponTenor(couponFrequency());
