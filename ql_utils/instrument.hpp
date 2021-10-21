@@ -174,6 +174,13 @@ namespace QLUtils {
         QuantLib::Real& cleanPrice() {
             return price();
         }
+        QuantLib::Real accruedAmmount() {
+            auto bond = makeFixedRateBond();
+            return bond->accruedAmount();
+        }
+        QuantLib::Real dirtyPrice() {
+            return cleanPrice() + accruedAmmount();
+        }
         QuantLib::Rate yield() const {
             auto bond = makeFixedRateBond();
             return bondYield(bond, cleanPrice());
@@ -197,6 +204,14 @@ namespace QLUtils {
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountingTermStructure));
             bond->setPricingEngine(pricingEngine);
             return bond->cleanPrice();
+        }
+        QuantLib::Real impliedDirtyPrice(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const {
+            auto bond = makeFixedRateBond();
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountingTermStructure));
+            bond->setPricingEngine(pricingEngine);
+            return bond->dirtyPrice();
         }
         QuantLib::Real impliedYield(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
@@ -627,9 +642,9 @@ namespace QLUtils {
         }
         QuantLib::Schedule bondSchedule() const {
             QuantLib::Period couponTenor(couponFrequency());
-            auto terminationDate = this->settlementCalendar().advance(this->settlementDate(), this->tenor());
+            auto terminationDate = scheduleCalendar().advance(this->settlementDate(), this->tenor());
             return QuantLib::Schedule(
-                this->settlementCalendar(),
+                this->settlementDate(),
                 terminationDate,
                 couponTenor,
                 scheduleCalendar(),
