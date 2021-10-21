@@ -85,11 +85,11 @@ namespace QLUtils {
         virtual QuantLib::Date startDate() const = 0;
         virtual QuantLib::Date maturityDate() const = 0;
         virtual QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const = 0;
         virtual QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const = 0;
 
         static QuantLib::Rate simpleForwardRate(const QuantLib::Date& start, const QuantLib::Date& end, const QuantLib::DayCounter& dayCounter, const QuantLib::Handle<QuantLib::YieldTermStructure>& h) {
@@ -99,6 +99,190 @@ namespace QLUtils {
         }
     };
 
+    // BondTraits
+    // typedef SecurityTraits
+    // couponFrequency(tenor)
+    // accruedDayCounter(tenor)
+    // endOfMonth(tenoor)
+    // scheduleCalendar(tenor)
+    // convention(tenor)
+    // terminationDateConvention(tenor)
+    template <typename BondTraits>
+    class CouponedBond : public BootstrapInstrument {
+    private:
+        typename BondTraits::SecurityTraits securityTraits_;
+        BondTraits bondTraits_;
+        QuantLib::Rate coupon_;
+    public:
+        CouponedBond(
+            const QuantLib::Period& tenor,
+            const QuantLib::Date& maturityDate,
+            QuantLib::Rate coupon = 0.0
+        ) : BootstrapInstrument(BootstrapInstrument::Price, tenor, maturityDate), coupon_(coupon) {}
+        const QuantLib::Rate& coupon() const {
+            return coupon_;
+        }
+        QuantLib::Rate& coupon() {
+            return coupon_;
+        }
+        const QuantLib::Date& bondMaturityDate() const {
+            return datedDate();
+        }
+        QuantLib::Date& bondMaturityDate() {
+            return datedDate();
+        }
+        QuantLib::Calendar settlementCalendar() const {
+            return securityTraits_.settlementCalendar(tenor());
+        }
+        QuantLib::Natural settlementDays() const {
+            return securityTraits_.settlementDays(tenor());
+        }
+        QuantLib::Real parNotional() const {
+            return securityTraits_.parNotional(tenor());
+        }
+        QuantLib::Date settlementDate() const {
+            auto calendar = settlementCalendar();
+            QuantLib::Date today = QuantLib::Settings::instance().evaluationDate();
+            auto d = calendar.adjust(today);
+            return calendar.advance(d, settlementDays() * QuantLib::Days);
+        }
+        QuantLib::DayCounter accruedDayCounter() const {
+            return bondTraits_.accruedDayCounter(tenor());
+        }
+        QuantLib::Frequency couponFrequency() const {
+            return bondTraits_.couponFrequency(tenor());
+        }
+        bool endOfMonth() const {
+            return bondTraits_.endOfMonth(tenor());
+        }
+        QuantLib::Calendar scheduleCalendar() const {
+            return bondTraits_.scheduleCalendar(tenor());
+        }
+        QuantLib::BusinessDayConvention convention() const {
+            return bondTraits_.convention(tenor());
+        }
+        QuantLib::BusinessDayConvention terminationDateConvention() const {
+            return bondTraits_.terminationDateConvention(tenor());
+        }
+        const QuantLib::Real& cleanPrice() const {
+            return price();
+        }
+        QuantLib::Real& cleanPrice() {
+            return price();
+        }
+        QuantLib::Rate yield() const {
+            auto bond = makeFixedRateBond();
+            return bondYield(bond, cleanPrice());
+        }
+        QuantLib::Schedule bondSchedule() const {
+            BondSechdulerWithoutIssueDate scheduler(
+                settlementDays(),
+                settlementCalendar(),
+                couponFrequency(),
+                endOfMonth(),
+                scheduleCalendar(),
+                convention(),
+                terminationDateConvention()
+            );
+            return scheduler(bondMaturityDate());
+        }
+        QuantLib::Real impliedCleanPrice(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const {
+            auto bond = makeFixedRateBond();
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountingTermStructure));
+            bond->setPricingEngine(pricingEngine);
+            return bond->cleanPrice();
+        }
+        QuantLib::Real impliedYield(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const {
+            auto bond = makeFixedRateBond();
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountingTermStructure));
+            bond->setPricingEngine(pricingEngine);
+            auto cleanPrice = bond->cleanPrice();
+            return bondYield(bond, cleanPrice);
+        }
+        QuantLib::Date startDate() const {
+            return fixedRateBondHelper()->bond()->settlementDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return fixedRateBondHelper()->bond()->maturityDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            return fixedRateBondHelper();
+        };
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            return impliedCleanPrice(discountingTermStructure);
+        }
+    protected:
+        static QuantLib::Real solverAccuracy() {
+            return 1.0e-16;
+        }
+        static QuantLib::Real solverQuess() {
+            return 0.05;
+        }
+        static QuantLib::Size solverMaxIterations() {
+            return 300;
+        }
+        // calculate bond's yield from clean price
+        QuantLib::Rate bondYield(const std::shared_ptr<QuantLib::FixedRateBond>& bond, QuantLib::Real cleanPrice) const {
+            auto yield = bond->yield(
+                cleanPrice,
+                accruedDayCounter(),
+                QuantLib::Compounded,
+                couponFrequency(),
+                settlementDate(),
+                solverAccuracy(),
+                solverMaxIterations(),
+                solverQuess(),
+                QuantLib::Bond::Price::Clean
+            );
+            return yield;
+        }
+        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
+            auto schedule = bondSchedule();
+            auto targetPrice = cleanPrice();
+            auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
+            return QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>(new QuantLib::FixedRateBondHelper(
+                QuantLib::Handle<QuantLib::Quote>(quote),
+                settlementDays(),
+                parNotional(),
+                schedule,
+                std::vector<QuantLib::Rate>{coupon()},
+                accruedDayCounter(),
+                convention(),
+                parNotional(),
+                QuantLib::Date(),
+                QuantLib::Calendar(),
+                QuantLib::Period(),
+                QuantLib::Calendar(),
+                QuantLib::Unadjusted,
+                false,
+                QuantLib::Bond::Price::Clean
+            ));
+        }
+        std::shared_ptr<QuantLib::FixedRateBond> makeFixedRateBond() const {
+            auto schedule = bondSchedule();
+            return std::shared_ptr<QuantLib::FixedRateBond>(new QuantLib::FixedRateBond(
+                settlementDays(),
+                parNotional(),
+                schedule,
+                std::vector<QuantLib::Rate>{coupon()},
+                accruedDayCounter(),
+                convention(),
+                parNotional()
+            ));
+        }
+    };
+
+    // base class for all par instruments
+    // par instrument is a for rate-based (not price-based) bootstrap bacause the price is anchored at 100 (par)
     class ParInstrument : public BootstrapInstrument {
     public:
         ParInstrument(
@@ -108,7 +292,7 @@ namespace QLUtils {
     protected:
         virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
         virtual QuantLib::Rate impliedParRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const = 0;
         QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() const {
             return fixedRateBondHelper()->bond();
@@ -120,6 +304,10 @@ namespace QLUtils {
         QuantLib::Rate& parRate() {
             return rate();
         }
+        // for any par instrument, yield is the par rate
+        QuantLib::Rate yield() const {
+            return parRate();
+        }
         QuantLib::Date startDate() const {
             return parBond()->settlementDate();
         }
@@ -127,15 +315,15 @@ namespace QLUtils {
             return parBond()->maturityDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             return fixedRateBondHelper();
         };
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            return impliedParRate(discounteringTermStructure);
+            return impliedParRate(discountingTermStructure);
         }
     };
 
@@ -148,7 +336,6 @@ namespace QLUtils {
             const QuantLib::Period& tenor,
             const QuantLib::Date& baseReferenceDate
         ) : ParInstrument(tenor), baseReferenceDate_(baseReferenceDate) {}
-    public:
         QuantLib::Date& baseReferenceDate() {
             return baseReferenceDate_;
         }
@@ -163,10 +350,10 @@ namespace QLUtils {
             return helper;
         }
         QuantLib::Rate impliedParRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
-            QL_ASSERT(discounteringTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discounteringTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
-            return ParYieldHelper<COUPON_FREQ>::parYield(discounteringTermStructure.currentLink(), tenor());
+            QL_ASSERT(discountingTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discountingTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
+            return ParYieldHelper<COUPON_FREQ>::parYield(discountingTermStructure.currentLink(), tenor());
         }
     };
 
@@ -191,7 +378,7 @@ namespace QLUtils {
              const QuantLib::Date& bondMaturityDate = QuantLib::Date()
         ) : ParInstrument(tenor, bondMaturityDate), securityType_(securityType) {
             if (bondMaturityDate == QuantLib::Date()) {
-                datedDate() = settlementDate() + tenor;
+                datedDate() = settlementCalendar().advance(settlementDate(), tenor);
             }
         }
         const QuantLib::Date& bondMaturityDate() const {
@@ -221,7 +408,7 @@ namespace QLUtils {
     };
 
     // ZeroCouponBillTraits
-    // typename SecurityTraits
+    // typedef SecurityTraits
     // dayCounter(tenor)
     // referenceCouponFrequency(tenor)
     // discountRateDayCounter(tenor)
@@ -247,15 +434,6 @@ namespace QLUtils {
         QuantLib::Time referenceCouponInterval() const {
             return 1.0 / referenceCouponFrequency();
         }
-        // for zero coupon bond, yield is the par rate
-        ///////////////////////////////////////////////////////
-        const QuantLib::Rate& yield() const {
-            return this->parRate();
-        }
-        QuantLib::Rate& yield() {
-            return this->parRate();
-        }
-        ///////////////////////////////////////////////////////
         // convert between discount factor and yield
         ////////////////////////////////////////////////////////////////////////////////////////////////
         QuantLib::Rate yieldFromDiscountFactor(QuantLib::DiscountFactor df) const {
@@ -298,42 +476,65 @@ namespace QLUtils {
             return (1.0 - discountFactor)/t;
         }
         ////////////////////////////////////////////////////////////////////////////////////////////////
-        // set the yield by discount factor
-        ZeroCouponBill<ZeroCouponBillTraits>& withDiscountFactor(QuantLib::DiscountFactor discountFactor) {
-            yield() = yieldFromDiscountFactor(discountFactor);
+        // set the yield by yield
+        ZeroCouponBill<ZeroCouponBillTraits>& withYield(QuantLib::Rate yield) {
+            this->parRate() = yield;
             return *this;
         }
+        // set the yield by discount factor
+        ZeroCouponBill<ZeroCouponBillTraits>& withDiscountFactor(QuantLib::DiscountFactor discountFactor) {
+            return withYield(yieldFromDiscountFactor(discountFactor));
+        }
         // set the yield by price
-        ZeroCouponBill<ZeroCouponBillTraits>& withPrice(QuantLib::Real price) {
-            return withDiscountFactor(price / this->parNotional());
+        ZeroCouponBill<ZeroCouponBillTraits>& withBondPrice(QuantLib::Real bondPrice) {
+            return withDiscountFactor(bondPrice / this->parNotional());
         }
         // set the yield by discount rate
         ZeroCouponBill<ZeroCouponBillTraits>& withDiscountRate(QuantLib::Rate discountRate) {
             return withDiscountFactor(discountFactorFromDiscountRate(discountRate));
         }
+        QuantLib::DiscountFactor discountFactor() const {
+            return discountFactorFromYield(this->yield());
+        }
+        QuantLib::Real bondPrice() const {
+            return discountFactor() * this->parNotional();
+        }
+        QuantLib::Real discountRate() const {
+            return discountRateFromDiscountFactor(discountFactor());
+        }
+        // implied discount factor by the discounting term structure
         QuantLib::DiscountFactor impliedDiscountFactor(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
             auto d1 = this->settlementDate();
             auto d2 = this->bondMaturityDate();
-            auto df = discounteringTermStructure->discount(d2) / discounteringTermStructure->discount(d1);
+            auto df = discountingTermStructure->discount(d2) / discountingTermStructure->discount(d1);
             return df;
         }
-        QuantLib::DiscountFactor impliedPrice(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+        // implied bond price by the discounting term structure
+        QuantLib::DiscountFactor impliedBondPrice(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
-            auto df = impliedDiscountFactor(discounteringTermStructure);
+            auto df = impliedDiscountFactor(discountingTermStructure);
             return df * this->parNotional();
         }
+        // implied discount rate by the discounting term structure
         QuantLib::Rate impliedDiscountRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
-            auto df = impliedDiscountFactor(discounteringTermStructure);
+            auto df = impliedDiscountFactor(discountingTermStructure);
             return discountRateFromDiscountFactor(df);
+        }
+        // implied yield by the discounting term structure
+        QuantLib::Rate impliedYield(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const {
+            auto df = impliedDiscountFactor(discountingTermStructure);
+            return yieldFromDiscountFactor(df);
         }
     protected:
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
-            auto targetPrice = discountFactorFromYield(yield()) * this->parNotional();
+            auto targetPrice = discountFactorFromYield(this->yield()) * this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
             BondSechdulerWithoutIssueDate scheduler(this->settlementDays(), this->settlementCalendar(), referenceCouponFrequency(), false);
             auto schedule = scheduler(this->bondMaturityDate());
@@ -349,14 +550,14 @@ namespace QLUtils {
             ));
         }
         QuantLib::Rate impliedParRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
-            auto df = impliedDiscountFactor(discounteringTermStructure);
-            return yieldFromDiscountFactor(df);
+            return impliedYield(discountingTermStructure);
         }
     };
 
     // BondTraits
+    // typedef SecurityTraits
     // couponFrequency(tenor)
     // accruedDayCounter(tenor)
     // endOfMonth(tenoor)
@@ -372,7 +573,11 @@ namespace QLUtils {
         ParBond(
             const QuantLib::Period& tenor,
             const QuantLib::Date& bondMaturityDate = QuantLib::Date()
-        ) : BaseType(BaseType::CouponedBond, tenor, bondMaturityDate) {}
+        ) : BaseType(BaseType::CouponedBond, tenor, bondMaturityDate) {
+            if (bondMaturityDate == QuantLib::Date()) {
+                this->datedDate() = bondSchedule().endDate();
+            }
+        }
         QuantLib::DayCounter accruedDayCounter() const {
             return bondTraits_.accruedDayCounter(this->tenor());
         }
@@ -392,17 +597,20 @@ namespace QLUtils {
             return bondTraits_.terminationDateConvention(this->tenor());
         }
         QuantLib::Schedule bondSchedule() const {
-            BondSechdulerWithoutIssueDate scheduler(
-                this->settlementDays(),
+            QuantLib::Period couponTenor(couponFrequency());
+            auto terminationDate = this->settlementCalendar().advance(this->settlementDate(), this->tenor());
+            return QuantLib::Schedule(
                 this->settlementCalendar(),
-                couponFrequency(),
-                endOfMonth(),
+                terminationDate,
+                couponTenor,
                 scheduleCalendar(),
                 convention(),
-                terminationDateConvention()
+                terminationDateConvention(),
+                QuantLib::DateGeneration::Forward,
+                endOfMonth()
             );
-            return scheduler(this->bondMaturityDate());
         }
+    protected:
         std::shared_ptr<QuantLib::FixedRateBond> makeFixedRateBond(QuantLib::Rate bondCoupon) const {
             auto schedule = bondSchedule();
             return std::shared_ptr<QuantLib::FixedRateBond>(new QuantLib::FixedRateBond(
@@ -415,24 +623,6 @@ namespace QLUtils {
                     this->parNotional()
                 ));
         }
-        // set the par rate by a bond's clean price and it's coupon
-        ParBond<BondTraits>& withBondCleanPrice(QuantLib::Rate bondCoupon, QuantLib::Real cleanPrice) {
-            auto bond = makeFixedRateBond(bondCoupon);
-            this->parRate() = bondYield(bond, cleanPrice);
-            return *this;
-        }
-        std::pair<QuantLib::Real, QuantLib::Rate> impliedBondCleanPriceAndYield(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure,
-            QuantLib::Rate bondCoupon
-        ) const {
-            auto bond = makeFixedRateBond(bondCoupon);
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discounteringTermStructure));
-            bond->setPricingEngine(pricingEngine);
-            auto cleanPrice = bond->cleanPrice();
-            auto yield = bondYield(bond, cleanPrice);
-            return std::pair<QuantLib::Real, QuantLib::Rate>(cleanPrice, yield);
-        }
-    protected:
         static QuantLib::Real solverAccuracy() {
             return 1.0e-16;
         }
@@ -441,23 +631,6 @@ namespace QLUtils {
         }
         static QuantLib::Size solverMaxIterations() {
             return 300;
-        }
-        QuantLib::Rate bondYield(
-            const std::shared_ptr<QuantLib::FixedRateBond>& bond,
-            QuantLib::Real cleanPrice
-        ) const {
-            auto yield = bond->yield(
-                cleanPrice,
-                accruedDayCounter(),
-                QuantLib::Compounded,
-                couponFrequency(),
-                this->settlementDate(),
-                solverAccuracy(),
-                solverMaxIterations(),
-                solverQuess(),
-                QuantLib::Bond::Price::Clean
-            );
-            return yield;
         }
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto schedule = bondSchedule();
@@ -471,18 +644,25 @@ namespace QLUtils {
                 std::vector<QuantLib::Rate>{this->parRate()},
                 accruedDayCounter(),
                 convention(),
-                this->parNotional()
+                this->parNotional(),
+                QuantLib::Date(),
+                QuantLib::Calendar(),
+                QuantLib::Period(),
+                QuantLib::Calendar(),
+                QuantLib::Unadjusted,
+                false,
+                QuantLib::Bond::Price::Clean
             ));
         }
         QuantLib::Rate impliedParRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
             QuantLib::Brent solver;
             QuantLib::Real accuracy = solverAccuracy();
             QuantLib::Rate guess = solverQuess();
             QuantLib::Rate step = guess/10.0;
             solver.setMaxEvaluations(solverMaxIterations());
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discounteringTermStructure));
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> pricingEngine(new QuantLib::DiscountingBondEngine(discountingTermStructure));
             auto const& me = *this;
             auto parRate = solver.solve([&pricingEngine, &me](const QuantLib::Rate& coupon) -> QuantLib::Real {
                 auto bond = me.makeFixedRateBond(coupon);
@@ -547,7 +727,7 @@ namespace QLUtils {
             return createSwap()->maturityDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto overnightIndex = castToOvernightIndex(this->iborIndex());
             QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
@@ -556,7 +736,7 @@ namespace QLUtils {
                     tenor(),
                     quote(),
                     overnightIndex,
-                    discounteringTermStructure,   // exogenous discounting curve
+                    discountingTermStructure,   // exogenous discounting curve
                     swapTraits_.telescopicValueDates(tenor()),
                     0,
                     swapTraits_.paymentAdjustment(tenor()),
@@ -573,9 +753,9 @@ namespace QLUtils {
         }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discounteringTermStructure));
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
             auto swap = createSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
@@ -710,7 +890,7 @@ namespace QLUtils {
             return immEndDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex();
             QuantLib::Handle<QuantLib::Quote> convAdjQuote(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(convexityAdj())));
@@ -727,7 +907,7 @@ namespace QLUtils {
         }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex();
             auto forwardRate = this->simpleForwardRate(immDate(), immEndDate(), iborIndex->dayCounter(), estimatingTermStructure);
@@ -759,7 +939,7 @@ namespace QLUtils {
             return std::get<1>(getValueMaturityDates());
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex();
             QuantLib::ext::shared_ptr<QuantLib::DepositRateHelper> helper(
@@ -772,13 +952,13 @@ namespace QLUtils {
         }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto result = getValueMaturityDates();
             auto const& start = std::get<0>(result);
             auto const& end = std::get<1>(result);
             auto const& dayCounter = std::get<2>(result);
-            auto rate = this->simpleForwardRate(start, end, dayCounter, estimatingTermStructure);
+            auto rate = this->simpleForwardRate(start, end, dayCounter, discountingTermStructure);
             return rate;
         }
     };
@@ -827,7 +1007,7 @@ namespace QLUtils {
             return createSwap()->maturityDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex();
             QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
@@ -841,7 +1021,7 @@ namespace QLUtils {
                     iborIndex,
                     QuantLib::Handle<QuantLib::Quote>(),
                     0 * QuantLib::Days,
-                    discounteringTermStructure,
+                    discountingTermStructure,
                     swapTraits_.settlementDays(tenor()),
                     QuantLib::Pillar::LastRelevantDate,
                     QuantLib::Date(),
@@ -850,8 +1030,11 @@ namespace QLUtils {
             );
             return helper;
         }
-        QuantLib::Real impliedQuote(const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure, const QuantLib::Handle<QuantLib::YieldTermStructure>& discounteringTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()) const {
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discounteringTermStructure));
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
             auto swap = createSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
