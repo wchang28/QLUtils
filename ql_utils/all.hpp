@@ -12,3 +12,4 @@
 #include <ql_utils/swaptraits.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
 #include <ql_utils/governmentbondtraits.hpp>
+#include <ql_utils/specializations/all.hpp>
