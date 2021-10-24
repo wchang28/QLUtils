@@ -166,7 +166,7 @@ namespace QLUtils {
             return bondTraits_.terminationDateConvention(tenor());
         }
         QuantLib::DayCounter parYieldSplineDayCounter() const {
-            return bondTraits_.parYieldSplineDayCounter(this->tenor());
+            return bondTraits_.parYieldSplineDayCounter(tenor());
         }
         const QuantLib::Real& cleanPrice() const {
             return price();
@@ -517,9 +517,8 @@ namespace QLUtils {
         ////////////////////////////////////////////////////////////////////////////////////////////////
         QuantLib::Rate yieldFromDiscountFactor(QuantLib::DiscountFactor df) const {
             auto pr = getYieldCompoundingAndFrequency();
-            auto compond = 1.0 / df;
             auto ir = QuantLib::InterestRate::impliedRate(
-                compond,
+                1.0 / df,
                 dayCounter(),
                 pr.first,
                 pr.second,
@@ -532,30 +531,6 @@ namespace QLUtils {
             auto pr = getYieldCompoundingAndFrequency();
             QuantLib::InterestRate ir(yield, dayCounter(), pr.first, pr.second);
             return ir.discountFactor(this->settlementDate(), this->bondMaturityDate());
-        }
-        ////////////////////////////////////////////////////////////////////////////////////////////////
-        // convert between bond equiv. yield and discount factor
-        ////////////////////////////////////////////////////////////////////////////////////////////////
-        QuantLib::Rate beyFromDiscountFactor(QuantLib::DiscountFactor df) const {
-            auto d1 = this->settlementDate();
-            auto d2 = this->bondMaturityDate();
-            auto compond = 1.0 / df;
-            auto ir = QuantLib::InterestRate::impliedRate(
-                compond,
-                dayCounter(),
-                QuantLib::Compounded,
-                bondEquivCouponFrequency(),
-                d1,
-                d2
-            );
-            return ir.rate();
-        }
-        QuantLib::DiscountFactor discountFactorFromBey(QuantLib::Rate bey) const {
-            auto d1 = this->settlementDate();
-            auto d2 = this->bondMaturityDate();
-            QuantLib::InterestRate ir(bey, dayCounter(), QuantLib::Compounded, bondEquivCouponFrequency());
-            auto df = ir.discountFactor(d1, d2);
-            return df;
         }
         ////////////////////////////////////////////////////////////////////////////////////////////////
         // convert between discount rate and discount factor
@@ -590,10 +565,6 @@ namespace QLUtils {
         ZeroCouponBill<ZeroCouponBillTraits>& withDiscountRate(QuantLib::Rate discountRate) {
             return withDiscountFactor(discountFactorFromDiscountRate(discountRate));
         }
-        // set the yield by bond equiv. yield
-        ZeroCouponBill<ZeroCouponBillTraits>& withBey(QuantLib::Rate bey) {
-            return withDiscountFactor(discountFactorFromBey(bey));
-        }
         QuantLib::DiscountFactor discountFactor() const {
             return discountFactorFromYield(this->yield());
         }
@@ -602,9 +573,6 @@ namespace QLUtils {
         }
         QuantLib::Real discountRate() const {
             return discountRateFromDiscountFactor(discountFactor());
-        }
-        QuantLib::Real bey() const {
-            return beyFromDiscountFactor(discountFactor());
         }
         QuantLib::Real dv01() const {
             auto bond = makeZeroCouponBond();
@@ -640,13 +608,6 @@ namespace QLUtils {
             auto df = impliedDiscountFactor(discountingTermStructure);
             return yieldFromDiscountFactor(df);
         }
-        // implied bond equiv. yield by the discounting term structure
-        QuantLib::Rate impliedBey(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
-        ) const {
-            auto df = impliedDiscountFactor(discountingTermStructure);
-            return beyFromDiscountFactor(df);
-        }
         // implied dv01 by the discounting term structure
         QuantLib::Rate impliedDV01(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
@@ -655,6 +616,7 @@ namespace QLUtils {
             auto yield = impliedYield(discountingTermStructure);
             return bondDV01(bond, yield);
         }
+        // returns a bond equiv. fixed rate helper
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto targetPrice = discountFactorFromYield(this->yield()) * this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
