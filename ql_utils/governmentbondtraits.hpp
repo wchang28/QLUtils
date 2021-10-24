@@ -14,7 +14,7 @@ namespace QLUtils {
     struct GovernmentBillTraits {
         typedef GovernmentSecurityTraits<QL_CURRENCY> SecurityTraits;
         QuantLib::DayCounter dayCounter(const QuantLib::Period& tenor) const {}
-        QuantLib::Frequency referenceCouponFrequency(const QuantLib::Period& tenor) const {}
+        QuantLib::Frequency bondEquivCouponFrequency(const QuantLib::Period& tenor) const {}
         QuantLib::DayCounter discountRateDayCounter(const QuantLib::Period& tenor) const {}
         QuantLib::DayCounter parYieldSplineDayCounter(const QuantLib::Period& tenor) const {}
     };

@@ -21,7 +21,7 @@ namespace QLUtils {
         return QuantLib::ActualActual(QuantLib::ActualActual::ISDA);
     }
     template<>
-    inline QuantLib::Frequency GovernmentBillTraits<QuantLib::USDCurrency>::referenceCouponFrequency(const QuantLib::Period&) const {
+    inline QuantLib::Frequency GovernmentBillTraits<QuantLib::USDCurrency>::bondEquivCouponFrequency(const QuantLib::Period&) const {
         return QuantLib::Semiannual;
     }
     template<>
