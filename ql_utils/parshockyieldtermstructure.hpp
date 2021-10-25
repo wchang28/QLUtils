@@ -2,26 +2,42 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/ParYield.hpp>
-#include <ql_utils/types.hpp>
-#include <ql_utils/dateformat.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/bootstrap.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
+#include <cmath>
 
 namespace QLUtils {
     template <typename I = QuantLib::Linear, QuantLib::Frequency PAR_YIELD_COUPON_FREQ = QuantLib::Semiannual>
-    class ParShockYieldTermStructure : public Verifiable {
+    class ParShockYieldTermStructure : public Bootstrapper {
     public:
         // input
-        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> yieldTermStructure;    // input yield term structure
+        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> yieldTermStructure;    // input yield term structure to be par shocked
         // output
         std::shared_ptr<std::vector<QuantLib::Period>> monthlyTenors;   // monthly tenor
         std::shared_ptr<std::vector<QuantLib::Rate>> monthlyParYields;  // original monthly par yields
         std::shared_ptr<std::vector<QuantLib::Rate>> monthlyParShocks;  // monthly par shock amount
-        std::shared_ptr<std::vector<std::shared_ptr<BootstrapInstrument>>> shockedParRateQuotes;
+        pInstruments shockedParRateQuotes;
         QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> zeroCurveShocked;    // shocked output zero curve
+
+        struct DefaultActualVsImpliedComparison {
+            QuantLib::Rate operator() (
+                std::ostream& os,
+                const std::shared_ptr<BootstrapInstrument>& inst,
+                const QuantLib::Rate& actual,
+                const QuantLib::Rate& implied
+                ) const {
+                os << inst->tenor();
+                os << "," << inst->ticker();
+                os << "," << "actual=" << actual * 100.0;
+                os << "," << "implied=" << implied * 100.0;
+                os << "," << "diff=" << (implied - actual) * 10000.0 << " bp";
+                os << std::endl;
+                return implied - actual;
+            }
+        };
 
         void clearOutputs() {
             monthlyTenors = nullptr;
@@ -52,7 +68,7 @@ namespace QLUtils {
             monthlyTenors.reset(new std::vector<QuantLib::Period>());
             monthlyParYields.reset(new std::vector<QuantLib::Rate>());
             monthlyParShocks.reset(new std::vector<QuantLib::Rate>());
-            shockedParRateQuotes.reset(new std::vector<std::shared_ptr<BootstrapInstrument>>());
+            shockedParRateQuotes.reset(new Instruments());
             while (d <= maxDate) {
                 QuantLib::Period tenor(++month, QuantLib::Months);
                 monthlyTenors->push_back(tenor);
@@ -63,6 +79,7 @@ namespace QLUtils {
                 auto shockedParYield = parYield + parShock; // add the shock to the par yield
                 std::shared_ptr<BootstrapInstrument> inst(new ParRate<PAR_YIELD_COUPON_FREQ>(tenor, curveReferenceDate));
                 inst->rate() = shockedParYield;
+                inst->ticker() = (std::ostringstream() << "PAR-" << tenor.length() << "M").str();
                 shockedParRateQuotes->push_back(inst);
                 d += 1 * QuantLib::Months;
             };
@@ -71,25 +88,25 @@ namespace QLUtils {
             bootstrap.bootstrap(curveReferenceDate, dayCounter, interp);
             zeroCurveShocked = bootstrap.discountZeroCurve;
         }
-        void verify(std::ostream& os, std::streamsize precision = 16) const {
+        template<typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison>
+        QuantLib::Real verify(
+            std::ostream& os,
+            std::streamsize precision = 16,
+            const ActualVsImpliedComparison& compare = ActualVsImpliedComparison()
+        ) const {
             QL_REQUIRE(zeroCurveShocked != nullptr, "shocked zero curve cannot be null");
             checkInstruments();
-            os << std::fixed;
-            os << std::setprecision(precision);
-            QuantLib::Handle<QuantLib::YieldTermStructure> discountCurve(zeroCurveShocked);
-            QuantLib::Handle<QuantLib::YieldTermStructure> estimatingCurve(zeroCurveShocked);
-            for (auto const& inst : *shockedParRateQuotes) {
-                auto const& actual = inst->value();
-                auto implied = inst->impliedQuote(estimatingCurve, discountCurve);
-                auto startDate = inst->startDate();
-                auto maturityDate = inst->maturityDate();
-                os << inst->tenor();
-                os << "," << "start=" << DateFormat<char>::to_yyyymmdd(startDate, true);
-                os << "," << "maturity=" << DateFormat<char>::to_yyyymmdd(maturityDate, true);
-                os << "," << "shockActual=" << actual * 100.0;
-                os << "," << "shockImplied=" << implied * 100.0;
-                os << std::endl;
-            }
+            QuantLib::Handle<QuantLib::YieldTermStructure> discountingTermStructure(zeroCurveShocked);
+            return verifyImpl(
+                shockedParRateQuotes,
+                [&discountingTermStructure](const pInstrument& inst) -> QuantLib::Rate {
+                    auto parInstrument = std::dynamic_pointer_cast<ParInstrument>(inst);
+                    return parInstrument->impliedParRate(discountingTermStructure);
+                },
+                os,
+                precision,
+                compare
+            );
         }
     };
 }

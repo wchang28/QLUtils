@@ -4,15 +4,42 @@
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/dateformat.hpp>
-#include <ql_utils/types.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 
 namespace QLUtils {
+    class Bootstrapper {
+    public:
+        typedef std::shared_ptr<BootstrapInstrument> pInstrument;
+        typedef std::vector<pInstrument> Instruments;
+        typedef std::shared_ptr<Instruments> pInstruments;
+    protected:
+        template <typename ImpliedValueCalculator, typename ActualVsImpliedComparison>
+        static QuantLib::Real verifyImpl(
+            const pInstruments& instruments,
+            const ImpliedValueCalculator& impliedValueCalculator,
+            std::ostream& os,
+            std::streamsize precision,
+            const ActualVsImpliedComparison& compare
+        ) {
+            os << std::fixed;
+            os << std::setprecision(precision);
+            QuantLib::Real err = 0.0;
+            for (auto const& inst : *instruments) { // for each instrument
+                auto const& actual = inst->value();
+                auto implied = impliedValueCalculator(inst);
+                auto diff = compare(os, inst, actual, implied);
+                err += std::pow(diff, 2.0);
+            }
+            return std::sqrt(err);
+        }
+    };
+	
     template <typename I = QuantLib::Linear>
-    class ZeroCurvesBootstrap : public Verifiable {
+    class ZeroCurvesBootstrap : public Bootstrapper {
     protected:
         std::shared_ptr<PiecewiseCurveBuilder<QuantLib::ZeroYield, I>> curveBuilder_;
     public:
@@ -22,7 +49,7 @@ namespace QLUtils {
         };
 
         // input
-        std::shared_ptr<std::vector<std::shared_ptr<BootstrapInstrument>>> instruments; // bootstrap instruments
+        pInstruments instruments; // bootstrap instruments
         QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;   // this can be nullptr
 
         // output
@@ -53,6 +80,27 @@ namespace QLUtils {
             discountZeroCurve = nullptr;
             estimatingZeroCurve = nullptr;
         }
+
+        struct DefaultActualVsImpliedComparison {
+            QuantLib::Real operator() (
+                std::ostream& os,
+                const std::shared_ptr<BootstrapInstrument>& inst,
+                const QuantLib::Real& actual,
+                const QuantLib::Real& implied
+                ) const {
+                auto multiplierValue = (inst->valueType() == BootstrapInstrument::Rate ? 100.0 : 1.0);
+                auto multiplierDiffBp = (inst->valueType() == BootstrapInstrument::Rate ? 10000.0 : 100.0);
+                auto diff = implied - actual;
+                os << inst->tenor();
+                os << "," << inst->ticker();
+                os << "," << "actual=" << actual * multiplierValue;
+                os << "," << "implied=" << implied * multiplierValue;
+                os << "," << "diff=" << diff * multiplierDiffBp << " bp";
+                os << std::endl;
+                return (inst->valueType() == BootstrapInstrument::Rate ? diff : diff/100.0);
+            }
+        };
+
         void bootstrap(
             const QuantLib::Date& curveReferenceDate,
             const QuantLib::DayCounter& dayCounter = QuantLib::Actual365Fixed(),
@@ -74,31 +122,27 @@ namespace QLUtils {
             estimatingZeroCurve = curveBuilder()->GetCurve(curveReferenceDate, dayCounter, interp);
             discountZeroCurve = (bootstrapMode() == BothCurvesConcurrently ? estimatingZeroCurve : nullptr);
         }
-        void verify(std::ostream& os, std::streamsize precision = 16) const {
+        template<typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison>
+        QuantLib::Real verify(
+            std::ostream& os,
+            std::streamsize precision = 16,
+            const ActualVsImpliedComparison& compare = ActualVsImpliedComparison()
+        ) const {
             QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountTS = verificationDiscountTermStructure();
             QL_REQUIRE(discountTS != nullptr, "discount term structure cannot be null");
             QL_REQUIRE(estimatingZeroCurve != nullptr, "estimating zero curve cannot be null");
             checkInstruments();
-            os << std::fixed;
-            os << std::setprecision(precision);
             QuantLib::Handle<QuantLib::YieldTermStructure> discountCurve(discountTS);
             QuantLib::Handle<QuantLib::YieldTermStructure> estimatingCurve(estimatingZeroCurve);
-            for (auto const& inst : *instruments) { // for each instrument
-                if (inst->use()) {
-                    auto const& actual = inst->value();
-                    auto valueIsPrice = (inst->valueType() == BootstrapInstrument::Price);
-                    auto implied = inst->impliedQuote(estimatingCurve, discountCurve);
-                    auto startDate = inst->startDate();
-                    auto maturityDate = inst->maturityDate();
-                    os << inst->tenor();
-                    os << "," << "ticker=" << inst->ticker();
-                    os << "," << "start=" << DateFormat<char>::to_yyyymmdd(startDate, true);
-                    os << "," << "maturity=" << DateFormat<char>::to_yyyymmdd(maturityDate, true);
-                    os << "," << "actual=" << (valueIsPrice ? actual : actual * 100.0);
-                    os << "," << "implied=" << (valueIsPrice ? implied : implied * 100.0);
-                    os << std::endl;
-                }
-            }
+            return verifyImpl(
+                instruments,
+                [&discountCurve, &estimatingCurve](const pInstrument& inst) -> QuantLib::Real {
+                    return inst->impliedQuote(estimatingCurve, discountCurve);
+                },
+                os,
+                precision,
+                compare
+            );
         }
     };
 }
