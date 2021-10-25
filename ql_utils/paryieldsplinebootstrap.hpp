@@ -97,7 +97,7 @@ namespace QLUtils {
             discountZeroCurve = bootstrap.discountZeroCurve;
         }
         template<typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison>
-        QuantLib::Real verify(
+        QuantLib::Rate verify(
             std::ostream& os,
             std::streamsize precision = 16,
             const ActualVsImpliedComparison& compare = ActualVsImpliedComparison()

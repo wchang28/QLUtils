@@ -18,7 +18,7 @@ namespace QLUtils {
         typedef std::shared_ptr<Instruments> pInstruments;
     protected:
         template <typename ImpliedValueCalculator, typename ActualVsImpliedComparison>
-        static QuantLib::Real verifyImpl(
+        static QuantLib::Rate verifyImpl(
             const pInstruments& instruments,
             const ImpliedValueCalculator& impliedValueCalculator,
             std::ostream& os,
@@ -27,7 +27,7 @@ namespace QLUtils {
         ) {
             os << std::fixed;
             os << std::setprecision(precision);
-            QuantLib::Real err = 0.0;
+            QuantLib::Rate err = 0.0;
             for (auto const& inst : *instruments) { // for each instrument
                 auto const& actual = inst->value();
                 auto implied = impliedValueCalculator(inst);
@@ -82,7 +82,7 @@ namespace QLUtils {
         }
 
         struct DefaultActualVsImpliedComparison {
-            QuantLib::Real operator() (
+            QuantLib::Rate operator() (
                 std::ostream& os,
                 const std::shared_ptr<BootstrapInstrument>& inst,
                 const QuantLib::Real& actual,
@@ -123,7 +123,7 @@ namespace QLUtils {
             discountZeroCurve = (bootstrapMode() == BothCurvesConcurrently ? estimatingZeroCurve : nullptr);
         }
         template<typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison>
-        QuantLib::Real verify(
+        QuantLib::Rate verify(
             std::ostream& os,
             std::streamsize precision = 16,
             const ActualVsImpliedComparison& compare = ActualVsImpliedComparison()
