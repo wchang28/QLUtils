@@ -29,10 +29,12 @@ namespace QLUtils {
             os << std::setprecision(precision);
             QuantLib::Rate err = 0.0;
             for (auto const& inst : *instruments) { // for each instrument
-                auto const& actual = inst->value();
-                auto implied = impliedValueCalculator(inst);
-                auto diff = compare(os, inst, actual, implied);
-                err += std::pow(diff, 2.0);
+                if (inst->use()) {
+                    auto const& actual = inst->value();
+                    auto implied = impliedValueCalculator(inst);
+                    auto diff = compare(os, inst, actual, implied);
+                    err += std::pow(diff, 2.0);
+                }
             }
             return std::sqrt(err);
         }

@@ -79,12 +79,15 @@ namespace QLUtils {
             checkInstruments();
             // create the par yield term structure interplation
             for (auto const& i : *instruments) {
-                auto parYieldTSInst = std::dynamic_pointer_cast<QLUtils::ParYieldTermStructInstrument>(i);
-                auto parTerm = parYieldTSInst->parTerm();
-                auto parYield = parYieldTSInst->parYield();
-                parTerms.push_back(parTerm);
-                parYields.push_back(parYield);
+                if (i->use()) {
+                    auto parYieldTSInst = std::dynamic_pointer_cast<QLUtils::ParYieldTermStructInstrument>(i);
+                    auto parTerm = parYieldTSInst->parTerm();
+                    auto parYield = parYieldTSInst->parYield();
+                    parTerms.push_back(parTerm);
+                    parYields.push_back(parYield);
+                }
             }
+            QL_REQUIRE(parTerms.size() >= 2, "require at least 2 points to spline par yields");
             auto parYieldInterpolation = parYiledInterp.interpolate(parTerms.begin(), parTerms.end(), parYields.begin());
             // with the par yield interpolation and the instruments, create the par instrments for bootstrapping
             parInstruments = parInstromentsFactory(parYieldInterpolation, instruments);
