@@ -1090,7 +1090,7 @@ namespace QLUtils {
             auto const& start = std::get<0>(result);
             auto const& end = std::get<1>(result);
             auto const& dayCounter = std::get<2>(result);
-            auto rate = this->simpleForwardRate(start, end, dayCounter, discountingTermStructure);
+            auto rate = this->simpleForwardRate(start, end, dayCounter, estimatingTermStructure);
             return rate;
         }
     };
