@@ -12,11 +12,11 @@ namespace QLUtils {
     class ParYieldSplineBootstrap : public Bootstrapper {
     public:
         // input
-        pInstruments instruments;
+        pInstruments instruments;   // instrument must be of type QLUtils::ParYieldTermStructInstrument
         // output
         std::vector<QuantLib::Time> parTerms;
         std::vector<QuantLib::Rate> parYields;
-        pInstruments parInstruments;
+        pInstruments parInstruments;    // par instrument must be of type QLUtils::ParInstrument
 		QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<ZeroCurveInterp>> discountZeroCurve;
 
         struct DefaultParInstrumentsFactory {
@@ -67,7 +67,10 @@ namespace QLUtils {
             }
         }
     public:
-        template<typename ParYieldInterp, typename ParInstrumentsFactory = DefaultParInstrumentsFactory>
+        template<
+            typename ParYieldInterp,
+            typename ParInstrumentsFactory = DefaultParInstrumentsFactory
+        >
         void bootstrap(
             const QuantLib::Date& curveReferenceDate,
             const ParYieldInterp& parYiledInterp = ParYieldInterp(),
