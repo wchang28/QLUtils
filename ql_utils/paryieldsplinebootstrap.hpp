@@ -70,8 +70,8 @@ namespace QLUtils {
         template<typename ParYieldInterp, typename ParInstrumentsFactory = DefaultParInstrumentsFactory>
         void bootstrap(
             const QuantLib::Date& curveReferenceDate,
-            const ParInstrumentsFactory& parInstromentsFactory = ParInstrumentsFactory(),
             const ParYieldInterp& parYiledInterp = ParYieldInterp(),
+            const ParInstrumentsFactory& parInstromentsFactory = ParInstrumentsFactory(),
             const QuantLib::DayCounter& dayCounter = QuantLib::Actual365Fixed(),
             const ZeroCurveInterp& zcInterp = ZeroCurveInterp()
         ) {
