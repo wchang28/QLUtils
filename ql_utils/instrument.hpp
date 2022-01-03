@@ -1122,7 +1122,6 @@ namespace QLUtils {
         ) const {
             auto iborIndex = this->iborIndex(estimatingTermStructure);
             QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
-                .withSettlementDays(swapTraits_.settlementDays(tenor()))
                 .withFixedLegCalendar(swapTraits_.fixingCalendar(tenor()))
                 .withFixedLegTenor(swapTraits_.fixedLegTenor(tenor()))
                 .withFixedLegConvention(swapTraits_.fixedLegConvention(tenor()))
@@ -1154,7 +1153,7 @@ namespace QLUtils {
                     QuantLib::Handle<QuantLib::Quote>(),
                     0 * QuantLib::Days,
                     discountingTermStructure,
-                    swapTraits_.settlementDays(tenor()),
+                    QuantLib::Null<QuantLib::Natural>(),
                     QuantLib::Pillar::LastRelevantDate,
                     QuantLib::Date(),
                     swapTraits_.endOfMonth(tenor())
