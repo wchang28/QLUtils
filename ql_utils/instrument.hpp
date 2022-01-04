@@ -1117,17 +1117,49 @@ namespace QLUtils {
             const QuantLib::Period& tenor
         ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::Swap, tenor) {}
     private:
+        static QuantLib::Natural getSettlementDays(
+            const QuantLib::ext::shared_ptr<QuantLib::IborIndex>& iborIndex,
+            const QuantLib::Calendar& calendar
+        ) {
+            auto d = QuantLib::Settings::instance().evaluationDate();
+            auto fixingDate = iborIndex->fixingCalendar().adjust(d);
+            auto valueDate = iborIndex->valueDate(fixingDate);  // this is also the swap start/effective date
+            auto good = calendar.isBusinessDay(valueDate);
+            while (!good) {
+                d = fixingDate + 1 * QuantLib::Days;
+                fixingDate = iborIndex->fixingCalendar().adjust(d);
+                valueDate = iborIndex->valueDate(fixingDate);
+                good = calendar.isBusinessDay(valueDate);
+            }
+            auto refDate = QuantLib::Settings::instance().evaluationDate();
+            refDate = calendar.adjust(refDate);
+            QuantLib::Natural settlementDays = 0;
+            do {
+                d = calendar.advance(refDate, settlementDays * QuantLib::Days);
+                settlementDays++;
+            } while (d < valueDate && settlementDays <= 10);
+            if (d != valueDate) {
+                QL_FAIL("unable to determine the number of settlement days for swap");
+            }
+            else {
+                settlementDays--;
+            }
+            return settlementDays;
+        }
         QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> createSwap(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex(estimatingTermStructure);
+            QuantLib::Calendar calendar = swapTraits_.fixingCalendar(tenor());
+            auto settlementDays = getSettlementDays(iborIndex, calendar);
             QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
-                .withFixedLegCalendar(swapTraits_.fixingCalendar(tenor()))
+                .withSettlementDays(settlementDays)
+                .withFixedLegCalendar(calendar)
                 .withFixedLegTenor(swapTraits_.fixedLegTenor(tenor()))
                 .withFixedLegConvention(swapTraits_.fixedLegConvention(tenor()))
                 .withFixedLegDayCount(swapTraits_.fixedLegDayCount(tenor()))
                 .withFixedLegEndOfMonth(swapTraits_.endOfMonth(tenor()))
-                .withFloatingLegCalendar(swapTraits_.fixingCalendar(tenor()))
+                .withFloatingLegCalendar(calendar)
                 .withFloatingLegEndOfMonth(swapTraits_.endOfMonth(tenor()));
             return swap;
         }
@@ -1141,11 +1173,13 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex();
+            QuantLib::Calendar calendar = swapTraits_.fixingCalendar(tenor());
+            auto settlementDays = getSettlementDays(iborIndex, calendar);
             QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
                 new QuantLib::SwapRateHelper(
                     quote(),
                     tenor(),
-                    swapTraits_.fixingCalendar(tenor()),
+                    calendar,
                     swapTraits_.fixedLegFrequency(tenor()),
                     swapTraits_.fixedLegConvention(tenor()),
                     swapTraits_.fixedLegDayCount(tenor()),
@@ -1153,7 +1187,7 @@ namespace QLUtils {
                     QuantLib::Handle<QuantLib::Quote>(),
                     0 * QuantLib::Days,
                     discountingTermStructure,
-                    QuantLib::Null<QuantLib::Natural>(),
+                    settlementDays,
                     QuantLib::Pillar::LastRelevantDate,
                     QuantLib::Date(),
                     swapTraits_.endOfMonth(tenor())
