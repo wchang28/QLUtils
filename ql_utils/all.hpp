@@ -14,3 +14,4 @@
 #include <ql_utils/bondschedulerwoissuedt.hpp>
 #include <ql_utils/governmentbondtraits.hpp>
 #include <ql_utils/specializations/all.hpp>
+#include <ql_utils/calendars/all.hpp>
