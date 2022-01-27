@@ -1116,42 +1116,34 @@ namespace QLUtils {
             const IborIndexFactory& iborIndexFactory,
             const QuantLib::Period& tenor
         ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::Swap, tenor) {}
-    private:
-        static QuantLib::Natural getSettlementDays(
+
+        // calculate swap index's settlement days and swap start/effective date
+        static std::pair<QuantLib::Natural, QuantLib::Date> getSwapIndexStartInfo(
+            const QuantLib::Natural swapFixingDays,
             const QuantLib::ext::shared_ptr<QuantLib::IborIndex>& iborIndex,
-            const QuantLib::Calendar& calendar
+            const QuantLib::Calendar& swapFixingCalendar,
+            const QuantLib::Date& today = QuantLib::Date()
         ) {
-            auto d = QuantLib::Settings::instance().evaluationDate();
-            auto fixingDate = iborIndex->fixingCalendar().adjust(d);
-            auto valueDate = iborIndex->valueDate(fixingDate);  // this is also the swap start/effective date
-            auto good = calendar.isBusinessDay(valueDate);
-            while (!good) {
-                d = fixingDate + 1 * QuantLib::Days;
-                fixingDate = iborIndex->fixingCalendar().adjust(d);
-                valueDate = iborIndex->valueDate(fixingDate);
-                good = calendar.isBusinessDay(valueDate);
-            }
-            auto refDate = QuantLib::Settings::instance().evaluationDate();
-            refDate = calendar.adjust(refDate);
-            QuantLib::Natural settlementDays = 0;
-            do {
-                d = calendar.advance(refDate, settlementDays * QuantLib::Days);
+            auto d = (today == QuantLib::Date() ? QuantLib::Settings::instance().evaluationDate() : today); // today
+            auto settlementDays = swapFixingDays;
+            auto swapFixingDate = swapFixingCalendar.adjust(d);
+            while (true) {
+                auto swapValueDate = swapFixingCalendar.advance(swapFixingDate, settlementDays * QuantLib::Days);
+                auto iborIndexFixingDate = iborIndex->fixingDate(swapValueDate);
+                if (iborIndexFixingDate >= d) { // ibor index fixing date has to be greater than or equal today for safe curve building because the curve's base reference is going to be today
+                    return std::pair<QuantLib::Natural, QuantLib::Date>(settlementDays, swapValueDate); // swapValueDate is the swap start date
+                }
                 settlementDays++;
-            } while (d < valueDate && settlementDays <= 10);
-            if (d != valueDate) {
-                QL_FAIL("unable to determine the number of settlement days for swap");
             }
-            else {
-                settlementDays--;
-            }
-            return settlementDays;
         }
+    private:
         QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> createSwap(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto iborIndex = this->iborIndex(estimatingTermStructure);
             QuantLib::Calendar calendar = swapTraits_.fixingCalendar(tenor());
-            auto settlementDays = getSettlementDays(iborIndex, calendar);
+            auto pr = getSwapIndexStartInfo(swapTraits_.settlementDays(tenor()), iborIndex, calendar);
+            auto const& settlementDays = pr.first;
             QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
                 .withSettlementDays(settlementDays)
                 .withFixedLegCalendar(calendar)
@@ -1163,6 +1155,7 @@ namespace QLUtils {
                 .withFloatingLegEndOfMonth(swapTraits_.endOfMonth(tenor()));
             return swap;
         }
+    public:
         QuantLib::Date startDate() const {
             return createSwap()->startDate();
         }
@@ -1174,7 +1167,8 @@ namespace QLUtils {
         ) const {
             auto iborIndex = this->iborIndex();
             QuantLib::Calendar calendar = swapTraits_.fixingCalendar(tenor());
-            auto settlementDays = getSettlementDays(iborIndex, calendar);
+            auto pr = getSwapIndexStartInfo(swapTraits_.settlementDays(tenor()), iborIndex, calendar);
+            auto const& settlementDays = pr.first;
             QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
                 new QuantLib::SwapRateHelper(
                     quote(),
@@ -1184,8 +1178,8 @@ namespace QLUtils {
                     swapTraits_.fixedLegConvention(tenor()),
                     swapTraits_.fixedLegDayCount(tenor()),
                     iborIndex,
-                    QuantLib::Handle<QuantLib::Quote>(),
-                    0 * QuantLib::Days,
+                    QuantLib::Handle<QuantLib::Quote>(),    // spread
+                    0 * QuantLib::Days,// fwdStart
                     discountingTermStructure,
                     settlementDays,
                     QuantLib::Pillar::LastRelevantDate,
