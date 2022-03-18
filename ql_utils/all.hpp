@@ -4,6 +4,8 @@
 #include <ql_utils/dateformat.hpp>
 #include <ql_utils/overnightindexedswapindex_ex.hpp>
 #include <ql_utils/usdoisswap.hpp>
+#include <ql_utils/gbpoisswap.hpp>
+#include <ql_utils/euroisswap.hpp>
 #include <ql_utils/ParYield.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
