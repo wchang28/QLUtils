@@ -388,7 +388,9 @@ namespace QLUtils {
         }
     };
 
-    template <QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual>
+    template <
+        QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual
+    >
     class ParRate : public ParInstrument {
     private:
         using ParYieldHelper = ParYieldHelper<COUPON_FREQ>;

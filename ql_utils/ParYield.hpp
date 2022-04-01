@@ -56,9 +56,17 @@ namespace QLUtils {
                 d -= couponMonths * QuantLib::Months;
             }
             // d <= settlementDate_ at this point
-            settleOnCouponPayment_ = (d == settlementDate_);
-            startDate_ = d;
-            schedule_ = QuantLib::Schedule(startDate_, maturityDate_, QuantLib::Period(frequency()), QuantLib::NullCalendar(), QuantLib::Unadjusted, QuantLib::Unadjusted, QuantLib::DateGeneration::Backward, false);
+            schedule_ = QuantLib::Schedule(d, maturityDate_, QuantLib::Period(frequency()), QuantLib::NullCalendar(), QuantLib::Unadjusted, QuantLib::Unadjusted, QuantLib::DateGeneration::Backward, false);
+            QL_ASSERT(schedule_.size() > 1, "invalid bond schedule. schedule size (" << schedule_.size() << ") must be greater then 1");
+            if (schedule_[1] <= settlementDate_) {  // this could happen if end-of-month day = 31, in this case schedule_[0] and schedule_[1] is delta by only couple of days instead of the coupon months
+                auto deltaDays = schedule_[1] - schedule_[0];
+                // maybe schedule_[1] is the true start date of the bond
+                schedule_ = QuantLib::Schedule(schedule_[1], maturityDate_, QuantLib::Period(frequency()), QuantLib::NullCalendar(), QuantLib::Unadjusted, QuantLib::Unadjusted, QuantLib::DateGeneration::Backward, false);
+                QL_ASSERT(schedule_.size() > 1, "invalid bond schedule. schedule size (" << schedule_.size() << ") must be greater then 1");
+                QL_ASSERT(schedule_[1] > settlementDate_, "invalid bond schedule. first cashflow date (" << schedule_[1] << ") must be greater than the settlement date (" << settlementDate_ << ")");
+            }
+            startDate_ = schedule_[0];
+            settleOnCouponPayment_ = (startDate_ == settlementDate_);   // assuming bond start date is the settlement date
         }
     public:
         TheoreticalBondScheduler(
