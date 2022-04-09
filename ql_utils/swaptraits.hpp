@@ -5,9 +5,16 @@
 namespace QLUtils {
     // traits for the overnight indexes swap
     // example:
-    // template<typename OvernightIndex> => OvernightIndexedSwapTraits<QuantLib::UsdOvernightIndexedSwapIsdaFix<OvernightIndex>>
-    template<typename BaseSwapIndex>
+    // OvernightIndexedSwapTraits<UsdOvernightIndexedSwapIsdaFix<FedFunds>>
+    // OvernightIndexedSwapTraits<UsdOvernightIndexedSwapIsdaFix<Sofr>>
+    // OvernightIndexedSwapTraits<GbpOvernightIndexedSwapIsdaFix<Sonia>>
+    // OvernightIndexedSwapTraits<EurOvernightIndexedSwapIsdaFix<Estr>>
+    template<
+        typename BASE_SWAP_INDEX
+    >
     struct OvernightIndexedSwapTraits {
+        typedef typename BASE_SWAP_INDEX BaseSwapIndex;
+        typedef typename BaseSwapIndex::OvernightIndex OvernightIndex;
         QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingDays();
@@ -26,6 +33,11 @@ namespace QLUtils {
             auto fixingDate = fixingCalendar.adjust(QuantLib::Settings::instance().evaluationDate());
             auto underlyingSwap = swapIndex.underlyingSwap(fixingDate);
             return underlyingSwap->averagingMethod();
+        }
+        auto createOvernightIndex(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& indexEstimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            return QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure));
         }
     };
 

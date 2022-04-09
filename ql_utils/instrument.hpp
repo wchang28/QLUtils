@@ -828,8 +828,80 @@ namespace QLUtils {
         }
     };
 
+    template
+    <
+        typename SWAP_TRAITS
+    >
+    class OISSwapIndex:
+        public BootstrapInstrument {
+    public:
+        typedef typename SWAP_TRAITS SwapTraits;
+        typedef typename SwapTraits::BaseSwapIndex BaseSwapIndex;
+        typedef typename SwapTraits::OvernightIndex OvernightIndex;
+    private:
+        SwapTraits swapTraits_;
+    public:
+        OISSwapIndex(
+            const QuantLib::Period& tenor
+        ) : BootstrapInstrument(BootstrapInstrument::Rate, tenor) {}
+    private:
+        QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> createSwap(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto overnightIndex = swapTraits_.createOvernightIndex(estimatingTermStructure);
+            QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
+                .withSettlementDays(swapTraits_.settlementDays(tenor()))
+                .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
+                .withPaymentAdjustment(swapTraits_.paymentAdjustment(tenor()))
+                .withAveragingMethod(swapTraits_.averagingMethod(tenor()));
+            return swap;
+        }
+    public:
+        QuantLib::Date startDate() const {
+            return createSwap()->startDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return createSwap()->maturityDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto overnightIndex = swapTraits_.createOvernightIndex();
+            QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
+                new QuantLib::OISRateHelper(
+                    swapTraits_.settlementDays(tenor()),
+                    tenor(),
+                    quote(),
+                    overnightIndex,
+                    discountingTermStructure,   // exogenous discounting curve
+                    swapTraits_.telescopicValueDates(tenor()),
+                    0,
+                    swapTraits_.paymentAdjustment(tenor()),
+                    QuantLib::Annual,
+                    QuantLib::Calendar(),
+                    0 * QuantLib::Days,
+                    0.0,
+                    QuantLib::Pillar::LastRelevantDate,
+                    QuantLib::Date(),
+                    swapTraits_.averagingMethod(tenor())
+                )
+            );
+            return helper;
+        }
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
+            auto swap = createSwap(estimatingTermStructure);
+            swap->setPricingEngine(swapPricingEngine);
+            auto swapRate = swap->fairRate();
+            return swapRate;
+        }
+    };
+    /*
     template<typename SwapTraits>
-    class OISSwapIndex: public IborIndexInstrument {
+    class OISSwapIndex : public IborIndexInstrument {
     private:
         SwapTraits swapTraits_;
     public:
@@ -896,6 +968,7 @@ namespace QLUtils {
             return swapRate;
         }
     };
+    */
 
     class SwapCurveInstrument : public IborIndexInstrument {
     public:

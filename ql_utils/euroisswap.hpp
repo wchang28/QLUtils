@@ -4,7 +4,9 @@
 
 namespace QuantLib {
     // EUR OIS swap index
-    template <typename OvernightIndex> // OvernightIndex can be Estr
+    template <
+        typename OVERNIGHTINDEX // OvernightIndex can be Estr
+    >
     class EurOvernightIndexedSwapIsdaFix : public
 #ifdef QL_OVERNIGHT_INDEXED_SWAP_INDEX_MISSING_IMPL
         QuantLib::OvernightIndexedSwapIndexEx
@@ -12,6 +14,8 @@ namespace QuantLib {
         QuantLib::OvernightIndexedSwapIndex
 #endif
     {
+public:
+    typedef typename OVERNIGHTINDEX OvernightIndex;
 public:
     EurOvernightIndexedSwapIsdaFix(
         const QuantLib::Period& tenor,
