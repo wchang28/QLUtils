@@ -33,7 +33,7 @@ public:
             2,
             QuantLib::USDCurrency(),
             QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
-            true,
+            false,
             QuantLib::RateAveraging::Compound
         ) {}
     };
