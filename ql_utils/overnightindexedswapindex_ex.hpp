@@ -21,7 +21,7 @@ namespace QuantLib {
         bool telescopicValueDates() const;
     };
     // missing implementation from QuantLib
-    inline bool OvernightIndexedSwapIndexEx::telescopicValueDates() const {
+    bool OvernightIndexedSwapIndexEx::telescopicValueDates() const {
         return telescopicValueDates_;
     }
 }
