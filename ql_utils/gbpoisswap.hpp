@@ -32,7 +32,7 @@ public:
             0,
             QuantLib::GBPCurrency(),
             QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
-            true,
+            false,
             QuantLib::RateAveraging::Compound
         ) {}
     };
