@@ -13,6 +13,8 @@ namespace QLUtils {
     template <typename I = QuantLib::Linear, QuantLib::Frequency PAR_YIELD_COUPON_FREQ = QuantLib::Semiannual>
     class ParShockYieldTermStructure : public Bootstrapper {
     public:
+        typedef I Interp;
+    public:
         // input
         QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> yieldTermStructure;    // input yield term structure to be par shocked
         // output
