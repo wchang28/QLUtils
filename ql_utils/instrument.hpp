@@ -99,11 +99,13 @@ namespace QLUtils {
         }
     };
 
-    // BondTraits
+    // Couponed Bond instrument
+    // US Treasury Bonds and Notes use this class for bootstrapping
+    // BondTraits:
     // typedef SecurityTraits
     // couponFrequency(tenor)
     // accruedDayCounter(tenor)
-    // endOfMonth(tenoor)
+    // endOfMonth(tenor)
     // scheduleCalendar(tenor)
     // convention(tenor)
     // terminationDateConvention(tenor)
@@ -348,11 +350,15 @@ namespace QLUtils {
             return fixedRateBondHelper()->bond();
         }
     public:
+        // interfaces
+        /////////////////////////////////////////////////////////////////////////////////////////////////
         virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
         virtual QuantLib::Rate impliedParRate(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const = 0;
         virtual QuantLib::DayCounter parYieldSplineDayCounter() const = 0;
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+
         const QuantLib::Rate& parRate() const {
             return rate();
         }
@@ -388,6 +394,8 @@ namespace QLUtils {
         }
     };
 
+    // for conveting par rates back to zero curve (bootstrapping)
+    // used during par-shock
     template <
         QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual
     >
@@ -423,6 +431,7 @@ namespace QLUtils {
         }
     };
 
+    // base class for all par bond and bill securities
     // SecurityTraits
     // settlementCalendar(tenor)
     // settlementDays(tenor)
@@ -473,6 +482,7 @@ namespace QLUtils {
         }
     };
 
+    // US Treasury Bills use this class for bootstrapping
     // ZeroCouponBillTraits
     // typedef SecurityTraits
     // dayCounter(tenor)
@@ -666,11 +676,12 @@ namespace QLUtils {
         }
     };
 
+    // Theoretical Par Bond - used for par yield spline bootstrapping
     // BondTraits
     // typedef SecurityTraits
     // couponFrequency(tenor)
     // accruedDayCounter(tenor)
-    // endOfMonth(tenoor)
+    // endOfMonth(tenor)
     // scheduleCalendar(tenor)
     // convention(tenor)
     // terminationDateConvention(tenor)
@@ -899,76 +910,6 @@ namespace QLUtils {
             return swapRate;
         }
     };
-    /*
-    template<typename SwapTraits>
-    class OISSwapIndex : public IborIndexInstrument {
-    private:
-        SwapTraits swapTraits_;
-    public:
-        OISSwapIndex(
-            const IborIndexFactory& iborIndexFactory,
-            const QuantLib::Period& tenor
-        ) : IborIndexInstrument(iborIndexFactory, BootstrapInstrument::Rate, tenor) {}
-    private:
-        static QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> castToOvernightIndex(
-            const QuantLib::ext::shared_ptr<QuantLib::IborIndex>& iborIndex
-        ) {
-            return QuantLib::ext::dynamic_pointer_cast<QuantLib::OvernightIndex>(iborIndex);
-        }
-        QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> createSwap(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const {
-            auto overnightIndex = castToOvernightIndex(this->iborIndex(estimatingTermStructure));
-            QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
-                .withSettlementDays(swapTraits_.settlementDays(tenor()))
-                .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
-                .withPaymentAdjustment(swapTraits_.paymentAdjustment(tenor()))
-                .withAveragingMethod(swapTraits_.averagingMethod(tenor()));
-            return swap;
-        }
-        QuantLib::Date startDate() const {
-            return createSwap()->startDate();
-        }
-        QuantLib::Date maturityDate() const {
-            return createSwap()->maturityDate();
-        }
-        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const {
-            auto overnightIndex = castToOvernightIndex(this->iborIndex());
-            QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
-                new QuantLib::OISRateHelper(
-                    swapTraits_.settlementDays(tenor()),
-                    tenor(),
-                    quote(),
-                    overnightIndex,
-                    discountingTermStructure,   // exogenous discounting curve
-                    swapTraits_.telescopicValueDates(tenor()),
-                    0,
-                    swapTraits_.paymentAdjustment(tenor()),
-                    QuantLib::Annual,
-                    QuantLib::Calendar(),
-                    0 * QuantLib::Days,
-                    0.0,
-                    QuantLib::Pillar::LastRelevantDate,
-                    QuantLib::Date(),
-                    swapTraits_.averagingMethod(tenor())
-                )
-            );
-            return helper;
-        }
-        QuantLib::Real impliedQuote(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const {
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
-            auto swap = createSwap(estimatingTermStructure);
-            swap->setPricingEngine(swapPricingEngine);
-            auto swapRate = swap->fairRate();
-            return swapRate;
-        }
-    };
-    */
 
     class SwapCurveInstrument : public IborIndexInstrument {
     public:
@@ -1169,19 +1110,59 @@ namespace QLUtils {
             return rate;
         }
     };
-    /* TODO:
-    class ForwardRateAgreement : public SwapCurveInstrument<_Elem> {
+    
+    // this can be use to bootstrap Libor 3m estimating zero curve given a monthly Libor 3m forward rate curves
+    class FRA : public SwapCurveInstrument {
+    private:
+        typedef std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter> CalcDatesResult;
+        CalcDatesResult calcDates() const {
+            auto iborIndex = this->iborIndex();
+            QuantLib::FraRateHelper rateHelper(0., forward(), iborIndex);
+            return CalcDatesResult(rateHelper.earliestDate(), rateHelper.pillarDate(), iborIndex->dayCounter());
+        }
     public:
-        ForwardRateAgreement(const IborIndexFactory& iborIndexFactory, const QuantLib::Period& tenor) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::FRA, tenor) {}
+        FRA(
+            const IborIndexFactory& iborIndexFactory,
+            const QuantLib::Period& forward
+        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::FRA, forward, QuantLib::Null<QuantLib::Date>())
+        {
+            this->datedDate_ = std::get<0>(calcDates());    // datedDate_ stores the earliestDate/startDate
+        }
+        const QuantLib::Period& forward() const {
+            return tenor();
+        }
         QuantLib::Date startDate() const {
-            return immDate();
+            return this->datedDate_;
         }
         QuantLib::Date maturityDate() const {
-            return immEndDate();
+            return std::get<1>(calcDates());
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto iborIndex = this->iborIndex();
+            QuantLib::ext::shared_ptr<QuantLib::FraRateHelper> helper(
+                new QuantLib::FraRateHelper(
+                    quote(),
+                    forward(),
+                    iborIndex
+                )
+            );
+            return helper;
+        }
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            auto result = calcDates();
+            const auto& start = std::get<0>(result);
+            const auto& end = std::get<1>(result);
+            const auto& dayCounter = std::get<2>(result);
+            auto rate = this->simpleForwardRate(start, end, dayCounter, estimatingTermStructure);
+            return rate;
         }
     };
-    */
-
+    
     template<typename SwapTraits>
     class SwapIndex : public SwapCurveInstrument {
     private:
@@ -1273,6 +1254,50 @@ namespace QLUtils {
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
             return swapRate;
+        }
+    };
+
+    // for simple forward rate curve to zero curve bootstrapping
+    class SimpleForward : public FRA {
+    private:
+        QuantLib::Natural lengthInMonths_;  // tenor in months
+        std::string familyName_;
+    public:
+        static IborIndexFactory getIborFactory(
+            QuantLib::Natural lengthInMonths,
+            const std::string& familyName
+        ) {
+            return [lengthInMonths, familyName](const QuantLib::Handle<QuantLib::YieldTermStructure>& h) {
+                return QuantLib::ext::make_shared<QuantLib::IborIndex>(
+                    familyName, // family name
+                    lengthInMonths * QuantLib::Months,
+                    0,  // no fixing day
+                    QuantLib::Currency(),
+                    QuantLib::NullCalendar(),   // no holiday
+                    QuantLib::BusinessDayConvention::Unadjusted,    // no business day adjustment
+                    false,   // endOfMonth = false
+                    QuantLib::Thirty360(QuantLib::Thirty360::ISDA), // 30/360 day counting
+                    h
+                );
+            };
+        }
+        SimpleForward(
+            const QuantLib::Period& forward,
+            QuantLib::Natural lengthInMonths = 1,    // default to 1-month tenor
+            const std::string& familyName = "no-fix"
+        ) :
+            FRA(getIborFactory(lengthInMonths, familyName), forward),
+            lengthInMonths_(lengthInMonths),
+            familyName_(familyName)
+        {}
+        QuantLib::Natural lengthInMonths() const {
+            return lengthInMonths_;
+        }
+        const std::string& familyName() const {
+            return familyName_;
+        }
+        IborIndexFactory getIborFactory() const {
+            return getIborFactory(lengthInMonths(), familyName());
         }
     };
 }
