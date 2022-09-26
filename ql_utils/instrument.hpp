@@ -1154,11 +1154,10 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            auto result = calcDates();
-            const auto& start = std::get<0>(result);
-            const auto& end = std::get<1>(result);
-            const auto& dayCounter = std::get<2>(result);
-            auto rate = this->simpleForwardRate(start, end, dayCounter, estimatingTermStructure);
+            auto iborIndex = this->iborIndex();
+            QuantLib::FraRateHelper rateHelper(0., forward(), iborIndex);
+            rateHelper.setTermStructure(estimatingTermStructure.currentLink().get());
+            auto rate = rateHelper.impliedQuote();
             return rate;
         }
     };
