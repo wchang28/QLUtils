@@ -118,6 +118,7 @@ namespace QLUtils {
 
     template <
         QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::BondBasis,
         typename TENOR_COUPONED = ParBondTenorCouponedWithCutoffMonths<>
     >
     class ParYieldHelper {
@@ -128,7 +129,9 @@ namespace QLUtils {
         QuantLib::Date baseReferenceDate_;  // base reference date
         QuantLib::Period forwardStart_;
     public:
-        ParYieldHelper(const QuantLib::Period& tenor) :
+        ParYieldHelper(
+            const QuantLib::Period& tenor
+        ) :
             tenor_(tenor),
             parYield_(QuantLib::Null<QuantLib::Rate>()),
             baseReferenceDate_(QuantLib::Date()),
@@ -146,15 +149,21 @@ namespace QLUtils {
         const QuantLib::Period& forwardStart() const {
             return forwardStart_;
         }
-        ParYieldHelper& withParYield(const QuantLib::Rate& parYield) {
+        ParYieldHelper& withParYield(
+            const QuantLib::Rate& parYield
+        ) {
             parYield_ = parYield;
             return *this;
         }
-        ParYieldHelper& withBaseReferenceDate(const QuantLib::Date& baseReferenceDate) {
+        ParYieldHelper& withBaseReferenceDate(
+            const QuantLib::Date& baseReferenceDate
+        ) {
             baseReferenceDate_ = baseReferenceDate;
             return *this;
         }
-        ParYieldHelper& withForwardStart(const QuantLib::Period& forwardStart) {
+        ParYieldHelper& withForwardStart(
+            const QuantLib::Period& forwardStart
+        ) {
             forwardStart_ = forwardStart;
             return *this;
         }
@@ -171,7 +180,7 @@ namespace QLUtils {
         }
         // returns day counter for the par bond calculation
         static QuantLib::DayCounter parBondDayCounter() {
-            return QuantLib::Thirty360(QuantLib::Thirty360::BondBasis);
+            return QuantLib::Thirty360(THIRTY_360_DC_CONVENTION);
         }
         // create spot FixedRateBondHelper for discount curve bootstraping (par yield => zero curve)
         operator QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>() const {

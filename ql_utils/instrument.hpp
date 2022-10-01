@@ -394,25 +394,38 @@ namespace QLUtils {
         }
     };
 
-    // for conveting par rates back to zero curve (bootstrapping)
+    // for converting spot or fwd par rates back to zero curve (par-to-zero bootstrapping)
     // used during par-shock
     template <
-        QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual
+        QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::BondBasis
     >
     class ParRate : public ParInstrument {
     private:
-        using ParYieldHelper = ParYieldHelper<COUPON_FREQ>;
+        using ParYieldHelper = ParYieldHelper<COUPON_FREQ, THIRTY_360_DC_CONVENTION>;
         QuantLib::Date baseReferenceDate_;
+        QuantLib::Period forwardStart_;
     public:
         ParRate(
             const QuantLib::Period& tenor,
-            const QuantLib::Date& baseReferenceDate
-        ) : ParInstrument(tenor), baseReferenceDate_(baseReferenceDate) {}
+            const QuantLib::Date& baseReferenceDate,
+            const QuantLib::Period& forwardStart = QuantLib::Period(0, QuantLib::Days)
+        ) :
+            ParInstrument(tenor),
+            baseReferenceDate_(baseReferenceDate),
+            forwardStart_(forwardStart)
+        {}
         QuantLib::Date& baseReferenceDate() {
             return baseReferenceDate_;
         }
         const QuantLib::Date& baseReferenceDate() const {
             return baseReferenceDate_;
+        }
+        QuantLib::Period& forwardStart() {
+            return forwardStart_;
+        }
+        const QuantLib::Period& forwardStart() const {
+            return forwardStart_;
         }
         QuantLib::DayCounter parYieldSplineDayCounter() const {
             return ParYieldHelper::parBondDayCounter();
@@ -420,14 +433,19 @@ namespace QLUtils {
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper(tenor())
                 .withParYield(parRate())
-                .withBaseReferenceDate(baseReferenceDate());
+                .withBaseReferenceDate(baseReferenceDate())
+                .withForwardStart(forwardStart());
             return helper;
         }
         QuantLib::Rate impliedParRate(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
             QL_ASSERT(discountingTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discountingTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
-            return ParYieldHelper::parYield(discountingTermStructure.currentLink(), tenor());
+            return ParYieldHelper::parYield(
+                discountingTermStructure.currentLink(),
+                tenor(),
+                forwardStart()
+            );
         }
     };
 
@@ -450,7 +468,7 @@ namespace QLUtils {
         ParBondSecurity(
             const ParSecurityType& securityType,
             const QuantLib::Period& tenor,
-             const QuantLib::Date& bondMaturityDate = QuantLib::Date()
+            const QuantLib::Date& bondMaturityDate = QuantLib::Date()
         ) : ParInstrument(tenor, bondMaturityDate), securityType_(securityType) {
             if (bondMaturityDate == QuantLib::Date()) {
                 datedDate() = settlementCalendar().advance(settlementDate(), tenor);
@@ -1111,6 +1129,7 @@ namespace QLUtils {
         }
     };
     
+    // FRA
     // this can be use to bootstrap Libor 3m estimating zero curve given a monthly Libor 3m forward rate curves
     class FRA : public SwapCurveInstrument {
     private:
@@ -1128,6 +1147,7 @@ namespace QLUtils {
         {
             this->datedDate_ = std::get<0>(calcDates());    // datedDate_ stores the earliestDate/startDate
         }
+        // for FRA tenor is the forward period
         const QuantLib::Period& forward() const {
             return tenor();
         }
@@ -1256,7 +1276,11 @@ namespace QLUtils {
         }
     };
 
-    // for simple forward rate curve to zero curve bootstrapping
+    // for converting simple forward rate curve to zero curve (simple-forward-to-zero bootstrapping)
+    // use QuantLib::Thirty360::ISDA as default day count convention for simplified calculation
+    template <
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::ISDA
+    >
     class SimpleForward : public FRA {
     private:
         QuantLib::Natural lengthInMonths_;  // tenor in months
@@ -1275,7 +1299,7 @@ namespace QLUtils {
                     QuantLib::NullCalendar(),   // no holiday
                     QuantLib::BusinessDayConvention::Unadjusted,    // no business day adjustment
                     false,   // endOfMonth = false
-                    QuantLib::Thirty360(QuantLib::Thirty360::ISDA), // 30/360 day counting
+                    QuantLib::Thirty360(THIRTY_360_DC_CONVENTION), // 30/360 day counting
                     h
                 );
             };
@@ -1298,5 +1322,39 @@ namespace QLUtils {
         IborIndexFactory getIborFactory() const {
             return getIborFactory(lengthInMonths(), familyName());
         }
+    };
+
+    // for converting forward par rate curve to zero curve (forward-par-to-zero bootstrapping)
+    // use QuantLib::Thirty360::ISDA as default day count convention for simplified calculation
+    template <
+        QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::ISDA
+    >
+    class ParForward : public ParRate<COUPON_FREQ, THIRTY_360_DC_CONVENTION> {
+    public:
+        ParForward(
+            const QuantLib::Period& tenor,
+            const QuantLib::Period& forward
+        ) :
+            ParRate<COUPON_FREQ, THIRTY_360_DC_CONVENTION>(
+                tenor,
+                QuantLib::Settings::instance().evaluationDate(),
+                forward
+            )
+        {}
+    };
+    // for converting par rate curve to zero curve (spot-par-to-zero bootstrapping)
+    // use QuantLib::Thirty360::ISDA as default day count convention for simplified calculation
+    template <
+        QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::ISDA
+    >
+    class ParSpot : public ParForward<COUPON_FREQ, THIRTY_360_DC_CONVENTION> {
+    public:
+        ParSpot(
+            const QuantLib::Period& tenor
+        ) :
+            ParForward<COUPON_FREQ, THIRTY_360_DC_CONVENTION>(tenor, QuantLib::Period(0, QuantLib::Days))
+        {}
     };
 }

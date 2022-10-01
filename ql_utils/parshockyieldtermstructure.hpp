@@ -10,7 +10,11 @@
 #include <cmath>
 
 namespace QLUtils {
-    template <typename I = QuantLib::Linear, QuantLib::Frequency PAR_YIELD_COUPON_FREQ = QuantLib::Semiannual>
+    template <
+        typename I = QuantLib::Linear,
+        QuantLib::Frequency PAR_YIELD_COUPON_FREQ = QuantLib::Semiannual,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::BondBasis
+    >
     class ParShockYieldTermStructure : public Bootstrapper {
     public:
         typedef I Interp;
@@ -21,7 +25,7 @@ namespace QLUtils {
         std::shared_ptr<std::vector<QuantLib::Period>> monthlyTenors;   // monthly tenor
         std::shared_ptr<std::vector<QuantLib::Rate>> monthlyParYields;  // original monthly par yields
         std::shared_ptr<std::vector<QuantLib::Rate>> monthlyParShocks;  // monthly par shock amount
-        pInstruments shockedParRateQuotes;
+        pInstruments shockedParRateQuotes;  // shocked par rates instruments
         QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> zeroCurveShocked;    // shocked output zero curve
 
         struct DefaultActualVsImpliedComparison {
@@ -74,12 +78,12 @@ namespace QLUtils {
             while (d <= maxDate) {
                 QuantLib::Period tenor(++month, QuantLib::Months);
                 monthlyTenors->push_back(tenor);
-                auto parYield = ParYieldHelper<PAR_YIELD_COUPON_FREQ>::parYield(yieldTermStructure, tenor); // calculate the original par yield for the tenor
+                auto parYield = ParYieldHelper<PAR_YIELD_COUPON_FREQ, THIRTY_360_DC_CONVENTION>::parYield(yieldTermStructure, tenor); // calculate the original par yield for the tenor
                 monthlyParYields->push_back(parYield);
                 auto parShock = monthlyParShocker(month);   // get the amount of shock from the rate shocker
                 monthlyParShocks->push_back(parShock);
                 auto shockedParYield = parYield + parShock; // add the shock to the par yield
-                std::shared_ptr<BootstrapInstrument> inst(new ParRate<PAR_YIELD_COUPON_FREQ>(tenor, curveReferenceDate));
+                std::shared_ptr<BootstrapInstrument> inst(new ParRate<PAR_YIELD_COUPON_FREQ, THIRTY_360_DC_CONVENTION>(tenor, curveReferenceDate));
                 inst->rate() = shockedParYield;
                 inst->ticker() = (std::ostringstream() << "PAR-" << tenor.length() << "M").str();
                 shockedParRateQuotes->push_back(inst);
