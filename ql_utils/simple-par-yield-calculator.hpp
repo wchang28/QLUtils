@@ -70,7 +70,7 @@ namespace QLUtils {
 			auto n = monthlyZeroRates_.size();
 			QL_REQUIRE(n >= 2, "too few zero rate nodes (" << n << "). The minimum is 2");
 		}
-	private:
+	public:
 		static double multiplier() {
 			auto unit = RATE_UNIT;
 			switch (unit) {
@@ -83,7 +83,6 @@ namespace QLUtils {
 				return 0.0001;
 			}
 		}
-	public:
 		static double couponFrequency() {
 			return (double)COUPON_FREQ;
 		}

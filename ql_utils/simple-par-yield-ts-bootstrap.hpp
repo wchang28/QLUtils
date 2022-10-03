@@ -17,6 +17,8 @@ namespace QLUtils {
 	>
 	class SimpleParYieldTSBootstrapper {
 	private:
+		using ParRateCalculator = SimpleParRateCalculator<RATE_UNIT, COUPON_FREQ>;
+	private:
 		// input
 		std::vector<size_t> maturityMonths_;
 		std::vector<double> parYields_;
@@ -35,31 +37,11 @@ namespace QLUtils {
 			QL_REQUIRE(maturityMonths.size() == parYields.size(), "maturities vector (" << maturityMonths.size() << ") and par yields vector (" << parYields_.size() << ") must have the same length");
 			QL_REQUIRE(!maturityMonths.empty(), "par term structure is empty");
 		}
-	private:
-		static double multiplier() {
-			auto unit = RATE_UNIT;
-			switch (unit) {
-			case RateUnit::Decimal:
-			default:
-				return 1.;
-			case RateUnit::Percent:
-				return 0.01;
-			case RateUnit::BasisPoint:
-				return 0.0001;
-			}
-		}
 	public:
-		static double couponFrequency() {
-			return (double)COUPON_FREQ;
-		}
-		static size_t couponIntervalMonths() {
-			return (size_t)12 / (size_t)COUPON_FREQ;
-		}
 		void bootstrap(
 			bool buildZeroCurve = false,
 			const QuantLib::Date& curveReferenceDate = QuantLib::Date()
 		) {
-			auto freq = couponFrequency();
 			std::vector<QuantLib::Time> terms;
 			auto maxMonth = maturityMonths_.back();
 			for (auto const& maturityMonth : maturityMonths_) {	// for each maturity
@@ -81,13 +63,15 @@ namespace QLUtils {
 			for (decltype(maxMonth) month = 0; month <= 12; ++month) {
 				zeroRates[month] = parYields[month];
 			}
-			auto cpnIntrvlMonths = couponIntervalMonths();
+			auto freq = ParRateCalculator::couponFrequency();
+			auto multiplier = ParRateCalculator::multiplier();
+			auto cpnIntrvlMonths = ParRateCalculator::couponIntervalMonths();
 			// solve the discount factor at the given month
-			auto solveLastDiscountFactorForPar = [&parYields, &zeroRates, &freq, &cpnIntrvlMonths](const std::size_t& month) -> QuantLib::DiscountFactor {
+			auto solveLastDiscountFactorForPar = [&parYields, &zeroRates, &freq, &cpnIntrvlMonths, &multiplier](const std::size_t& month) -> QuantLib::DiscountFactor {
 				// month >= 13
 				double sum = 0.;
 				for (int i = (int)month - cpnIntrvlMonths; i > 0; i -= cpnIntrvlMonths) {	// for each cashflow @cpnIntrvlMonths months interval except the last one
-					auto zeroRate = zeroRates[i] * multiplier();
+					auto zeroRate = zeroRates[i] * multiplier;
 					auto t = (QuantLib::Time)i / 12.;
 					auto df = 1. / std::pow(1. + zeroRate / freq, t * freq);
 					auto dt = (QuantLib::Time)(std::min(cpnIntrvlMonths, (size_t)i)) / 12.;
@@ -97,7 +81,7 @@ namespace QLUtils {
 				// => parYield * sum + (1 + parYield / freq) * dfLast = 1
 				// => (1 + parYield / freq) * dfLast = 1 - parYield * sum
 				// => dfLast = (1 - parYield * sum)/(1 + parYield / freq)
-				auto parYield = parYields[month] * multiplier();
+				auto parYield = parYields[month] * multiplier;
 				auto rhs = 1. - parYield * sum;
 				auto dfLast = rhs / (1. + parYield / freq);
 				return dfLast;
@@ -106,7 +90,7 @@ namespace QLUtils {
 				auto df = solveLastDiscountFactorForPar(month);
 				auto t = (QuantLib::Time)month /12.;
 				auto zr = (std::pow(1.0 / df, 1.0 / t / freq) - 1.) * freq;
-				zeroRates[month] = zr / multiplier();
+				zeroRates[month] = zr / multiplier;
 			}
 			if (buildZeroCurve) {
 				std::vector<QuantLib::Date> dates(maxMonth + 1);
@@ -114,7 +98,7 @@ namespace QLUtils {
 				auto baseReferenceDate = (curveReferenceDate == QuantLib::Date() ? QuantLib::Settings::instance().evaluationDate() : curveReferenceDate);
 				for (decltype(maxMonth) month = 0; month <= maxMonth; ++month) {
 					dates[month] = baseReferenceDate + month * QuantLib::Months;
-					yields[month] = zeroRates[month] * multiplier();
+					yields[month] = zeroRates[month] * multiplier;
 				}
 				pZeroCurve.reset(new QuantLib::InterpolatedZeroCurve<QuantLib::Linear>(dates, yields, QuantLib::Actual365Fixed(), QuantLib::Linear(), QuantLib::Compounded, COUPON_FREQ));
 			}
@@ -124,17 +108,20 @@ namespace QLUtils {
 			std::ostream& os,
 			std::streamsize precision = 16
 		) const {
+			
 			QL_REQUIRE(pMonthlySplinedParYields != nullptr && pMonthlyZeroRates != nullptr, "bootstrap zero rates first");
 			const auto& parYields = *pMonthlySplinedParYields;
 			const auto& zeroRates = *pMonthlyZeroRates;
+			ParRateCalculator parRateCalculator(zeroRates);
+			auto multiplier = ParRateCalculator::multiplier();
 			auto n = parYields.size();
 			QL_ASSERT(zeroRates.size() == n, "the number of zero rates (" << zeroRates.size() << ") is not what is expected (" << n << ")");
 			os << std::fixed;
 			os << std::setprecision(precision);
 			QuantLib::Rate err = 0.0;
 			for (decltype(n) month = 1; month < n; ++month) {
-				auto actual = parYields[month] * multiplier();
-				auto implied = SimpleParRateCalculator<RATE_UNIT, COUPON_FREQ>(zeroRates)(month) * multiplier();
+				auto actual = parYields[month] * multiplier;
+				auto implied = parRateCalculator(month) * multiplier;
 				auto diff = implied - actual;
 				err += std::pow(diff, 2.0);
 				os << "maturity=" << month;
