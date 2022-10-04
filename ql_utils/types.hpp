@@ -23,6 +23,7 @@ namespace QLUtils {
 		typedef RATE_TYPE RateType;
 		std::vector<MaturityType> maturities;
 		std::vector<RateType> rates;
+		YieldTSNodes(size_t n = 0): maturities(n), rates(n) {}
 		void resize(size_t n) {
 			maturities.resize(n);
 			rates.resize(n);
