@@ -35,6 +35,10 @@ namespace QLUtils {
 			maturities.clear();
 			rates.clear();
 		}
+		void assertValid() const {
+			QL_ASSERT(maturities.size() == rates.size(), "the length of maturities (" << maturities.size() << " is different from the length of rates");
+			QL_ASSERT(size() > 0, "term structure is empty");
+		}
 	};
 
 	struct ParYieldTermStructInstrument {
