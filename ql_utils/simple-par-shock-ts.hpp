@@ -40,7 +40,7 @@ namespace QLUtils {
 		}
 		template <typename MONTHLY_PAR_SHOCKER>
 		void shock(
-			const MONTHLY_PAR_SHOCKER& monthlyParShocker,
+			const MONTHLY_PAR_SHOCKER& monthlyParShocker,	// shock unit is QuantLib::Rate (decimal)
 			bool buildZeroCurve = false,
 			const QuantLib::Date& curveReferenceDate = QuantLib::Date()
 		) {
@@ -60,11 +60,11 @@ namespace QLUtils {
 				parTenorMonths[index] = tenorMonth;
 				auto parYield = parRateCalculator(tenorMonth);
 				parYields[index] = parYield;
-				parYield *= multiplier;	// convert to QuantLib::Rate
+				parYield *= multiplier;	// convert to QuantLib::Rate unit
 				auto parShock = monthlyParShocker(tenorMonth);
 				parShocks[index] = parShock;
 				auto parYieldShocked = parYield + parShock;
-				parYieldShocked /= multiplier;
+				parYieldShocked /= multiplier;	// convert the rate back
 				parYieldsShocked[index] = parYieldShocked;
 			}
 			Bootstrapper bootstrapper(parTenorMonths, parYieldsShocked);

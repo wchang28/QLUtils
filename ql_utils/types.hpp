@@ -24,6 +24,12 @@ namespace QLUtils {
 		std::vector<MaturityType> maturities;
 		std::vector<RateType> rates;
 		YieldTSNodes(size_t n = 0): maturities(n), rates(n) {}
+		YieldTSNodes(
+			const std::vector<MaturityType>& maturities_,
+			const std::vector<RateType>& rates_
+		):maturities(maturities_), rates(rates_) {
+			assertValid();
+		}
 		void resize(size_t n) {
 			maturities.resize(n);
 			rates.resize(n);
