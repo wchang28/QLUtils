@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
+#include <ql_utils/simple-rate-calculator.hpp>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -56,9 +57,8 @@ namespace QLUtils {
 		RateUnit RATE_UNIT = RateUnit::Percent,
 		QuantLib::Frequency COUPON_FREQ = QuantLib::Frequency::Semiannual
 	>
-	class SimpleParRateCalculator {
-	public:
-		typedef std::vector<double> MonthlyZeroRates;
+	class SimpleParRateCalculator:
+		public SimpleRateCalculator<RATE_UNIT, COUPON_FREQ> {
 	private:
 		const MonthlyZeroRates& monthlyZeroRates_;	// zero rate vectors, compounded in COUPON_FREQ, first element must be the spot zero rate (ie: month=0)
 	public:
@@ -70,37 +70,19 @@ namespace QLUtils {
 			auto n = monthlyZeroRates_.size();
 			QL_REQUIRE(n >= 2, "too few zero rate nodes (" << n << "). The minimum is 2");
 		}
-	public:
-		static double multiplier() {
-			auto unit = RATE_UNIT;
-			switch (unit) {
-			case RateUnit::Decimal:
-			default:
-				return 1.;
-			case RateUnit::Percent:
-				return 0.01;
-			case RateUnit::BasisPoint:
-				return 0.0001;
-			}
-		}
-		static double couponFrequency() {
-			return (double)COUPON_FREQ;
-		}
-		static size_t couponIntervalMonths() {
-			return (size_t)12 / (size_t)COUPON_FREQ;
-		}
 		double operator() (
 			size_t tenorMonth,
 			size_t fwdMonth = 0
 		) const {
-			auto freq = couponFrequency();
+			auto freq = this->couponFrequency();
+			auto multiplier = this->multiplier();
 			auto n = monthlyZeroRates_.size();
 			QL_REQUIRE(tenorMonth > 0, "tenor in month (" << tenorMonth << ") must be greater than zero");
 			QL_REQUIRE(fwdMonth >= 0, "forward in month (" << fwdMonth << ") cannot be negative");
 			auto lastRelevantMonth = fwdMonth + tenorMonth;
 			QL_REQUIRE(lastRelevantMonth < n, "forward+tenor (" << (lastRelevantMonth) << ") is over the limit (" << (n - 1) << ")");
 			auto t_0 = (QuantLib::Time)fwdMonth / 12.;
-			auto zr_0 = monthlyZeroRates_[fwdMonth] * multiplier();
+			auto zr_0 = monthlyZeroRates_[fwdMonth] * multiplier;
 			auto df_0 = std::pow(1.0 + zr_0 / freq, -t_0 * freq);
 			if (tenorMonth <= 12) {
 				if (fwdMonth == 0) {
@@ -108,17 +90,17 @@ namespace QLUtils {
 				}
 				else {
 					auto month = lastRelevantMonth;
-					auto zr = monthlyZeroRates_[month] * multiplier();
+					auto zr = monthlyZeroRates_[month] * multiplier;
 					auto t = (QuantLib::Time)month / 12.;
 					auto df = std::pow(1.0 + zr / freq, -t * freq);
 					df /= df_0;
 					t = (QuantLib::Time)tenorMonth / 12.;
 					zr = (std::pow(df, -1. / (t * freq)) - 1.0) * freq;
-					return zr / multiplier();
+					return zr / multiplier;
 				}
 			}
 			else { // tenorMonth > 12
-				auto cpnIntrvlMonths = couponIntervalMonths();
+				auto cpnIntrvlMonths = this->couponIntervalMonths();
 				auto start = fwdMonth + (tenorMonth % cpnIntrvlMonths == 0 ? cpnIntrvlMonths : tenorMonth % cpnIntrvlMonths);
 				auto prevMonth = fwdMonth;
 				auto last_df = 1.;
@@ -126,7 +108,7 @@ namespace QLUtils {
 				for (auto month = start; month <= lastRelevantMonth; month += cpnIntrvlMonths) {
 					auto d_months = month - prevMonth;
 					auto dt = (QuantLib::Time)d_months / 12.;
-					auto zr = monthlyZeroRates_[month] * multiplier();
+					auto zr = monthlyZeroRates_[month] * multiplier;
 					auto t = (QuantLib::Time)month / 12.;
 					auto df = std::pow(1.0 + zr / freq, -t * freq);
 					df /= df_0;
@@ -135,7 +117,7 @@ namespace QLUtils {
 					last_df = df;
 				}
 				auto r = (1. - last_df) / sum;
-				return r / multiplier();
+				return r / multiplier;
 			}
 		}
 	};

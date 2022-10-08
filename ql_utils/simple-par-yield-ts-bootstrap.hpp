@@ -42,56 +42,70 @@ namespace QLUtils {
 			bool buildZeroCurve = false,
 			const QuantLib::Date& curveReferenceDate = QuantLib::Date()
 		) {
-			std::vector<QuantLib::Time> terms;
-			auto maxMonth = maturityMonths_.back();
-			for (auto const& maturityMonth : maturityMonths_) {	// for each maturity
-				auto term = (QuantLib::Time)maturityMonth / 12.;
-				terms.push_back(term);
-			}
-			QuantLib::Cubic naturalCubicSpline(QuantLib::CubicInterpolation::Spline, false, QuantLib::CubicInterpolation::SecondDerivative, 0.0, QuantLib::CubicInterpolation::SecondDerivative, 0.0);
-			auto parInterp = naturalCubicSpline.interpolate(terms.begin(), terms.end(), parYields_.begin());
-			pMonthlySplinedParYields.reset(new std::vector<double>(maxMonth+1));
-			auto& parYields = *pMonthlySplinedParYields;
-			for (decltype(maxMonth) month = 0; month <= maxMonth; month++) {
-				auto term = (QuantLib::Time)month / 12.;
-				auto parYield = parInterp(term, true);
-				parYields[month] = parYield;
-			}
-			parYields[0] = parYields[1];
-			pMonthlyZeroRates.reset(new std::vector<double>(parYields.size()));
-			auto& zeroRates = *pMonthlyZeroRates;
-			for (decltype(maxMonth) month = 0; month <= 12; ++month) {
-				zeroRates[month] = parYields[month];
-			}
-			auto freq = ParRateCalculator::couponFrequency();
 			auto multiplier = ParRateCalculator::multiplier();
-			auto cpnIntrvlMonths = ParRateCalculator::couponIntervalMonths();
-			// solve the discount factor at the given month
-			auto solveLastDiscountFactorForPar = [&parYields, &zeroRates, &freq, &cpnIntrvlMonths, &multiplier](const std::size_t& month) -> QuantLib::DiscountFactor {
-				// month >= 13
-				double sum = 0.;
-				for (int i = (int)month - cpnIntrvlMonths; i > 0; i -= cpnIntrvlMonths) {	// for each cashflow @cpnIntrvlMonths months interval except the last one
-					auto zeroRate = zeroRates[i] * multiplier;
-					auto t = (QuantLib::Time)i / 12.;
-					auto df = 1. / std::pow(1. + zeroRate / freq, t * freq);
-					auto dt = (QuantLib::Time)(std::min(cpnIntrvlMonths, (size_t)i)) / 12.;
-					sum += dt * df;
-				}
-				// parYield * sum + parYield / freq * dfLast + dfLast = 1
-				// => parYield * sum + (1 + parYield / freq) * dfLast = 1
-				// => (1 + parYield / freq) * dfLast = 1 - parYield * sum
-				// => dfLast = (1 - parYield * sum)/(1 + parYield / freq)
-				auto parYield = parYields[month] * multiplier;
-				auto rhs = 1. - parYield * sum;
-				auto dfLast = rhs / (1. + parYield / freq);
-				return dfLast;
-			};
-			for (decltype(maxMonth) month = 13; month <= maxMonth; ++month) {
-				auto df = solveLastDiscountFactorForPar(month);
-				auto t = (QuantLib::Time)month /12.;
-				auto zr = (std::pow(1.0 / df, 1.0 / t / freq) - 1.) * freq;
-				zeroRates[month] = zr / multiplier;
+			auto maxMonth = maturityMonths_.back();
+			if (maturityMonths_.size() == 1) {	// only one node in the par yield term structure => cannot spline
+				QL_REQUIRE(maturityMonths_[0] == 1, "the only maturity month has to be month 1");
+				pMonthlySplinedParYields.reset(new std::vector<double>(2));
+				auto& parYields = *pMonthlySplinedParYields;
+				parYields[1] = parYields_[0];
+				parYields[0] = parYields[1];
+				pMonthlyZeroRates.reset(new std::vector<double>(2));
+				auto& zeroRates = *pMonthlyZeroRates;
+				zeroRates[1] = parYields[1];
+				zeroRates[0] = parYields[0];
 			}
+			else {	// more then 1 node in the par yield term structure
+				std::vector<QuantLib::Time> terms;
+				for (auto const& maturityMonth : maturityMonths_) {	// for each maturity
+					auto term = (QuantLib::Time)maturityMonth / 12.;
+					terms.push_back(term);
+				}
+				QuantLib::Cubic naturalCubicSpline(QuantLib::CubicInterpolation::Spline, false, QuantLib::CubicInterpolation::SecondDerivative, 0.0, QuantLib::CubicInterpolation::SecondDerivative, 0.0);
+				auto parInterp = naturalCubicSpline.interpolate(terms.begin(), terms.end(), parYields_.begin());
+				pMonthlySplinedParYields.reset(new std::vector<double>(maxMonth + 1));
+				auto& parYields = *pMonthlySplinedParYields;
+				for (decltype(maxMonth) month = 1; month <= maxMonth; month++) {	// for each consecutive month all the way to maxMonth
+					auto term = (QuantLib::Time)month / 12.;
+					auto parYield = parInterp(term, true);
+					parYields[month] = parYield;
+				}
+				parYields[0] = parYields[1];
+				pMonthlyZeroRates.reset(new std::vector<double>(parYields.size()));
+				auto& zeroRates = *pMonthlyZeroRates;
+				for (decltype(maxMonth) month = 0; month <= std::min((size_t)12, maxMonth); ++month) {
+					zeroRates[month] = parYields[month];
+				}
+				auto freq = ParRateCalculator::couponFrequency();
+				auto cpnIntrvlMonths = ParRateCalculator::couponIntervalMonths();
+				// solve the discount factor at the given month
+				auto solveLastDiscountFactorForPar = [&parYields, &zeroRates, &freq, &cpnIntrvlMonths, &multiplier](const std::size_t& month) -> QuantLib::DiscountFactor {
+					// month >= 13
+					double sum = 0.;
+					for (int i = (int)month - cpnIntrvlMonths; i > 0; i -= cpnIntrvlMonths) {	// for each cashflow @cpnIntrvlMonths months interval except the last one
+						auto zeroRate = zeroRates[i] * multiplier;
+						auto t = (QuantLib::Time)i / 12.;
+						auto df = 1. / std::pow(1. + zeroRate / freq, t * freq);
+						auto dt = (QuantLib::Time)(std::min(cpnIntrvlMonths, (size_t)i)) / 12.;
+						sum += dt * df;
+					}
+					// parYield * sum + parYield / freq * dfLast + dfLast = 1
+					// => parYield * sum + (1 + parYield / freq) * dfLast = 1
+					// => (1 + parYield / freq) * dfLast = 1 - parYield * sum
+					// => dfLast = (1 - parYield * sum)/(1 + parYield / freq)
+					auto parYield = parYields[month] * multiplier;
+					auto rhs = 1. - parYield * sum;
+					auto dfLast = rhs / (1. + parYield / freq);
+					return dfLast;
+				};
+				for (decltype(maxMonth) month = 13; month <= maxMonth; ++month) {
+					auto df = solveLastDiscountFactorForPar(month);
+					auto t = (QuantLib::Time)month / 12.;
+					auto zr = (std::pow(1.0 / df, 1.0 / t / freq) - 1.) * freq;
+					zeroRates[month] = zr / multiplier;
+				}
+			}
+			const auto& zeroRates = *pMonthlyZeroRates;
 			if (buildZeroCurve) {
 				std::vector<QuantLib::Date> dates(maxMonth + 1);
 				std::vector<QuantLib::Rate> yields(maxMonth + 1);

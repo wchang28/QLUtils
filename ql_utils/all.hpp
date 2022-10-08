@@ -7,9 +7,11 @@
 #include <ql_utils/gbpoisswap.hpp>
 #include <ql_utils/euroisswap.hpp>
 #include <ql_utils/ParYield.hpp>
+#include <ql_utils/simple-rate-calculator.hpp>
 #include <ql_utils/simple-par-yield-calculator.hpp>
 #include <ql_utils/simple-par-yield-ts-bootstrap.hpp>
 #include <ql_utils/simple-par-shock-ts.hpp>
+#include <ql_utils/simple-forward-to-zero-converter.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/bootstrap.hpp>
