@@ -1133,11 +1133,26 @@ namespace QLUtils {
     // this can be use to bootstrap Libor 3m estimating zero curve given a monthly Libor 3m forward rate curves
     class FRA : public SwapCurveInstrument {
     private:
-        typedef std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter> CalcDatesResult;
-        CalcDatesResult calcDates() const {
+        QuantLib::ext::shared_ptr<QuantLib::FraRateHelper> createRateHelperImpl(
+            QuantLib::Rate quotedRate = 0.
+        ) const {
             auto iborIndex = this->iborIndex();
-            QuantLib::FraRateHelper rateHelper(0., forward(), iborIndex);
-            return CalcDatesResult(rateHelper.earliestDate(), rateHelper.pillarDate(), iborIndex->dayCounter());
+            QuantLib::ext::shared_ptr<QuantLib::FraRateHelper> rateHelper(
+                new QuantLib::FraRateHelper(
+                    quotedRate,
+                    forward(),
+                    iborIndex,
+                    QuantLib::Pillar::MaturityDate,
+                    QuantLib::Date(),
+                    false
+                )
+            );
+            return rateHelper;
+        }
+        typedef std::pair<QuantLib::Date, QuantLib::Date> CalcDatesResult;
+        CalcDatesResult calcDates() const {
+            auto rateHelper = createRateHelperImpl();
+            return CalcDatesResult(rateHelper->earliestDate(), rateHelper->maturityDate());
         }
     public:
         FRA(
@@ -1145,7 +1160,7 @@ namespace QLUtils {
             const QuantLib::Period& forward
         ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::FRA, forward, QuantLib::Null<QuantLib::Date>())
         {
-            this->datedDate_ = std::get<0>(calcDates());    // datedDate_ stores the earliestDate/startDate
+            this->datedDate_ = calcDates().first;    // datedDate_ stores the earliestDate/startDate
         }
         // for FRA tenor is the forward period
         const QuantLib::Period& forward() const {
@@ -1155,29 +1170,20 @@ namespace QLUtils {
             return this->datedDate_;
         }
         QuantLib::Date maturityDate() const {
-            return std::get<1>(calcDates());
+            return calcDates().second;
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            auto iborIndex = this->iborIndex();
-            QuantLib::ext::shared_ptr<QuantLib::FraRateHelper> helper(
-                new QuantLib::FraRateHelper(
-                    quote(),
-                    forward(),
-                    iborIndex
-                )
-            );
-            return helper;
+            return createRateHelperImpl(rate());
         }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            auto iborIndex = this->iborIndex();
-            QuantLib::FraRateHelper rateHelper(0., forward(), iborIndex);
-            rateHelper.setTermStructure(estimatingTermStructure.currentLink().get());
-            auto rate = rateHelper.impliedQuote();
+            auto rateHelper = createRateHelperImpl();
+            rateHelper->setTermStructure(estimatingTermStructure.currentLink().get());
+            auto rate = rateHelper->impliedQuote();
             return rate;
         }
     };
