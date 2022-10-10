@@ -12,6 +12,7 @@
 #include <ql_utils/simple-par-yield-ts-bootstrap.hpp>
 #include <ql_utils/simple-par-shock-ts.hpp>
 #include <ql_utils/simple-forward-to-zero-converter.hpp>
+#include <ql_utils/monthly-moving-average-proj.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/bootstrap.hpp>

@@ -49,6 +49,8 @@ namespace QLUtils {
 
 	typedef std::vector<double> MonthlyZeroRates;
 	typedef std::vector<double> MonthlyForwardCurve;
+	typedef std::vector<double> MonthlyRates;
+	typedef MonthlyRates HistoricalMonthlyRates;
 
 	struct ParYieldTermStructInstrument {
 		virtual QuantLib::Time parTerm() const = 0;
