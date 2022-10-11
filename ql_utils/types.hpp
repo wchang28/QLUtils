@@ -37,6 +37,9 @@ namespace QLUtils {
 		size_t size() const {
 			return maturities.size();
 		}
+		bool empty() const {
+			return maturities.empty();
+		}
 		void clear() {
 			maturities.clear();
 			rates.clear();
