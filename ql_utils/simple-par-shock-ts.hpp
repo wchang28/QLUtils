@@ -3,6 +3,7 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/simple-par-yield-calculator.hpp>
+#include <ql_utils/simple-par-yield-ts-bootstrap.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -16,8 +17,6 @@ namespace QLUtils {
 		QuantLib::Frequency COUPON_FREQ = QuantLib::Frequency::Semiannual
 	>
 	class SimpleParShockTS {
-	public:
-		typedef std::vector<double> MonthlyZeroRates;
 	private:
 		using ParRateCalculator = SimpleParRateCalculator<RATE_UNIT, COUPON_FREQ>;
 		using Bootstrapper = SimpleParYieldTSBootstrapper<RATE_UNIT, COUPON_FREQ>;
@@ -36,7 +35,8 @@ namespace QLUtils {
 			const MonthlyZeroRates& monthlyZeroRates	// zero rate vectors, compounded in COUPON_FREQ, first element must be the spot zero rate (ie: month=0)
 		) : monthlyZeroRates_(monthlyZeroRates)
 		{
-			QL_REQUIRE(!monthlyZeroRates.empty(), "monthly zero rates vector is empty");
+			auto n = monthlyZeroRates.size();
+			QL_REQUIRE(n >= 2, "too few zero rate nodes (" << n << "). The minimum is 2");
 		}
 		template <typename MONTHLY_PAR_SHOCKER>
 		void shock(

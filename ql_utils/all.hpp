@@ -9,6 +9,7 @@
 #include <ql_utils/ParYield.hpp>
 #include <ql_utils/simple-rate-calculator.hpp>
 #include <ql_utils/simple-par-yield-calculator.hpp>
+#include <ql_utils/simple-simple-rate-calculator.hpp>
 #include <ql_utils/simple-par-yield-ts-bootstrap.hpp>
 #include <ql_utils/simple-par-shock-ts.hpp>
 #include <ql_utils/simple-forward-to-zero-converter.hpp>

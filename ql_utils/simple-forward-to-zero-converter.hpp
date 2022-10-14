@@ -3,6 +3,7 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/simple-rate-calculator.hpp>
+#include <ql_utils/simple-simple-rate-calculator.hpp>
 #include <memory>
 #include <cmath>
 
@@ -14,6 +15,7 @@ namespace QLUtils {
 	class SimpleForwardZeroConverter {
 	private:
 		using SimpleRateCalculator = SimpleRateCalculator<RATE_UNIT, COUPON_FREQ>;
+		using SimpleSimpleRateCalculator = SimpleSimpleRateCalculator<RATE_UNIT, COUPON_FREQ>;
 	private:
 		SimpleForwardZeroConverter() {}
 	public:
@@ -21,10 +23,10 @@ namespace QLUtils {
 			const MonthlyForwardCurve& monthlyFwdCurve	// assuming tenor is 1 month and the fwd rate is simple interest rate
 		) {
 			auto n_forwards = monthlyFwdCurve.size();
-			QL_ASSERT(n_forwards >= 1, "forward curve is empty");
+			QL_REQUIRE(n_forwards > 0, "forward curve is empty");
 			auto freq = SimpleRateCalculator::couponFrequency();
 			auto multiplier = SimpleRateCalculator::multiplier();
-			auto n_zeros = n_forwards + 1;	// n_zeros >= 2
+			auto n_zeros = n_forwards + 1;	// n_forwards >= 1 => n_zeros >= 2
 			std::shared_ptr<MonthlyZeroRates> ret(new MonthlyZeroRates(n_zeros));
 			auto& zeroRates = *ret;
 			for (decltype(n_zeros) month = 0; month < n_zeros - 1; ++month) {	// n_zeros - 1 iterations (at least one), month_max = n_zeros - 2 = n_forwards - 1
@@ -42,24 +44,18 @@ namespace QLUtils {
 			return ret;
 		}
 		static std::shared_ptr<MonthlyForwardCurve> toForwardCurve(
-			const MonthlyZeroRates& monthlyZeroRates
+			const MonthlyZeroRates& monthlyZeroRates,
+			size_t tenorMonth = 1
 		) {
-			auto n_zeros = monthlyZeroRates.size();
-			QL_REQUIRE(n_zeros >= 2, "too few zero rate nodes (" << n_zeros << "). The minimum is 2");
-			auto freq = SimpleRateCalculator::couponFrequency();
-			auto multiplier = SimpleRateCalculator::multiplier();
-			auto n = n_zeros - 1;
-			std::shared_ptr<MonthlyForwardCurve> ret(new MonthlyForwardCurve(n));
+			QL_REQUIRE(tenorMonth > 0, "tenor in month (" << tenorMonth << ") must be greater than zero");
+			SimpleSimpleRateCalculator simpleRateCalculator(monthlyZeroRates);
+			auto n_zeros = monthlyZeroRates.size(); // n_zeros >= 2
+			QL_REQUIRE(tenorMonth < n_zeros, "tenor in month (" << tenorMonth << ") is over the limit (" << (n_zeros-1) << ")");
+			auto n_forwards = n_zeros - tenorMonth;	// n_forwards > 0
+			std::shared_ptr<MonthlyForwardCurve> ret(new MonthlyForwardCurve(n_forwards));
 			auto& monthlyFwdCurve = *ret;
-			for (decltype(n) fwdMonth = 0; fwdMonth < n; ++fwdMonth) {
-				auto t_0 = (QuantLib::Time)fwdMonth / 12.;
-				auto t_1 = (QuantLib::Time)(fwdMonth + 1) / 12.;
-				auto dt = t_1 - t_0;
-				auto ac_0 = std::pow(1. + monthlyZeroRates[fwdMonth] * multiplier / freq, t_0 * freq);
-				auto ac_1 = std::pow(1. + monthlyZeroRates[fwdMonth + 1] * multiplier / freq, t_1 * freq);
-				auto ac_f = ac_1 / ac_0;
-				auto fwdRate = (ac_f - 1.) / dt;
-				monthlyFwdCurve[fwdMonth] = fwdRate / multiplier;
+			for (decltype(n_forwards) fwdMonth = 0; fwdMonth < n_forwards; ++fwdMonth) {
+				monthlyFwdCurve[fwdMonth] = simpleRateCalculator(tenorMonth, fwdMonth);
 			}
 			return ret;
 		}
