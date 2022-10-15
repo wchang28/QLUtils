@@ -32,7 +32,7 @@ namespace QLUtils {
 			for (decltype(n_zeros) month = 0; month < n_zeros - 1; ++month) {	// n_zeros - 1 iterations (at least one), month_max = n_zeros - 2 = n_forwards - 1
 				auto nextMonth = month + 1;
 				auto t_0 = (QuantLib::Time)month / 12.;
-				auto t_1 = (QuantLib::Time)(month + 1) / 12.;
+				auto t_1 = (QuantLib::Time)nextMonth / 12.;
 				auto dt = t_1 - t_0;
 				auto a_0 = (month == 0 ? 1. : std::pow(1. + zeroRates[month] * multiplier / freq, t_0 * freq));
 				auto a_f = 1. + monthlyFwdCurve[month] * multiplier * dt;
