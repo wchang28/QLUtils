@@ -1177,14 +1177,19 @@ namespace QLUtils {
         ) const {
             return createRateHelperImpl(rate());
         }
+        QuantLib::Rate impliedRate(
+            const QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure>& estimatingTermStructure
+        ) const {
+            auto rateHelper = createRateHelperImpl();
+            rateHelper->setTermStructure(estimatingTermStructure.get());
+            auto rate = rateHelper->impliedQuote();
+            return rate;
+        }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            auto rateHelper = createRateHelperImpl();
-            rateHelper->setTermStructure(estimatingTermStructure.currentLink().get());
-            auto rate = rateHelper->impliedQuote();
-            return rate;
+            return impliedRate(estimatingTermStructure.currentLink());
         }
     };
     

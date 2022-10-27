@@ -19,7 +19,7 @@ namespace QuantLib {
             IborIndex
             (
                 std::string("OvernightCompoundedAverageInArrearsIndex<<") + OvernightIndex().name() + ">>",
-                tenorInMonth* Months,
+                tenorInMonth * Months,
                 OvernightIndex().fixingDays(),
                 OvernightIndex().currency(),
                 OvernightIndex().fixingCalendar(),
