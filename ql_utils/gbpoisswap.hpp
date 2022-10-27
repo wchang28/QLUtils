@@ -7,33 +7,23 @@ namespace QuantLib {
     template <
         typename OVERNIGHTINDEX // OvernightIndex can be Sonia
     >
-    class GbpOvernightIndexedSwapIsdaFix : public
-#ifdef QL_OVERNIGHT_INDEXED_SWAP_INDEX_MISSING_IMPL
-        QuantLib::OvernightIndexedSwapIndexEx
-#else
-        QuantLib::OvernightIndexedSwapIndex
-#endif
-    {
+    class GbpOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndex {
 public:
     typedef typename OVERNIGHTINDEX OvernightIndex;
 public:
     GbpOvernightIndexedSwapIsdaFix(
-        const QuantLib::Period& tenor,
-        const QuantLib::Handle<QuantLib::YieldTermStructure>& indexEstimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        const Period& tenor,
+        const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
     ) :
-#ifdef QL_OVERNIGHT_INDEXED_SWAP_INDEX_MISSING_IMPL
-        OvernightIndexedSwapIndexEx
-#else
         OvernightIndexedSwapIndex
-#endif
         (
             std::string("GbpOvernightIndexedSwapIsdaFix<<") + OvernightIndex().name() + ">>",
             tenor,
             0,
-            QuantLib::GBPCurrency(),
-            QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
+            GBPCurrency(),
+            ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
             false,
-            QuantLib::RateAveraging::Compound
+            RateAveraging::Compound
         ) {}
     };
 }

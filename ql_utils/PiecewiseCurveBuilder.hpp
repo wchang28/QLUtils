@@ -1,7 +1,6 @@
 #pragma once
 #include <vector>
 #include <ql/quantlib.hpp>
-#include <ql_utils/overnightindexedswapindex_ex.hpp>
 
 namespace QLUtils {
     // the main curve bootstrapper
@@ -13,11 +12,7 @@ namespace QLUtils {
         typedef QuantLib::ext::shared_ptr<QuantLib::IborIndex> pIborIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> pOvernightIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::SwapIndex> pSwapIndex;
-#ifdef QL_OVERNIGHT_INDEXED_SWAP_INDEX_MISSING_IMPL
-        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwapIndexEx> pOvernightIndexedSwapIndex;
-#else
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwapIndex> pOvernightIndexedSwapIndex;
-#endif
         typedef QuantLib::ext::shared_ptr<QuantLib::RateHelper> pRateHelper;
         typedef QuantLib::Handle<QuantLib::Quote> QuoteHandle;
         typedef QuantLib::Handle<QuantLib::YieldTermStructure> YieldTermStructureHandle;
@@ -146,7 +141,7 @@ namespace QLUtils {
                     QuoteHandle(quote),
                     oisSwapIndex->overnightIndex(),
                     discountingCurve,   // exogenous discounting curve
-                    oisSwapIndex->telescopicValueDates(),
+                    false,
                     0,
                     oisSwapIndex->fixedLegConvention(),
                     QuantLib::Annual,

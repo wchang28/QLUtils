@@ -9,6 +9,7 @@ namespace QLUtils {
     // OvernightIndexedSwapTraits<UsdOvernightIndexedSwapIsdaFix<Sofr>>
     // OvernightIndexedSwapTraits<GbpOvernightIndexedSwapIsdaFix<Sonia>>
     // OvernightIndexedSwapTraits<EurOvernightIndexedSwapIsdaFix<Estr>>
+    // OvernightIndexedSwapTraits<EurOvernightIndexedSwapIsdaFix<Eonia>>
     template<
         typename BASE_SWAP_INDEX
     >
@@ -18,10 +19,6 @@ namespace QLUtils {
         QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingDays();
-        }
-        bool telescopicValueDates(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.telescopicValueDates();
         }
         QuantLib::BusinessDayConvention paymentAdjustment(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);

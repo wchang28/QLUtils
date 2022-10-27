@@ -880,7 +880,7 @@ namespace QLUtils {
             auto overnightIndex = swapTraits_.createOvernightIndex(estimatingTermStructure);
             QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
                 .withSettlementDays(swapTraits_.settlementDays(tenor()))
-                .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
+                .withTelescopicValueDates(false)
                 .withPaymentAdjustment(swapTraits_.paymentAdjustment(tenor()))
                 .withAveragingMethod(swapTraits_.averagingMethod(tenor()));
             return swap;
@@ -903,7 +903,7 @@ namespace QLUtils {
                     quote(),
                     overnightIndex,
                     discountingTermStructure,   // exogenous discounting curve
-                    swapTraits_.telescopicValueDates(tenor()),
+                    false,
                     0,
                     swapTraits_.paymentAdjustment(tenor()),
                     QuantLib::Annual,
