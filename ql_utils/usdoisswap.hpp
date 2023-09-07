@@ -26,7 +26,8 @@ namespace QuantLib {
                 ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
                 false,
                 RateAveraging::Compound,
-                2   // 2 days payment lag
+                2,   // 2 days payment lag
+                BusinessDayConvention::Following    // payment adjustment convention
             )
         {}
     };

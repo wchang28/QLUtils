@@ -25,7 +25,8 @@ public:
             ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
             false,
             RateAveraging::Compound,
-            0   // 0 day payment lag
+            0,   // 0 day payment lag
+            BusinessDayConvention::Following    // payment adjustment convention
         ) {}
     };
 }

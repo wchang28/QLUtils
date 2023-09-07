@@ -881,9 +881,11 @@ namespace QLUtils {
             QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
                 .withSettlementDays(swapTraits_.settlementDays(tenor()))
                 .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
-                .withPaymentAdjustment(swapTraits_.paymentAdjustment(tenor()))
                 .withAveragingMethod(swapTraits_.averagingMethod(tenor()))
-                .withPaymentLag(swapTraits_.paymentLag(tenor()));
+                .withPaymentLag(swapTraits_.paymentLag(tenor()))
+                .withPaymentAdjustment(swapTraits_.paymentConvention(tenor()))
+                .withPaymentFrequency(swapTraits_.paymentFrequency(tenor()))
+                ;
             return swap;
         }
     public:
@@ -905,14 +907,14 @@ namespace QLUtils {
                     overnightIndex,
                     discountingTermStructure,   // exogenous discounting curve
                     swapTraits_.telescopicValueDates(tenor()),
-                    swapTraits_.paymentLag(tenor()),
-                    swapTraits_.paymentAdjustment(tenor()),
-                    QuantLib::Annual,
-                    QuantLib::Calendar(),
-                    0 * QuantLib::Days,
-                    0.0,
+                    swapTraits_.paymentLag(tenor()),    // paymentLag
+                    swapTraits_.paymentConvention(tenor()), // paymentConvention
+                    swapTraits_.paymentFrequency(tenor()),   // paymentFrequency
+                    QuantLib::Calendar(),   // paymentCalendar
+                    0 * QuantLib::Days, // forwardStart
+                    0.,    // overnightSpread
                     QuantLib::Pillar::MaturityDate,
-                    QuantLib::Date(),
+                    QuantLib::Date(),   // customPillarDate
                     swapTraits_.averagingMethod(tenor())
                 )
             );

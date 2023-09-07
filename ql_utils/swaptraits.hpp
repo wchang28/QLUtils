@@ -20,10 +20,6 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingDays();
         }
-        QuantLib::BusinessDayConvention paymentAdjustment(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixedLegConvention();
-        }
         bool telescopicValueDates(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.telescopicValueDates();
@@ -31,6 +27,14 @@ namespace QLUtils {
         QuantLib::RateAveraging::Type averagingMethod(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.averagingMethod();
+        }
+        QuantLib::Frequency paymentFrequency(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.paymentFrequency();
+        }
+        QuantLib::BusinessDayConvention paymentConvention(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.paymentConvention();
         }
         QuantLib::Natural paymentLag(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
