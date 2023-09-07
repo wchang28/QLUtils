@@ -2,6 +2,7 @@
 
 #include <ql_utils/types.hpp>
 #include <ql_utils/dateformat.hpp>
+#include <ql_utils/ois-swap-index.hpp>
 #include <ql_utils/usdoisswap.hpp>
 #include <ql_utils/gbpoisswap.hpp>
 #include <ql_utils/euroisswap.hpp>

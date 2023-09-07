@@ -1,13 +1,14 @@
 #pragma once
 #include <ql/quantlib.hpp>
 #include <string>
+#include <ql_utils/ois-swap-index.hpp>
 
 namespace QuantLib {
     // GBP OIS swap index
     template <
         typename OVERNIGHTINDEX // OvernightIndex can be Sonia
     >
-    class GbpOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndex {
+    class GbpOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx {
 public:
     typedef typename OVERNIGHTINDEX OvernightIndex;
 public:
@@ -15,15 +16,16 @@ public:
         const Period& tenor,
         const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
     ) :
-        OvernightIndexedSwapIndex
+        OvernightIndexedSwapIndexEx
         (
             std::string("GbpOvernightIndexedSwapIsdaFix<<") + OvernightIndex().name() + ">>",
             tenor,
-            0,
+            0,  // T+0 settle
             GBPCurrency(),
             ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
             false,
-            RateAveraging::Compound
+            RateAveraging::Compound,
+            0   // 0 day payment lag
         ) {}
     };
 }

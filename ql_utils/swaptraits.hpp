@@ -24,12 +24,17 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixedLegConvention();
         }
+        bool telescopicValueDates(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.telescopicValueDates();
+        }
         QuantLib::RateAveraging::Type averagingMethod(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
-            auto fixingCalendar = swapIndex.overnightIndex()->fixingCalendar();
-            auto fixingDate = fixingCalendar.adjust(QuantLib::Settings::instance().evaluationDate());
-            auto underlyingSwap = swapIndex.underlyingSwap(fixingDate);
-            return underlyingSwap->averagingMethod();
+            return swapIndex.averagingMethod();
+        }
+        QuantLib::Natural paymentLag(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.paymentLag();
         }
         auto createOvernightIndex(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& indexEstimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()

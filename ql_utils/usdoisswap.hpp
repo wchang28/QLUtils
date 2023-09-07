@@ -1,6 +1,7 @@
 #pragma once
 #include <ql/quantlib.hpp>
 #include <string>
+#include <ql_utils/ois-swap-index.hpp>
 
 namespace QuantLib {
     // USD OIS swap index
@@ -8,7 +9,7 @@ namespace QuantLib {
 	<
 		typename OVERNIGHTINDEX // OvernightIndex can be Sofr or FedFunds
 	>
-    class UsdOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndex {
+    class UsdOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx {
     public:
         typedef typename OVERNIGHTINDEX OvernightIndex;
     public:
@@ -16,15 +17,16 @@ namespace QuantLib {
             const Period& tenor,
             const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
         ) :
-            OvernightIndexedSwapIndex
+            OvernightIndexedSwapIndexEx
             (
                 std::string("UsdOvernightIndexedSwapIsdaFix<<") + OvernightIndex().name() + ">>",
                 tenor,
-                2,
+                2,  // T+2 settle
                 USDCurrency(),
                 ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
                 false,
-                RateAveraging::Compound
+                RateAveraging::Compound,
+                2   // 2 days payment lag
             )
         {}
     };
