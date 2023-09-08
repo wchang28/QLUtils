@@ -20,13 +20,14 @@ public:
         (
             std::string("GbpOvernightIndexedSwapIsdaFix<<") + OvernightIndex().name() + ">>",
             tenor,
-            0,  // T+0 settle
+            0,  // T+0 settlement
             GBPCurrency(),
             ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
             false,
             RateAveraging::Compound,
             0,   // 0 day payment lag
-            BusinessDayConvention::Following    // payment adjustment convention
+            BusinessDayConvention::Following,    // payment adjustment convention
+            UnitedKingdom(UnitedKingdom::Exchange)    // payment calendar
         ) {}
     };
 }

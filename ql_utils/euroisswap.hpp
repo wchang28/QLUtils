@@ -20,13 +20,14 @@ public:
         (
             std::string("EurOvernightIndexedSwapIsdaFix<<") + OvernightIndex().name() + ">>",
             tenor,
-            2,  // T+2 settle
+            2,  // T+2 settlement
             EURCurrency(),
             ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure)),
             false,
             RateAveraging::Compound,
             1,   // 1 day payment lag
-            BusinessDayConvention::Following    // payment adjustment convention
+            BusinessDayConvention::Following,    // payment adjustment convention
+            TARGET()    // payment calendar
         ) {}
     };
 }

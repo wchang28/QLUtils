@@ -3,11 +3,18 @@
 #include <string>
 
 namespace QuantLib {
-    // enhanced version of the OvernightIndexedSwapIndex that supports telescopicValueDates, averagingMethod, paymentLag, paymentConvention, and paymentFrequency
+    // enhanced version of the OvernightIndexedSwapIndex that supports
+    // telescopicValueDates
+    // averagingMethod
+    // paymentLag
+    // paymentConvention
+    // paymentFrequency
+    // paymentCalendar
     class OvernightIndexedSwapIndexEx : public OvernightIndexedSwapIndex {
     protected:
         Natural paymentLag_;
         BusinessDayConvention paymentConvention_;
+        Calendar paymentCalendar_;
     public:
         OvernightIndexedSwapIndexEx(
             const std::string& familyName,
@@ -18,9 +25,10 @@ namespace QuantLib {
             bool telescopicValueDates = false,
             RateAveraging::Type averagingMethod = RateAveraging::Compound,
             Natural paymentLag = 0,
-            BusinessDayConvention paymentConvention = BusinessDayConvention::Following
+            BusinessDayConvention paymentConvention = BusinessDayConvention::Following,
+            const Calendar& paymentCalendar = Calendar()
         ): OvernightIndexedSwapIndex(familyName, tenor, settlementDays, currency, overnightIndex, telescopicValueDates, averagingMethod)
-            , paymentLag_(paymentLag), paymentConvention_(paymentConvention)
+            , paymentLag_(paymentLag), paymentConvention_(paymentConvention), paymentCalendar_(paymentCalendar)
         {}
         bool telescopicValueDates() const {
             return telescopicValueDates_;
@@ -36,6 +44,9 @@ namespace QuantLib {
         }
         QuantLib::Frequency paymentFrequency() const {
             return fixedLegTenor().frequency();
+        }
+        const Calendar& paymentCalendar() const {
+            return paymentCalendar_;
         }
         ext::shared_ptr<OvernightIndexedSwap> underlyingSwap(
             const Date& fixingDate
@@ -53,6 +64,7 @@ namespace QuantLib {
                     .withPaymentLag(paymentLag_)
                     .withPaymentAdjustment(paymentConvention_)
                     .withPaymentFrequency(paymentFrequency())
+                    .withPaymentCalendar(paymentCalendar_)
                     ;
                 lastFixingDate_ = fixingDate;
             }

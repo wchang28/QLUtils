@@ -40,6 +40,10 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.paymentLag();
         }
+        QuantLib::Calendar paymentCalendar(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.paymentCalendar();
+        }
         auto createOvernightIndex(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& indexEstimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {

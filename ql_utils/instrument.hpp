@@ -885,6 +885,7 @@ namespace QLUtils {
                 .withPaymentLag(swapTraits_.paymentLag(tenor()))
                 .withPaymentAdjustment(swapTraits_.paymentConvention(tenor()))
                 .withPaymentFrequency(swapTraits_.paymentFrequency(tenor()))
+                .withPaymentCalendar(swapTraits_.paymentCalendar(tenor()))
                 ;
             return swap;
         }
@@ -910,7 +911,7 @@ namespace QLUtils {
                     swapTraits_.paymentLag(tenor()),    // paymentLag
                     swapTraits_.paymentConvention(tenor()), // paymentConvention
                     swapTraits_.paymentFrequency(tenor()),   // paymentFrequency
-                    QuantLib::Calendar(),   // paymentCalendar
+                    swapTraits_.paymentCalendar(tenor()),   // paymentCalendar
                     0 * QuantLib::Days, // forwardStart
                     0.,    // overnightSpread
                     QuantLib::Pillar::MaturityDate,
