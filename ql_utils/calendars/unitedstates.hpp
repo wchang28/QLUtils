@@ -202,7 +202,7 @@ namespace QLUtils {
 		};
 	public:
 		// ConstantMaturityTreasury
-		//	1. matches CMT holidays released by H.15. Dated alll the way back to 1/2/1962
+		//	1. matches CMT holidays released by H.15. Dated all the way back to 1/2/1962
 		//	2. should be very close to the calendar UnitedStates::GovernmentBond going forward with the exception of Good Friday handling
 		enum Market {
 			ConstantMaturityTreasury,
