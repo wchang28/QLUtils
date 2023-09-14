@@ -1,21 +1,32 @@
 #pragma once
 
 #include <ql/quantlib.hpp>
+#include <string>
 
-namespace QLUtils {
-	class TermOISIndex: public QuantLib::IborIndex {
+namespace QuantLib {
+	class TermOISIndex: public IborIndex {
 	public:
 		TermOISIndex(
 			const std::string& familyName,
-			const QuantLib::Period& tenor,
-			QuantLib::Natural settlementDays,
-			const QuantLib::Currency& currency,
-			const QuantLib::Calendar& fixingCalendar,
-			const QuantLib::DayCounter& dayCounter,
-			const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}
-		) : QuantLib::IborIndex(familyName, tenor, settlementDays, currency, fixingCalendar, QuantLib::ModifiedFollowing, true, dayCounter, h)
-		{
-			QL_REQUIRE(this->tenor().units() == QuantLib::Months || this->tenor().units() == QuantLib::Years, "the tenor unit must be either in months or years");
-		}
+			Natural tenorMonths,
+			Natural settlementDays,
+			const Currency& currency,
+			const Calendar& fixingCalendar,
+			const DayCounter& dayCounter,
+			const Handle<YieldTermStructure>& h = {}
+		) :
+			IborIndex
+			(
+				familyName,
+				Period(tenorMonths, Months),	// tenor
+				settlementDays,
+				currency,
+				fixingCalendar,
+				ModifiedFollowing,	// convention - confirmed
+				true,				// endOfMonth - confirmed
+				dayCounter,
+				h
+			)
+		{}
 	};
 }
