@@ -22,14 +22,14 @@ namespace QLUtils {
 			auto maturityDate = settlemenDate + tenor;
 			auto dfSettle = yieldCurve.discount(settlemenDate);
 			if (tenorMonth <= 12) {	// for tenor <= 1yr, zero rate is par yield
-				auto zeroRateSemiAnnual = yieldCurve.forwardRate(
+				auto zeroRate = yieldCurve.forwardRate(
 					settlemenDate,
 					maturityDate,
 					QuantLib::Thirty360(QuantLib::Thirty360::ISDA),
 					QuantLib::Compounded,
 					parCouponFreq
 				);
-				auto parYield = zeroRateSemiAnnual;
+				auto parYield = (QuantLib::Rate)zeroRate;
 				return parYield;
 			}
 			else {	// for tenor > 1yr => none-zero coupon, price at par
