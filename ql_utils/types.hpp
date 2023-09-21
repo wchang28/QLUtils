@@ -17,17 +17,22 @@ namespace QLUtils {
 		BasisPoint = 2,
 	};
 
-	template <typename MATURITY_TYPE, typename RATE_TYPE>
+	template <
+		typename MATURITY_TYPE,
+		typename RATE_TYPE
+	>
 	struct YieldTSNodes {
 		typedef MATURITY_TYPE MaturityType;
 		typedef RATE_TYPE RateType;
-		std::vector<MaturityType> maturities;
-		std::vector<RateType> rates;
+		typedef std::vector<MaturityType> MaturityVector;
+		typedef std::vector<RateType> RateVector;
+		MaturityVector maturities;
+		RateVector rates;
 		YieldTSNodes(size_t n = 0): maturities(n), rates(n) {}
 		YieldTSNodes(
-			const std::vector<MaturityType>& maturities_,
-			const std::vector<RateType>& rates_
-		):maturities(maturities_), rates(rates_) {
+			const MaturityVector& maturities,
+			const RateVector& rates
+		):maturities(maturities), rates(rates) {
 			assertValid();
 		}
 		void resize(size_t n) {
@@ -45,7 +50,7 @@ namespace QLUtils {
 			rates.clear();
 		}
 		void assertValid() const {
-			QL_ASSERT(maturities.size() == rates.size(), "the length of maturities (" << maturities.size() << " is different from the length of rates");
+			QL_ASSERT(maturities.size() == rates.size(), "the length of maturities (" << maturities.size() << " is different from the length of rates (" << rates.size() << ")");
 			QL_ASSERT(size() > 0, "term structure is empty");
 		}
 	};
