@@ -5,8 +5,8 @@
 
 namespace QuantLib {
     // overnight compounded average in arrears index of 1Yr tenor
-    // this make forward OIS swap (annual cf excahnge) priced like a vanilla swap
-    // this class represent the floating leg (paid annual) index of a forward OIS swap
+    // this makes forward OIS swap (annual cf exchange) priced like a vanilla swap
+    // this class represents the ibor floating leg (paid annual) of a forward OIS swap
     template
     <
         typename OVERNIGHTINDEX // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
@@ -20,15 +20,15 @@ namespace QuantLib {
         ) :
             IborIndex
             (
-                std::string("OvernightCompoundedAverageInArrearsIndex<<") + OvernightIndex().name() + ">>",
-                1 * Years,  // tenor is one year/ annual
+                std::string("OvernightCompoundedAverageInArrearsIndex<<") + OvernightIndex().name() + ">>",	// fmailyName
+                1 * Years,  // tenor of this index is one year. This is because OIS swap's cf exchange is always annual
                 OvernightIndex().fixingDays(),  // fixingDays = overnight index's fixingDays which is usually 0
-                OvernightIndex().currency(),    // currency =  overnight index's currency
-                OvernightIndex().fixingCalendar(),	// fixingCalendar =  overnight index's fixing calendar
+                OvernightIndex().currency(),    // currency = overnight index's currency
+                OvernightIndex().fixingCalendar(),	// fixingCalendar = overnight index's fixing calendar
                 OvernightIndex().businessDayConvention(),	// convention = overnight index's business convention
                 OvernightIndex().endOfMonth(),   // endOfMonth = overnight index's end of month
                 OvernightIndex().dayCounter(),	// dayCounter = overnight index's day counter
-                indexEstimatingTermStructure
+                indexEstimatingTermStructure	// index estimating term structure
             )
         {}
     };

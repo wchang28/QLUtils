@@ -30,7 +30,7 @@ namespace QuantLib {
     };
 
     template <
-        typename OVERNIGHTINDEX
+        typename OVERNIGHTINDEX // OvernightIndex can be Estr or Eonia
     >
     class EurFwdOISVanillaSwapIndex : public FwdOISVanillaSwapIndex<OVERNIGHTINDEX> {
     public:
