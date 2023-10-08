@@ -21,3 +21,4 @@
 #include <ql_utils/specializations/all.hpp>
 #include <ql_utils/calendars/all.hpp>
 #include <ql_utils/indexes/all.hpp>
+#include <ql_utils/utilities/all.hpp>
