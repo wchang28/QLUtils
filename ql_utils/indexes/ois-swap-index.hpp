@@ -104,7 +104,7 @@ namespace QuantLib {
                 currency,	// currency
                 OvernightIndex().fixingCalendar(),	// swap fixingCalendar =  overnight index's fixing calendar
                 1 * Years, // fixedLegTenor, fixed leg tenor is also one year
-                OvernightIndex().businessDayConvention(), // fixedLegConvention = overnight index's business convention
+                ModifiedFollowing, // fixedLegConvention, = ModifiedFollowing since all OIS swap's fixed leg convention is ModifiedFollowing
                 OvernightIndex().dayCounter(), // fixedLegDaycounter = overnight index's day counter
                 ext::shared_ptr<IborIndex>(
                     new OvernightCompoundedAverageInArrearsIndex<OvernightIndex>(

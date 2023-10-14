@@ -32,13 +32,13 @@ namespace QuantLib {
         ) :
             IborIndex
             (
-                makeFamilyName(fixingDays),	// fmailyName
+                makeFamilyName(fixingDays),	// familyName
                 1 * Years,  // tenor of this index is one year. This is because OIS swap's cf exchange is always annual
                 fixingDays,  // fixingDays
                 OvernightIndex().currency(),    // currency = overnight index's currency
                 OvernightIndex().fixingCalendar(),	// fixingCalendar = overnight index's fixing calendar
-                OvernightIndex().businessDayConvention(),	// convention = overnight index's business convention
-                OvernightIndex().endOfMonth(),   // endOfMonth = overnight index's end of month
+                ModifiedFollowing,	// convention = ModifiedFollowing since the fixed leg of the swap is also ModifiedFollowing
+                true,   // endOfMonth = true since monthly/yearly tenor libor's endOfMonth is always true
                 OvernightIndex().dayCounter(),	// dayCounter = overnight index's day counter
                 indexEstimatingTermStructure	// index estimating term structure
             )
