@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <string>
+#include <sstream>
 
 namespace QuantLib {
     // overnight compounded average in arrears index of 1Yr tenor
@@ -14,6 +15,16 @@ namespace QuantLib {
     class OvernightCompoundedAverageInArrearsIndex : public IborIndex {
     public:
         typedef typename OVERNIGHTINDEX OvernightIndex;
+    private:
+        static std::string makeFamilyName(
+            Natural fixingDays
+        ) {
+            std::ostringstream oss;
+            oss << "OvernightCompoundedAverageInArrearsIndex<<";
+            oss << OvernightIndex().name();
+            oss << ">> (T+" << fixingDays << ")";
+            return oss.str();
+        }
     public:
         OvernightCompoundedAverageInArrearsIndex(
             Natural fixingDays, // fixing days of the index, this usually matches with the settlement days of the vanilla swap that has this index on its floating leg
@@ -21,7 +32,7 @@ namespace QuantLib {
         ) :
             IborIndex
             (
-                std::string("OvernightCompoundedAverageInArrearsIndex<<") + OvernightIndex().name() + ">>",	// fmailyName
+                makeFamilyName(fixingDays),	// fmailyName
                 1 * Years,  // tenor of this index is one year. This is because OIS swap's cf exchange is always annual
                 fixingDays,  // fixingDays
                 OvernightIndex().currency(),    // currency = overnight index's currency
