@@ -2,6 +2,7 @@
 #include <ql/quantlib.hpp>
 #include <string>
 #include <ql_utils/indexes/ois-swap-index.hpp>
+#include <ql_utils/indexes/overnight-compounded-avg.hpp>
 
 namespace QuantLib {
     // EUR OIS swap index
@@ -27,6 +28,19 @@ namespace QuantLib {
                 OvernightIndex().fixingCalendar()    // payment calendar: uses overnight index's fixing calendar
             )
         {}
+    };
+
+    template <
+        typename OVERNIGHTINDEX // OvernightIndex can be Estr or Eonia
+    >
+    class EurOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX> {
+    public:
+        EurOvernightCompoundedAverageIndex(
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+        ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX>(
+            2,  // T+2 fixing
+            indexEstimatingTermStructure
+        ) {}
     };
 
     template <

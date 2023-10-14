@@ -2,6 +2,7 @@
 #include <ql/quantlib.hpp>
 #include <string>
 #include <ql_utils/indexes/ois-swap-index.hpp>
+#include <ql_utils/indexes/overnight-compounded-avg.hpp>
 
 namespace QuantLib {
     // USD OIS swap index
@@ -28,6 +29,19 @@ namespace QuantLib {
                 UnitedStates(UnitedStates::FederalReserve)    // payment calendar: uses FederalReserve calendar due to backward compatibility with FedFunds OIS
             )
         {}
+    };
+
+    template <
+        typename OVERNIGHTINDEX // OvernightIndex can be Sofr or FedFunds
+    >
+    class UsdOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX> {
+    public:
+        UsdOvernightCompoundedAverageIndex(
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+        ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX>(
+            2,  // T+2 fixing
+            indexEstimatingTermStructure
+        ) {}
     };
 
     template <

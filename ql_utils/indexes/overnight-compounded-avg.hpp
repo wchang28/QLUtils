@@ -16,13 +16,14 @@ namespace QuantLib {
         typedef typename OVERNIGHTINDEX OvernightIndex;
     public:
         OvernightCompoundedAverageInArrearsIndex(
+            Natural fixingDays, // fixing days of the index, this usually matches with the settlement days of the vanilla swap that has this index on its floating leg
             const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
         ) :
             IborIndex
             (
                 std::string("OvernightCompoundedAverageInArrearsIndex<<") + OvernightIndex().name() + ">>",	// fmailyName
                 1 * Years,  // tenor of this index is one year. This is because OIS swap's cf exchange is always annual
-                OvernightIndex().fixingDays(),  // fixingDays = overnight index's fixingDays which is usually 0
+                fixingDays,  // fixingDays
                 OvernightIndex().currency(),    // currency = overnight index's currency
                 OvernightIndex().fixingCalendar(),	// fixingCalendar = overnight index's fixing calendar
                 OvernightIndex().businessDayConvention(),	// convention = overnight index's business convention

@@ -106,7 +106,12 @@ namespace QuantLib {
                 1 * Years, // fixedLegTenor, fixed leg tenor is also one year
                 OvernightIndex().businessDayConvention(), // fixedLegConvention = overnight index's business convention
                 OvernightIndex().dayCounter(), // fixedLegDaycounter = overnight index's day counter
-                ext::shared_ptr<IborIndex>(new OvernightCompoundedAverageInArrearsIndex<OvernightIndex>(indexEstimatingTermStructure))  // iborIndex 
+                ext::shared_ptr<IborIndex>(
+                    new OvernightCompoundedAverageInArrearsIndex<OvernightIndex>(
+                        settlementDays, // fixingDays of the index matches with the settlementDays of the swap
+                        indexEstimatingTermStructure
+                    )
+                )  // iborIndex 
             )
         {}
     };
