@@ -19,7 +19,6 @@ namespace QuantLib {
         ) :
             OvernightIndexedSwapIndexEx<OVERNIGHTINDEX>
             (
-                std::string("EurOvernightIndexedSwapIsdaFix<<") + OvernightIndex().name() + ">>",
                 tenor,
                 2,  // T+2 settlement
                 EURCurrency(),
@@ -54,7 +53,6 @@ namespace QuantLib {
         ) :
             FwdOISVanillaSwapIndex<OVERNIGHTINDEX>
             (
-                std::string("EurForwardOISVanillaSwapIndex<<") + OVERNIGHTINDEX().name() + ">>",
                 tenor,
                 2,  // T+2 settlement
                 EURCurrency(),

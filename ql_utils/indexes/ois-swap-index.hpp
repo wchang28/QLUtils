@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <string>
+#include <sstream>
 #include <ql_utils/indexes/overnight-compounded-avg.hpp>
 
 namespace QuantLib {
@@ -19,9 +20,19 @@ namespace QuantLib {
     protected:
         Natural paymentLag_;
         Calendar paymentCalendar_;
+    private:
+        static std::string makeFamilyName(
+            const Currency& currency
+        ) {
+            std::ostringstream oss;
+            oss << currency.code();
+            oss << "OvernightIndexedSwapIndex<<";
+            oss << OVERNIGHTINDEX().name();
+            oss << ">>";
+            return oss.str();
+        }
     public:
         OvernightIndexedSwapIndexEx(
-            const std::string& familyName,
             const Period& tenor,
             Natural settlementDays,
             const Currency& currency,
@@ -30,7 +41,7 @@ namespace QuantLib {
             const Calendar& paymentCalendar = Calendar()
         ): 
             OvernightIndexedSwapIndex(
-                familyName,
+                makeFamilyName(currency),
                 tenor,
                 settlementDays,
                 currency,
@@ -183,16 +194,26 @@ namespace QuantLib {
     class FwdOISVanillaSwapIndex : public SwapIndexEx {
     public:
         typedef typename OVERNIGHTINDEX OvernightIndex;
+    private:
+        static std::string makeFamilyName(
+            const Currency& currency
+        ) {
+            std::ostringstream oss;
+            oss << currency.code();
+            oss << "FwdOISVanillaSwapIndex<<";
+            oss << OVERNIGHTINDEX().name();
+            oss << ">>";
+            return oss.str();
+        }
     public:
         FwdOISVanillaSwapIndex(
-            const std::string& familyName,
             const Period& tenor,
             Natural settlementDays,
             const Currency currency,
             const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
         ) :
             SwapIndexEx(
-                familyName, // familyName
+                makeFamilyName(currency), // familyName
                 tenor,  // tenor
                 settlementDays, // settlementDays
                 currency,	// currency
