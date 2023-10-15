@@ -83,10 +83,104 @@ namespace QuantLib {
         }
     };
 
+    // enhanced version of SwapIndex thats support end of month for both legs
+    class SwapIndexEx : public SwapIndex {
+    protected:
+        bool fixedLegEndOfMonth_;
+        bool floatingLegEndOfMonth_;
+    public:
+        SwapIndexEx(
+            const std::string& familyName,
+            const Period& tenor,
+            Natural settlementDays,
+            const Currency& currency,
+            const Calendar& fixingCalendar,
+            const Period& fixedLegTenor,
+            BusinessDayConvention fixedLegConvention,
+            const DayCounter& fixedLegDayCounter,
+            ext::shared_ptr<IborIndex> iborIndex,
+            bool fixedLegEndOfMonth = false,
+            bool floatingLegEndOfMonth = false
+        ) : SwapIndex(
+            familyName,
+            tenor,
+            settlementDays,
+            currency,
+            fixingCalendar,
+            fixedLegTenor,
+            fixedLegConvention,
+            fixedLegDayCounter,
+            iborIndex
+            ),
+            fixedLegEndOfMonth_(fixedLegEndOfMonth),
+            floatingLegEndOfMonth_(floatingLegEndOfMonth)
+        {}
+        SwapIndexEx(const std::string& familyName,
+            const Period& tenor,
+            Natural settlementDays,
+            const Currency& currency,
+            const Calendar& fixingCalendar,
+            const Period& fixedLegTenor,
+            BusinessDayConvention fixedLegConvention,
+            const DayCounter& fixedLegDayCounter,
+            ext::shared_ptr<IborIndex> iborIndex,
+            Handle<YieldTermStructure> discountingTermStructure,
+            bool fixedLegEndOfMonth = false,
+            bool floatingLegEndOfMonth = false
+        ): SwapIndex(
+            familyName,
+            tenor,
+            settlementDays,
+            currency,
+            fixingCalendar,
+            fixedLegTenor,
+            fixedLegConvention,
+            fixedLegDayCounter,
+            iborIndex,
+            discountingTermStructure
+            ),
+            fixedLegEndOfMonth_(fixedLegEndOfMonth),
+            floatingLegEndOfMonth_(floatingLegEndOfMonth)
+        {}
+        bool fixedLegEndOfMonth() const { return fixedLegEndOfMonth_; }
+        bool floatingLegEndOfMonth() const { return floatingLegEndOfMonth_; }
+        ext::shared_ptr<VanillaSwap> underlyingSwap(const Date& fixingDate) const {
+            QL_REQUIRE(fixingDate != Date(), "null fixing date");
+
+            // caching mechanism
+            if (lastFixingDate_ != fixingDate) {
+                Rate fixedRate = 0.0;
+                if (exogenousDiscount_)
+                    lastSwap_ = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
+                    .withEffectiveDate(valueDate(fixingDate))
+                    .withFixedLegCalendar(fixingCalendar())
+                    .withFixedLegDayCount(dayCounter_)
+                    .withFixedLegTenor(fixedLegTenor_)
+                    .withFixedLegConvention(fixedLegConvention_)
+                    .withFixedLegTerminationDateConvention(fixedLegConvention_)
+                    .withDiscountingTermStructure(discount_)
+                    .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
+                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_);
+                else
+                    lastSwap_ = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
+                    .withEffectiveDate(valueDate(fixingDate))
+                    .withFixedLegCalendar(fixingCalendar())
+                    .withFixedLegDayCount(dayCounter_)
+                    .withFixedLegTenor(fixedLegTenor_)
+                    .withFixedLegConvention(fixedLegConvention_)
+                    .withFixedLegTerminationDateConvention(fixedLegConvention_)
+                    .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
+                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_);
+                lastFixingDate_ = fixingDate;
+            }
+            return lastSwap_;
+        }
+    };
+
     template <
         typename OVERNIGHTINDEX // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
     >
-    class FwdOISVanillaSwapIndex : public SwapIndex {
+    class FwdOISVanillaSwapIndex : public SwapIndexEx {
     public:
         typedef typename OVERNIGHTINDEX OvernightIndex;
     public:
@@ -97,7 +191,7 @@ namespace QuantLib {
             const Currency currency,
             const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
         ) :
-            SwapIndex(
+            SwapIndexEx(
                 familyName, // familyName
                 tenor,  // tenor
                 settlementDays, // settlementDays
@@ -111,7 +205,9 @@ namespace QuantLib {
                         settlementDays, // fixingDays of the index matches with the settlementDays of the swap
                         indexEstimatingTermStructure
                     )
-                )  // iborIndex 
+                ),  // iborIndex
+                true,   // fixedLegEndOfMonth, OIS swaps usually have EndOfMonth=true for both legs
+                true    // floatingLegEndOfMonth, OIS swaps usually have EndOfMonth=true for both legs
             )
         {}
     };
