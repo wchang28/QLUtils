@@ -107,13 +107,27 @@ namespace QLUtils {
             return pNodes_;
         }
         const Nodes& nodes() const {
-            QL_ASSERT(pNodes_ != nullptr, "term structure's nodes is null");
+            QL_ASSERT(pNodes_ != nullptr, "term structure is null");
             return *pNodes_;
+        }
+        Nodes& nodes() {
+            QL_ASSERT(pNodes_ != nullptr, "term structure is null");
+            return *pNodes_;
+        }
+        const pNode& nodeAt(
+            size_t i
+        ) const {
+            return nodes().at(i);
+        }
+        pNode& nodeAt(
+            size_t i
+        ) {
+            return nodes().at(i);
         }
         bool empty() const {
             return nodes().empty();
         }
-        bool size() const {
+        size_t size() const {
             return nodes().size();
         }
         void resize(size_t n) {
@@ -124,8 +138,41 @@ namespace QLUtils {
                 pNodes_->resize(n);
             }
         }
+        TermStructureNodes& operator *= (double x) {
+            auto n = size();
+            for (decltype(n) i = 0; i < n; ++i) {   // for each node
+                try {
+                    auto& pNode = nodeAt(i);
+                    QL_ASSERT(pNode != nullptr, "term structure node is null");
+                    pNode->rate *= x;
+                }
+                catch (const std::exception& e) {
+                    QL_FAIL("TS node[" << i << "]: " << e.what());
+                }
+            }
+            return *this;
+        }
+        TermStructureNodes& operator /= (double x) {
+            QL_ASSERT(x != 0., "divided by 0");
+            return ((*this) *= (1./x));
+        }
         void assertValid() const {
             QL_ASSERT(!empty(), "term structure is empty");
+        }
+        static void assertValidVectorPairs(
+            const TermVector& termVector,
+            const RateVector& rateVector
+        ) {
+            QL_ASSERT(!termVector.empty(), "term structure is empty");
+            auto n = termVector.size();
+            QL_ASSERT(rateVector.size() == n, "rate vector's size (" << rateVector.size() << ") is not what's expected (" << n << ")");
+        }
+        static void assertValidVectorPairs(
+            const TermRateVectorsPair& vpr
+        ) {
+            QL_ASSERT(vpr.first != nullptr, "term vector is null");
+            QL_ASSERT(vpr.second != nullptr, "rate vector is null");
+            assertValidVectorPairs(*(vpr.first), *(vpr.second));
         }
     private:
         void transferToVectorsPair(
@@ -133,7 +180,7 @@ namespace QLUtils {
             RateVector& rateVector
         ) const {
             const auto& nodes = this->nodes();
-            auto n = nodes.size();
+            auto n = size();
             QL_ASSERT(termVector.size() == n, "size of the term vector (" << termVector.size() << ") is not what's expected (" << n << ")");
             QL_ASSERT(rateVector.size() == n, "size of the rate vector (" << rateVector.size() << ") is not what's expected (" << n << ")");
             for (decltype(n) i = 0; i < n; ++i) {   // for each node
@@ -148,26 +195,49 @@ namespace QLUtils {
                 }
             }
         }
+        TermStructureNodes& transferFromVectorsPair(
+            const TermVector& termVector,
+            const RateVector& rateVector
+        ) {
+            assertValidVectorPairs(termVector, rateVector);
+            auto n = termVector.size();
+            resize(n);
+            for (decltype(n) i = 0; i < n; ++i) {
+                auto& pNode = nodeAt(i);
+                pNode.reset(new Node(termVector[i], rateVector[i]));
+            }
+            return *this;
+        }
     public:
         operator TermRateVectorsPair() const {
             assertValid();
-            auto n = nodes().size();
+            auto n = size();
             TermRateVectorsPair ret;
             ret.first.reset(new TermVector(n));
             ret.second.reset(new RateVector(n));
-            auto& termVector = *(ret.first);
-            auto& rateVector = *(ret.second);
-            transferToVectorsPair(termVector, rateVector);
+            transferToVectorsPair(*(ret.first), *(ret.second));
             return ret;
         }
         operator std::shared_ptr<YieldTSNodes<TermType, RateType>>() const {
             assertValid();
-            auto n = nodes().size();
+            auto n = size();
             std::shared_ptr<YieldTSNodes<TermType, RateType>> ret(new YieldTSNodes<TermType, RateType>(n));
-            auto& termVector = ret->maturities;
-            auto& rateVector = ret->rates;
-            transferToVectorsPair(termVector, rateVector);
+            transferToVectorsPair(ret->maturities, ret->rates);
             return ret;
+        }
+        friend TermStructureNodes& operator << (
+            TermStructureNodes& dest,
+            const TermRateVectorsPair& rhs
+        ) {
+            TermStructureNodes::assertValidVectorPairs(rhs);
+            return dest.transferFromVectorsPair(*(rhs.first), *(rhs.second));
+        }
+        friend TermStructureNodes& operator << (
+            TermStructureNodes& dest,
+            const YieldTSNodes<TermType, RateType>& rhs
+        ) {
+            rhs.assertValid();
+            return dest.transferFromVectorsPair(rhs.maturities, rhs.rates);
         }
     };
     template <
