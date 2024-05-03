@@ -278,16 +278,16 @@ namespace QLUtils {
         }
         // calculate bond's yield from clean price
         QuantLib::Rate bondYield(const std::shared_ptr<QuantLib::FixedRateBond>& bond, QuantLib::Real cleanPrice) const {
+            QuantLib::Bond::Price bondPrice(cleanPrice, QuantLib::Bond::Price::Clean);
             auto yield = bond->yield(
-                cleanPrice,
+                bondPrice,
                 accruedDayCounter(),
                 QuantLib::Compounded,
                 couponFrequency(),
                 settlementDate(),
                 solverAccuracy(),
                 solverMaxIterations(),
-                solverQuess(),
-                QuantLib::Bond::Price::Clean
+                solverQuess()
             );
             return yield;
         }
