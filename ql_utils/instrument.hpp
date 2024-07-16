@@ -4,6 +4,7 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
+#include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 
 namespace QLUtils {
     class BootstrapInstrument {
@@ -1371,5 +1372,75 @@ namespace QLUtils {
         ) :
             ParForward<COUPON_FREQ, THIRTY_360_DC_CONVENTION>(tenor, QuantLib::Period(0, QuantLib::Days))
         {}
+    };
+
+    // for bootstrapping zero curve from nominal (no calendar adjustment) forward rates
+    template<
+        QuantLib::Integer TENOR_MONTHS = 1,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::BondBasis,
+        QuantLib::Compounding COMPOUNDING = QuantLib::Compounding::Continuous,
+        QuantLib::Frequency FREQUENCY = QuantLib::Frequency::NoFrequency
+    >
+    class NominalForwardRate : public BootstrapInstrument {
+    private:
+        QuantLib::NominalForwardRateHelper helperInternal_;
+    public:
+        NominalForwardRate(
+            const QuantLib::Period& forward,
+            const QuantLib::Date& baseReferenceDate = QuantLib::Date()
+        ) :
+            BootstrapInstrument(ValueType::Rate, forward),
+            helperInternal_(
+                0.,
+                forward,
+                baseReferenceDate,
+                QuantLib::Period(TENOR_MONTHS, QuantLib::Months),	// tenor
+                QuantLib::Thirty360(THIRTY_360_DC_CONVENTION),	// day counter
+                COMPOUNDING,	// compounding
+                FREQUENCY	// frequency
+            )
+        {
+            this->datedDate() = helperInternal_.startDate();
+        }
+        QuantLib::Date startDate() const {
+            return helperInternal_.startDate();
+        }
+        QuantLib::Date maturityDate() const {
+            return helperInternal_.maturityDate();
+        }
+        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            return QuantLib::ext::shared_ptr<QuantLib::RateHelper>(
+                new QuantLib::NominalForwardRateHelper(
+                    this->rate(),
+                    helperInternal_.forward(),
+                    helperInternal_.baseReferenceDate(),
+                    helperInternal_.tenor(),
+                    helperInternal_.dayCounter(),
+                    helperInternal_.compounding(),
+                    helperInternal_.frequency()
+                )
+            );
+        }
+        QuantLib::Rate impliedRate(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure
+        ) const {
+            auto rate = QuantLib::NominalForwardRateHelper::impliedRate(
+                *(estimatingTermStructure.currentLink().get()),
+                helperInternal_.startDate(),
+                helperInternal_.maturityDate(),
+                helperInternal_.dayCounter(),
+                helperInternal_.compounding(),
+                helperInternal_.frequency()
+            );
+            return rate;
+        }
+        QuantLib::Real impliedQuote(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        ) const {
+            return impliedRate(estimatingTermStructure);
+        }
     };
 }

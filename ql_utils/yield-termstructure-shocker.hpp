@@ -5,6 +5,7 @@
 #include <ql_utils/ParYield.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/bootstrap.hpp>
+#include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -210,6 +211,59 @@ namespace QLUtils {
         ) const {
             auto pFRA = std::dynamic_pointer_cast<FRA>(pInst);
             return pFRA->impliedRate(estimatingTermStructure.currentLink());
+        }
+    };
+
+    template <
+        typename I = QuantLib::Linear,
+        QuantLib::Integer TENOR_MONTHS = 1,
+        QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::BondBasis,
+        QuantLib::Compounding COMPOUNDING = QuantLib::Compounding::Continuous,
+        QuantLib::Frequency FREQUENCY = QuantLib::Frequency::NoFrequency
+    >
+    class NominalForwardShockYieldTermStructure : public YieldTermStructureShocker<I> {
+    protected:
+        typedef NominalForwardRate<TENOR_MONTHS, THIRTY_360_DC_CONVENTION, COMPOUNDING, FREQUENCY> InstrumentUsed;
+        typedef typename YieldTermStructureShocker<I>::MonthlyRateShocker MonthlyRateShocker;
+        typedef std::shared_ptr<BootstrapInstrument> pInstrument;
+        void shockImpl(
+            const MonthlyRateShocker& monthlyRateShocker
+        ) {
+            auto curveReferenceDate = this->yieldTermStructure->referenceDate();
+            auto maxDate = this->yieldTermStructure->maxDate();
+            auto tenor = QuantLib::Period(TENOR_MONTHS, QuantLib::Months);
+            QuantLib::Natural forwardMonth = 0;
+            QuantLib::Period forward(forwardMonth, QuantLib::Months);
+            auto maturityDate = curveReferenceDate + forward + tenor;
+            while (maturityDate <= maxDate) {
+                QuantLib::Period forward(forwardMonth, QuantLib::Months);
+                auto rate = QuantLib::NominalForwardRateHelper::impliedRate(
+                    *(this->yieldTermStructure),
+                    forward,
+                    tenor,
+                    QuantLib::Thirty360(THIRTY_360_DC_CONVENTION),
+                    COMPOUNDING,
+                    FREQUENCY
+                );
+                auto shock = monthlyRateShocker(forwardMonth);   // get the amount of shock from the rate shocker
+                auto shockedRate = rate + shock; // add the shock to the rate
+                std::shared_ptr<BootstrapInstrument> pInst(new InstrumentUsed(forward, curveReferenceDate));
+                pInst->rate() = shockedRate;
+                pInst->ticker() = (std::ostringstream() << "FWD-" << forward.length() << "Mx" << tenor.length() << "M").str();
+                this->monthlyMaturities->push_back(forward);
+                this->monthlyBaseRates->push_back(rate);
+                this->monthlyShocks->push_back(shock);
+                this->shockedQuotes->push_back(pInst);
+                forwardMonth++;
+                maturityDate = curveReferenceDate + QuantLib::Period(forwardMonth, QuantLib::Months) + tenor;
+            };
+        }
+        QuantLib::Rate impliedRate(
+            const pInstrument& pInst,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const {
+            auto pInstrument = std::dynamic_pointer_cast<InstrumentUsed>(pInst);
+            return pInstrument->impliedRate(discountingTermStructure);
         }
     };
 }
