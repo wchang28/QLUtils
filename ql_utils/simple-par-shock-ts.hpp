@@ -29,7 +29,6 @@ namespace QLUtils {
 		std::shared_ptr<std::vector<QuantLib::Rate>> pParShocks;
 		std::shared_ptr<std::vector<double>> pParYieldsShocked;
 		std::shared_ptr<std::vector<double>> pMonthlyZeroRatesShocked;
-		QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<QuantLib::Linear>> pZeroCurveShocked;
 	public:
 		SimpleParShockTS(
 			const MonthlyZeroRates& monthlyZeroRates	// zero rate vectors, compounded in COUPON_FREQ, first element must be the spot zero rate (ie: month=0)
@@ -40,9 +39,7 @@ namespace QLUtils {
 		}
 		template <typename MONTHLY_PAR_SHOCKER>
 		void shock(
-			const MONTHLY_PAR_SHOCKER& monthlyParShocker,	// shock unit is QuantLib::Rate (decimal)
-			bool buildZeroCurve = false,
-			const QuantLib::Date& curveReferenceDate = QuantLib::Date()
+			const MONTHLY_PAR_SHOCKER& monthlyParShocker	// shock unit is QuantLib::Rate (decimal)
 		) {
 			ParRateCalculator parRateCalculator(monthlyZeroRates_);
 			auto n = monthlyZeroRates_.size();
@@ -68,9 +65,8 @@ namespace QLUtils {
 				parYieldsShocked[index] = parYieldShocked;
 			}
 			Bootstrapper bootstrapper(parTenorMonths, parYieldsShocked);
-			bootstrapper.bootstrap(buildZeroCurve, curveReferenceDate);
+			bootstrapper.bootstrap();
 			pMonthlyZeroRatesShocked = bootstrapper.pMonthlyZeroRates;
-			pZeroCurveShocked = bootstrapper.pZeroCurve;
 		}
 
 		QuantLib::Rate verify(
