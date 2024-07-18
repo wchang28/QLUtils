@@ -3,12 +3,6 @@
 #include <ql_utils/types.hpp>
 #include <ql_utils/dateformat.hpp>
 #include <ql_utils/ParYield.hpp>
-#include <ql_utils/simple-rate-calculator.hpp>
-#include <ql_utils/simple-par-yield-calculator.hpp>
-#include <ql_utils/simple-simple-rate-calculator.hpp>
-#include <ql_utils/simple-par-yield-ts-bootstrap.hpp>
-#include <ql_utils/simple-par-shock-ts.hpp>
-#include <ql_utils/simple-forward-to-zero-converter.hpp>
 #include <ql_utils/monthly-moving-average-proj.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
@@ -24,3 +18,4 @@
 #include <ql_utils/indexes/all.hpp>
 #include <ql_utils/ratehelpers/all.hpp>
 #include <ql_utils/utilities/all.hpp>
+#include <ql_utils/simple/all.hpp>

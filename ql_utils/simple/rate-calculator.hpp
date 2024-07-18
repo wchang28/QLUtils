@@ -29,6 +29,9 @@ namespace QLUtils {
 			QL_REQUIRE(lastRelevantMonth < n_zeros, "forward+tenor (" << (lastRelevantMonth) << ") is over the limit (" << (n_zeros - 1) << ")");
 		}
 	public:
+		const MonthlyZeroRates& monthlyZeroRates() const {
+			return monthlyZeroRates_;
+		}
 		static double multiplier() {
 			auto unit = RATE_UNIT;
 			switch (unit) {

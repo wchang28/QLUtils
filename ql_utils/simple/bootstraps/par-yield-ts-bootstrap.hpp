@@ -2,7 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
-#include <ql_utils/simple-par-yield-calculator.hpp>
+#include <ql_utils/simple/rate-calculators/par-yield-calculator.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>

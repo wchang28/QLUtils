@@ -2,8 +2,9 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
-#include <ql_utils/simple-par-yield-calculator.hpp>
-#include <ql_utils/simple-par-yield-ts-bootstrap.hpp>
+#include <ql_utils/simple/ts-shock.hpp>
+#include <ql_utils/simple/rate-calculators/par-yield-calculator.hpp>
+#include <ql_utils/simple/bootstraps/par-yield-ts-bootstrap.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -16,33 +17,26 @@ namespace QLUtils {
 		RateUnit RATE_UNIT = RateUnit::Percent,
 		QuantLib::Frequency COUPON_FREQ = QuantLib::Frequency::Semiannual
 	>
-	class SimpleParShockTS {
+	class SimpleParShockTS: public SimpleShockTS<RATE_UNIT, COUPON_FREQ> {
 	private:
 		using ParRateCalculator = SimpleParRateCalculator<RATE_UNIT, COUPON_FREQ>;
 		using Bootstrapper = SimpleParYieldTSBootstrapper<RATE_UNIT, COUPON_FREQ>;
-	private:
-		const MonthlyZeroRates& monthlyZeroRates_;	// zero rate vectors, compounded in COUPON_FREQ, first element must be the spot zero rate (ie: month=0)
 	public:
 		// output
 		std::shared_ptr<std::vector<size_t>> pParTenorMonths;
 		std::shared_ptr<std::vector<double>> pParYields;
 		std::shared_ptr<std::vector<QuantLib::Rate>> pParShocks;
 		std::shared_ptr<std::vector<double>> pParYieldsShocked;
-		std::shared_ptr<std::vector<double>> pMonthlyZeroRatesShocked;
 	public:
 		SimpleParShockTS(
 			const MonthlyZeroRates& monthlyZeroRates	// zero rate vectors, compounded in COUPON_FREQ, first element must be the spot zero rate (ie: month=0)
-		) : monthlyZeroRates_(monthlyZeroRates)
-		{
-			auto n = monthlyZeroRates.size();
-			QL_REQUIRE(n >= 2, "too few zero rate nodes (" << n << "). The minimum is 2");
-		}
-		template <typename MONTHLY_PAR_SHOCKER>
+		) : SimpleShockTS<RATE_UNIT, COUPON_FREQ>(monthlyZeroRates)
+		{}
 		void shock(
-			const MONTHLY_PAR_SHOCKER& monthlyParShocker	// shock unit is QuantLib::Rate (decimal)
+			const ISimpleMonthlyShock& monthlyShocker	// shock unit is QuantLib::Rate (decimal)
 		) {
-			ParRateCalculator parRateCalculator(monthlyZeroRates_);
-			auto n = monthlyZeroRates_.size();
+			ParRateCalculator parRateCalculator(this->monthlyZeroRates());
+			auto n = this->monthlyZeroRates().size();
 			pParTenorMonths.reset(new std::vector<size_t>(n - 1));
 			pParYields.reset(new std::vector<double>(n - 1));
 			pParShocks.reset(new std::vector<QuantLib::Rate>(n - 1));
@@ -58,7 +52,7 @@ namespace QLUtils {
 				auto parYield = parRateCalculator(tenorMonth);
 				parYields[index] = parYield;
 				parYield *= multiplier;	// convert to QuantLib::Rate unit
-				auto parShock = monthlyParShocker(tenorMonth);
+				auto parShock = monthlyShocker(tenorMonth);
 				parShocks[index] = parShock;
 				auto parYieldShocked = parYield + parShock;
 				parYieldShocked /= multiplier;	// convert the rate back
@@ -66,17 +60,17 @@ namespace QLUtils {
 			}
 			Bootstrapper bootstrapper(parTenorMonths, parYieldsShocked);
 			bootstrapper.bootstrap();
-			pMonthlyZeroRatesShocked = bootstrapper.pMonthlyZeroRates;
+			this->pMonthlyZeroRatesShocked = bootstrapper.pMonthlyZeroRates;
 		}
 
 		QuantLib::Rate verify(
 			std::ostream& os,
 			std::streamsize precision = 16
 		) const {
-			QL_REQUIRE(pParTenorMonths != nullptr && pParYieldsShocked != nullptr && pMonthlyZeroRatesShocked != nullptr, "perform par shock first first");
+			QL_REQUIRE(pParTenorMonths != nullptr && pParYieldsShocked != nullptr && this->pMonthlyZeroRatesShocked != nullptr, "shock was not performed");
 			const auto& parTenorMonths = *pParTenorMonths;
 			const auto& parYields = *pParYieldsShocked;
-			const auto& zeroRates = *pMonthlyZeroRatesShocked;
+			const auto& zeroRates = *(this->pMonthlyZeroRatesShocked);
 			auto n = parTenorMonths.size();
 			QL_ASSERT(parYields.size() == n, "the number of par yields (" << parYields.size() << ") is not what is expected (" << n << ")");
 			ParRateCalculator parRateCalculator(zeroRates);

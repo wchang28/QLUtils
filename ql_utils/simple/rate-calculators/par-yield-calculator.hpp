@@ -2,7 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
-#include <ql_utils/simple-rate-calculator.hpp>
+#include <ql_utils/simple/rate-calculator.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -25,7 +25,7 @@ namespace QLUtils {
 			this->checkForwardBounds(tenorMonth, fwdMonth);
 			auto freq = this->couponFrequency();
 			auto multiplier = this->multiplier();
-			const auto& monthlyZeroRates = this->monthlyZeroRates_;
+			const auto& monthlyZeroRates = this->monthlyZeroRates();
 			auto lastRelevantMonth = fwdMonth + tenorMonth;
 			auto t_0 = (QuantLib::Time)fwdMonth / 12.;
 			auto zr_0 = monthlyZeroRates[fwdMonth] * multiplier;
