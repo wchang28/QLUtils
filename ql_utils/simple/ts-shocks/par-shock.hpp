@@ -13,6 +13,7 @@
 #include <algorithm>
 
 namespace QLUtils {
+	// apply shock on zero rate curve in par rates space
 	template <
 		RateUnit RATE_UNIT = RateUnit::Percent,
 		QuantLib::Frequency COUPON_FREQ = QuantLib::Frequency::Semiannual
