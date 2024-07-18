@@ -37,7 +37,7 @@ namespace QLUtils {
 		) : SimpleShockTS<RATE_UNIT, COUPON_FREQ>(monthlyZeroRates)
 		{}
 		void shock(
-			const ISimpleMonthlyShock& monthlyShocker	// shock unit is QuantLib::Rate (decimal)
+			const SimpleMonthlyShockProc& monthlyShocker	// shock unit is QuantLib::Rate (decimal)
 		) {
 			auto multiplier = this->multiplier();
 			pForwardCurve = toForwardCurve(this->monthlyZeroRates());

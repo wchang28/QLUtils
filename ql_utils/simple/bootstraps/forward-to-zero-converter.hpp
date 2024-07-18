@@ -21,7 +21,7 @@ namespace QLUtils {
 	public:
 		// bootstrap a monthly forward curve to a monthly zero rate curve
 		static std::shared_ptr<MonthlyZeroRates> bootstrap(
-			const MonthlyForwardCurve& monthlyFwdCurve	// assuming tenor is 1 month and the fwd rate is simple interest rate
+			const MonthlyForwardCurve& monthlyFwdCurve	// assuming tenor is 1 month and the fwd rate is interest rate calculated using IMPLIED_RATE_CALCULATOR
 		) {
 			IMPLIED_RATE_CALCULATOR impliedRateCalculator;
 			auto n_forwards = monthlyFwdCurve.size();
@@ -38,7 +38,7 @@ namespace QLUtils {
 				auto dt = t_1 - t_0;
 				QuantLib::Real compounding_0 = (month == 0 ? 1. : std::pow(1. + zeroRates[month] * multiplier / freq, t_0 * freq));
 				QuantLib::Rate fwdRate = monthlyFwdCurve[month] * multiplier;
-				QuantLib::Real compounding_fwd = impliedRateCalculator.compounding(fwdRate, dt);
+				QuantLib::Real compounding_fwd = impliedRateCalculator.compounding(fwdRate, dt);	// calculate the forward compounding factor giving the forward rate
 				QuantLib::Real compounding_1 = compounding_0 * compounding_fwd;
 				QuantLib::Rate zr_1 = (std::pow(compounding_1, 1. / (t_1 * freq)) - 1.) * freq;
 				zeroRates[nextMonth] = zr_1 / multiplier;
