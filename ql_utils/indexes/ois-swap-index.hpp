@@ -193,7 +193,7 @@ namespace QuantLib {
     >
     class FwdOISVanillaSwapIndex : public SwapIndexEx {
     public:
-        typedef typename OVERNIGHTINDEX OvernightIndex;
+        typedef OVERNIGHTINDEX OvernightIndex;
     private:
         static std::string makeFamilyName(
             const Currency& currency
