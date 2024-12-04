@@ -144,7 +144,9 @@ namespace QLUtils {
                 auto shockedParYield = parYield + shock; // add the shock to the par yield
                 std::shared_ptr<BootstrapInstrument> pInst(new ParRate<PAR_YIELD_COUPON_FREQ, THIRTY_360_DC_CONVENTION>(tenor, curveReferenceDate));
                 pInst->rate() = shockedParYield;
-                pInst->ticker() = (std::ostringstream() << "PAR-" << tenor.length() << "M").str();
+                std::ostringstream oss;
+                oss << "PAR-" << tenor.length() << "M";
+                pInst->ticker() = oss.str();
                 if (pInst->maturityDate() > maxDate) {
                     break;
                 }
@@ -197,7 +199,9 @@ namespace QLUtils {
                 auto shock = monthlyRateShocker(fwdMonth);   // get the amount of shock from the rate shocker
                 auto shockedFwdRate = fwdRate + shock; // add the shock to the forward rate
                 pInst->rate() = shockedFwdRate;
-                pInst->ticker() = (std::ostringstream() << "FWD-" << forward.length() << "M").str();
+                std::ostringstream oss;
+                oss << "FWD-" << forward.length() << "M";
+                pInst->ticker() = oss.str();
                 this->monthlyMaturities->push_back(forward);
                 this->monthlyBaseRates->push_back(fwdRate);
                 this->monthlyShocks->push_back(shock);
@@ -249,7 +253,9 @@ namespace QLUtils {
                 auto shockedRate = rate + shock; // add the shock to the rate
                 std::shared_ptr<BootstrapInstrument> pInst(new InstrumentUsed(forward, curveReferenceDate));
                 pInst->rate() = shockedRate;
-                pInst->ticker() = (std::ostringstream() << "FWD-" << forward.length() << "Mx" << tenor.length() << "M").str();
+                std::ostringstream oss;
+                oss << "FWD-" << forward.length() << "Mx" << tenor.length() << "M";
+                pInst->ticker() = oss.str();
                 this->monthlyMaturities->push_back(forward);
                 this->monthlyBaseRates->push_back(rate);
                 this->monthlyShocks->push_back(shock);
