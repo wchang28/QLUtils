@@ -14,7 +14,7 @@ namespace QLUtils {
         typename BASE_SWAP_INDEX
     >
     struct OvernightIndexedSwapTraits {
-        typedef typename BASE_SWAP_INDEX BaseSwapIndex;
+        typedef BASE_SWAP_INDEX BaseSwapIndex;
         typedef typename BaseSwapIndex::OvernightIndex OvernightIndex;
         QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
