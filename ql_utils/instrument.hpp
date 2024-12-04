@@ -865,7 +865,7 @@ namespace QLUtils {
     class OISSwapIndex:
         public BootstrapInstrument {
     public:
-        typedef typename SWAP_TRAITS SwapTraits;
+        typedef SWAP_TRAITS SwapTraits;
         typedef typename SwapTraits::BaseSwapIndex BaseSwapIndex;
         typedef typename SwapTraits::OvernightIndex OvernightIndex;
     private:
