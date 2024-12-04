@@ -403,7 +403,7 @@ namespace QLUtils {
     >
     class ParRate : public ParInstrument {
     private:
-        using ParYieldHelper = ParYieldHelper<COUPON_FREQ, THIRTY_360_DC_CONVENTION>;
+        using ParYieldHelperType = ParYieldHelper<COUPON_FREQ, THIRTY_360_DC_CONVENTION>;
         QuantLib::Date baseReferenceDate_;
         QuantLib::Period forwardStart_;
     public:
@@ -429,10 +429,10 @@ namespace QLUtils {
             return forwardStart_;
         }
         QuantLib::DayCounter parYieldSplineDayCounter() const {
-            return ParYieldHelper::parBondDayCounter();
+            return ParYieldHelperType::parBondDayCounter();
         }
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
-            QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelper(tenor())
+            QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelperType(tenor())
                 .withParYield(parRate())
                 .withBaseReferenceDate(baseReferenceDate())
                 .withForwardStart(forwardStart());
@@ -442,7 +442,7 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
             QL_ASSERT(discountingTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discountingTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
-            return ParYieldHelper::parYield(
+            return ParYieldHelperType::parYield(
                 discountingTermStructure.currentLink(),
                 tenor(),
                 forwardStart()
