@@ -14,7 +14,7 @@ namespace QuantLib {
     >
     class OvernightCompoundedAverageInArrearsIndex : public IborIndex {
     public:
-        typedef typename OVERNIGHTINDEX OvernightIndex;
+        typedef OVERNIGHTINDEX OvernightIndex;
     private:
         static std::string makeFamilyName(
             Natural fixingDays
