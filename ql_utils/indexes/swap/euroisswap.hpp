@@ -11,7 +11,7 @@ namespace QuantLib {
     >
     class EurOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx<OVERNIGHTINDEX> {
     public:
-        typedef typename OVERNIGHTINDEX OvernightIndex;
+        typedef OVERNIGHTINDEX OvernightIndex;
     public:
         EurOvernightIndexedSwapIsdaFix(
             const Period& tenor,
