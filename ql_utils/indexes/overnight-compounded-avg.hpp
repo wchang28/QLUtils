@@ -5,12 +5,13 @@
 #include <sstream>
 
 namespace QuantLib {
-    // overnight compounded average in arrears index of 1Yr tenor
-    // this makes forward OIS swap (annual cf exchange) priced like a vanilla swap
-    // this class represents the ibor floating leg (paid annual) of a forward OIS swap
+    // overnight compounded average in arrears index of certain tenor (usually 1 year)
+    // this makes forward OIS swap (usually annual cf exchange) priced like a vanilla swap
+    // this class represents the ibor floating leg (usually paid annual) of a forward OIS swap
     template
     <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        Frequency FREQ = Frequency::Annual  // frequency/tenor/maturity of the index, usually 1 year
     >
     class OvernightCompoundedAverageInArrearsIndex : public IborIndex {
     public:
@@ -28,12 +29,12 @@ namespace QuantLib {
     public:
         OvernightCompoundedAverageInArrearsIndex(
             Natural fixingDays, // fixing days of the index, this usually matches with the settlement days of the vanilla swap that has this index on its floating leg
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
         ) :
             IborIndex
             (
                 makeFamilyName(fixingDays),	// familyName
-                1 * Years,  // tenor of this index is one year. This is because OIS swap's cf exchange is always annual
+                Period(FREQ),  // tenor
                 fixingDays,  // fixingDays
                 OvernightIndex().currency(),    // currency = overnight index's currency
                 OvernightIndex().fixingCalendar(),	// fixingCalendar = overnight index's fixing calendar

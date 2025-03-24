@@ -7,55 +7,55 @@
 namespace QuantLib {
     // GBP OIS swap index
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sonia
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sonia
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
-    class GbpOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx<OVERNIGHTINDEX> {
-    public:
-        typedef OVERNIGHTINDEX OvernightIndex;
+    class GbpOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ> {
     public:
         GbpOvernightIndexedSwapIsdaFix(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
         ) :
-            OvernightIndexedSwapIndexEx<OVERNIGHTINDEX>
+            OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
-                0,  // T+0 settlement
+                0,  // T+0 swap settlement
                 GBPCurrency(),
                 indexEstimatingTermStructure,
                 0,   // 0 day payment lag
-                OvernightIndex().fixingCalendar()    // payment calendar: uses overnight index's fixing calendar
+                OVERNIGHTINDEX().fixingCalendar()    // payment calendar: uses overnight index's fixing calendar
             )
         {}
     };
 
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sonia
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sonia
+        Frequency FREQ = Frequency::Annual  // frequency/tenor/maturity of the index, usually 1 year
     >
-    class GbpOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX> {
+    class GbpOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ> {
     public:
         GbpOvernightCompoundedAverageIndex(
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
-        ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX>(
-            0,  // T+0 fixing
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+        ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
+            0,  // T+0 index fixing
             indexEstimatingTermStructure
         ) {}
     };
 
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sonia
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sonia
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
-    class GbpFwdOISVanillaSwapIndex : public FwdOISVanillaSwapIndex<OVERNIGHTINDEX> {
+    class GbpFwdOISVanillaSwapIndex : public FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ> {
     public:
         GbpFwdOISVanillaSwapIndex(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
         ) :
-            FwdOISVanillaSwapIndex<OVERNIGHTINDEX>
+            FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
-                0,  // T+0 settlement
-                GBPCurrency(),
+                0,  // T+0 swap settlement
                 indexEstimatingTermStructure
             )
         {}

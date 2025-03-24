@@ -7,21 +7,20 @@
 namespace QuantLib {
     // USD OIS swap index
     template
-	<
-		typename OVERNIGHTINDEX // OvernightIndex can be Sofr or FedFunds
-	>
-    class UsdOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx<OVERNIGHTINDEX> {
-    public:
-        typedef OVERNIGHTINDEX OvernightIndex;
+    <
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr or FedFunds
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
+    >
+    class UsdOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ> {
     public:
         UsdOvernightIndexedSwapIsdaFix(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
         ) :
-            OvernightIndexedSwapIndexEx<OVERNIGHTINDEX>
+            OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
-                2,  // T+2 settlement
+                2,  // T+2 swap settlement
                 USDCurrency(),
                 indexEstimatingTermStructure,
                 2,   // 2 days payment lag
@@ -31,32 +30,33 @@ namespace QuantLib {
     };
 
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sofr or FedFunds
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr or FedFunds
+        Frequency FREQ = Frequency::Annual  // frequency/tenor/maturity of the index, usually 1 year
     >
-    class UsdOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX> {
+    class UsdOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ> {
     public:
         UsdOvernightCompoundedAverageIndex(
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
-        ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX>(
-            2,  // T+2 fixing
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+        ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
+            2,  // T+2 index fixing
             indexEstimatingTermStructure
         ) {}
     };
 
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sofr or FedFunds
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr or FedFunds
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
-    class UsdFwdOISVanillaSwapIndex : public FwdOISVanillaSwapIndex<OVERNIGHTINDEX> {
+    class UsdFwdOISVanillaSwapIndex : public FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ> {
     public:
         UsdFwdOISVanillaSwapIndex(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
         ) :
-            FwdOISVanillaSwapIndex<OVERNIGHTINDEX>
+            FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
-                2,  // T+2 settlement
-                USDCurrency(),
+                2,  // T+2 swap settlement
                 indexEstimatingTermStructure
             )
         {}

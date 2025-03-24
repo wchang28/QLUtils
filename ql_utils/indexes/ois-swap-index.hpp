@@ -14,9 +14,12 @@ namespace QuantLib {
     // paymentFrequency()
     // paymentCalendar()
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
     class OvernightIndexedSwapIndexEx : public OvernightIndexedSwapIndex {
+    public:
+        typedef OVERNIGHTINDEX OvernightIndex;
     protected:
         Natural paymentLag_;
         Calendar paymentCalendar_;
@@ -36,7 +39,7 @@ namespace QuantLib {
             const Period& tenor,
             Natural settlementDays,
             const Currency& currency,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>(),
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {},
             Natural paymentLag = 0,
             const Calendar& paymentCalendar = Calendar()
         ): 
@@ -51,7 +54,9 @@ namespace QuantLib {
             ),
             paymentLag_(paymentLag),
             paymentCalendar_(paymentCalendar)
-        {}
+        {
+            this->fixedLegTenor_ = Period(FREQ);
+        }
         bool telescopicValueDates() const {
             return telescopicValueDates_;
         }
@@ -87,10 +92,31 @@ namespace QuantLib {
                     .withPaymentAdjustment(paymentConvention())
                     .withPaymentFrequency(paymentFrequency())
                     .withPaymentCalendar(paymentCalendar_)
+                    .withRule(DateGeneration::Forward)
                     ;
                 lastFixingDate_ = fixingDate;
             }
             return lastSwap_;
+        }
+        ext::shared_ptr<OvernightIndexedSwap> makeSwap(
+            const Date& fixingDate,
+            Swap::Type type = Swap::Type::Payer,
+            Rate fixedRate = Null<Rate>()
+        ) const {
+            QL_REQUIRE(fixingDate != Date(), "null fixing date");
+            ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor_, overnightIndex_, fixedRate)
+                .withType(type)
+                .withEffectiveDate(valueDate(fixingDate))
+                .withFixedLegDayCount(dayCounter_)
+                .withTelescopicValueDates(telescopicValueDates_)
+                .withAveragingMethod(averagingMethod_)
+                .withPaymentLag(paymentLag_)
+                .withPaymentAdjustment(paymentConvention())
+                .withPaymentFrequency(paymentFrequency())
+                .withPaymentCalendar(paymentCalendar_)
+                .withRule(DateGeneration::Forward)
+                ;
+            return swap;
         }
     };
 
@@ -171,7 +197,9 @@ namespace QuantLib {
                     .withFixedLegTerminationDateConvention(fixedLegConvention_)
                     .withDiscountingTermStructure(discount_)
                     .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
-                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_);
+                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
+                    .withRule(DateGeneration::Forward)
+                    ;
                 else
                     lastSwap_ = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
                     .withEffectiveDate(valueDate(fixingDate))
@@ -181,48 +209,98 @@ namespace QuantLib {
                     .withFixedLegConvention(fixedLegConvention_)
                     .withFixedLegTerminationDateConvention(fixedLegConvention_)
                     .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
-                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_);
+                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
+                    .withRule(DateGeneration::Forward)
+                    ;
                 lastFixingDate_ = fixingDate;
             }
             return lastSwap_;
         }
+        ext::shared_ptr<VanillaSwap> makeSwap(
+            const Date& fixingDate,
+            Swap::Type type = Swap::Type::Payer,
+            Rate fixedRate = Null<Rate>()
+        ) const {
+            QL_REQUIRE(fixingDate != Date(), "null fixing date");
+            ext::shared_ptr<VanillaSwap> swap;
+            if (exogenousDiscount_)
+                swap = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
+                .withType(type)
+                .withEffectiveDate(valueDate(fixingDate))
+                .withFixedLegCalendar(fixingCalendar())
+                .withFixedLegDayCount(dayCounter_)
+                .withFixedLegTenor(fixedLegTenor_)
+                .withFixedLegConvention(fixedLegConvention_)
+                .withFixedLegTerminationDateConvention(fixedLegConvention_)
+                .withDiscountingTermStructure(discount_)
+                .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
+                .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
+                .withRule(DateGeneration::Forward)
+                ;
+            else
+                swap = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
+                .withType(type)
+                .withEffectiveDate(valueDate(fixingDate))
+                .withFixedLegCalendar(fixingCalendar())
+                .withFixedLegDayCount(dayCounter_)
+                .withFixedLegTenor(fixedLegTenor_)
+                .withFixedLegConvention(fixedLegConvention_)
+                .withFixedLegTerminationDateConvention(fixedLegConvention_)
+                .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
+                .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
+                .withRule(DateGeneration::Forward)
+                ;
+            return swap;
+        }
     };
 
     template <
-        typename OVERNIGHTINDEX // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
     class FwdOISVanillaSwapIndex : public SwapIndexEx {
     public:
         typedef OVERNIGHTINDEX OvernightIndex;
+        typedef OvernightCompoundedAverageInArrearsIndex<OvernightIndex, FREQ> IndexType;
+    public:
+        // both legs' cashflow frequency
+        static Frequency legsFrequency() {
+            return FREQ;
+        }
+        // both legs' cashflow tenor
+        static Period legsTenor() {
+            return Period(legsFrequency());
+        }
     private:
         static std::string makeFamilyName(
-            const Currency& currency
+            const Currency& currency,
+            Natural fixingDays  // index fixing days
         ) {
+            IndexType index(fixingDays);
             std::ostringstream oss;
             oss << currency.code();
-            oss << "FwdOISVanillaSwapIndex<<";
-            oss << OVERNIGHTINDEX().name();
-            oss << ">>";
+            oss << "FwdOISVanillaSwapIndex";
+            oss << "(" << legsFrequency() << ")";
+            oss << "<<" << index.name() << ">>";
             return oss.str();
         }
     public:
         FwdOISVanillaSwapIndex(
-            const Period& tenor,
-            Natural settlementDays,
-            const Currency currency,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = Handle<YieldTermStructure>()
+            const Period& tenor,        // tenor of the swap
+            Natural settlementDays,     // number of days required to settle the swap
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
         ) :
             SwapIndexEx(
-                makeFamilyName(currency), // familyName
+                makeFamilyName(OvernightIndex().currency(), settlementDays), // familyName
                 tenor,  // tenor
                 settlementDays, // settlementDays
-                currency,	// currency
+                OvernightIndex().currency(),	// currency = overnight index's currency
                 OvernightIndex().fixingCalendar(),	// swap fixingCalendar =  overnight index's fixing calendar
-                1 * Years, // fixedLegTenor, fixed leg tenor is also one year
+                legsTenor(), // fixedLegTenor, fixed leg tenor is usually one year
                 ModifiedFollowing, // fixedLegConvention, = ModifiedFollowing since all OIS swap's fixed leg convention is ModifiedFollowing
                 OvernightIndex().dayCounter(), // fixedLegDaycounter = overnight index's day counter
                 ext::shared_ptr<IborIndex>(
-                    new OvernightCompoundedAverageInArrearsIndex<OvernightIndex>(
+                    new IndexType(
                         settlementDays, // fixingDays of the index matches with the settlementDays of the swap
                         indexEstimatingTermStructure
                     )
