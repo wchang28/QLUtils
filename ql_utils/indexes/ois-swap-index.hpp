@@ -7,6 +7,7 @@
 
 namespace QuantLib {
     // enhanced version of the OvernightIndexedSwapIndex that supports
+    // cashflow frequency for both legs
     // telescopicValueDates()
     // averagingMethod()
     // paymentLag()
@@ -14,48 +15,46 @@ namespace QuantLib {
     // paymentFrequency()
     // paymentCalendar()
     template <
-        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
         Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
-    class OvernightIndexedSwapIndexEx : public OvernightIndexedSwapIndex {
-    public:
-        typedef OVERNIGHTINDEX OvernightIndex;
+    class OvernightIndexedSwapIndexEnhanced : public OvernightIndexedSwapIndex {
     protected:
         Natural paymentLag_;
         Calendar paymentCalendar_;
     private:
         static std::string makeFamilyName(
-            const Currency& currency
+            const Currency& currency,
+            const ext::shared_ptr<OvernightIndex>& overnightIndex
         ) {
             std::ostringstream oss;
             oss << currency.code();
             oss << "OvernightIndexedSwapIndex<<";
-            oss << OVERNIGHTINDEX().name();
+            oss << overnightIndex->name();
             oss << ">>";
             return oss.str();
         }
     public:
-        OvernightIndexedSwapIndexEx(
+        OvernightIndexedSwapIndexEnhanced(
             const Period& tenor,
             Natural settlementDays,
             const Currency& currency,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {},
+            const ext::shared_ptr<OvernightIndex>& overnightIndex,
             Natural paymentLag = 0,
             const Calendar& paymentCalendar = Calendar()
-        ): 
+        ) :
             OvernightIndexedSwapIndex(
-                makeFamilyName(currency),
-                tenor,
+                makeFamilyName(currency, overnightIndex),   // familyName
+                tenor,                                      // swap tenor
                 settlementDays,
                 currency,
-                ext::shared_ptr<OvernightIndex>(new OVERNIGHTINDEX(indexEstimatingTermStructure)),  // overnightIndex
-                false,  // telescopicValueDates
-                RateAveraging::Compound // averagingMethod
+                overnightIndex,
+                false,                                      // telescopicValueDates
+                RateAveraging::Compound                     // averagingMethod
             ),
             paymentLag_(paymentLag),
             paymentCalendar_(paymentCalendar)
         {
-            this->fixedLegTenor_ = Period(FREQ);
+            this->fixedLegTenor_ = Period(FREQ);    // set the cashflow tenor for both legs
         }
         bool telescopicValueDates() const {
             return telescopicValueDates_;
@@ -74,29 +73,6 @@ namespace QuantLib {
         }
         const Calendar& paymentCalendar() const {
             return paymentCalendar_;
-        }
-        ext::shared_ptr<OvernightIndexedSwap> underlyingSwap(
-            const Date& fixingDate
-        ) const {
-            QL_REQUIRE(fixingDate != Date(), "null fixing date");
-
-            // caching mechanism
-            if (lastFixingDate_ != fixingDate) {
-                Rate fixedRate = 0.0;
-                lastSwap_ = MakeOIS(tenor_, overnightIndex_, fixedRate)
-                    .withEffectiveDate(valueDate(fixingDate))
-                    .withFixedLegDayCount(dayCounter_)
-                    .withTelescopicValueDates(telescopicValueDates_)
-                    .withAveragingMethod(averagingMethod_)
-                    .withPaymentLag(paymentLag_)
-                    .withPaymentAdjustment(paymentConvention())
-                    .withPaymentFrequency(paymentFrequency())
-                    .withPaymentCalendar(paymentCalendar_)
-                    .withRule(DateGeneration::Forward)
-                    ;
-                lastFixingDate_ = fixingDate;
-            }
-            return lastSwap_;
         }
         ext::shared_ptr<OvernightIndexedSwap> makeSwap(
             const Date& fixingDate,
@@ -118,6 +94,45 @@ namespace QuantLib {
                 ;
             return swap;
         }
+        ext::shared_ptr<OvernightIndexedSwap> underlyingSwap(
+            const Date& fixingDate
+        ) const {
+            QL_REQUIRE(fixingDate != Date(), "null fixing date");
+            // caching mechanism
+            if (lastFixingDate_ != fixingDate) {
+                Rate fixedRate = 0.0;
+                lastSwap_ = makeSwap(fixingDate, Swap::Type::Payer, fixedRate);
+                lastFixingDate_ = fixingDate;
+            }
+            return lastSwap_;
+        }
+    };
+
+    template <
+        typename OVERNIGHTINDEX, // OvernightIndex can be Sofr, FedFunds, Sonia, Estr, Eonia
+        Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
+    >
+    class OvernightIndexedSwapIndexEx : public OvernightIndexedSwapIndexEnhanced<FREQ> {
+    public:
+        typedef OVERNIGHTINDEX OvernightIndex;
+    public:
+        OvernightIndexedSwapIndexEx(
+            const Period& tenor,
+            Natural settlementDays,
+            const Currency& currency,
+            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {},
+            Natural paymentLag = 0,
+            const Calendar& paymentCalendar = Calendar()
+        ):
+            OvernightIndexedSwapIndexEnhanced<FREQ>(
+                tenor,
+                settlementDays,
+                currency,
+                ext::shared_ptr<OvernightIndex>(new OVERNIGHTINDEX(indexEstimatingTermStructure)),  // overnightIndex
+                paymentLag,
+                paymentCalendar
+            )
+        {}
     };
 
     // enhanced version of SwapIndex thats support end of month for both legs
