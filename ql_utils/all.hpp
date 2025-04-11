@@ -20,3 +20,4 @@
 #include <ql_utils/ratehelpers/all.hpp>
 #include <ql_utils/utilities/all.hpp>
 #include <ql_utils/simple/all.hpp>
+#include <ql_utils/legacy/all.hpp>
