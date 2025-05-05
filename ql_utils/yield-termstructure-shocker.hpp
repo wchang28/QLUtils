@@ -74,7 +74,7 @@ namespace QLUtils {
             ZeroCurvesBootstrap<I> bootstrap;
             bootstrap.instruments = shockedQuotes;
             bootstrap.bootstrap(curveReferenceDate, dayCounter, interp);
-            zeroCurveShocked = bootstrap.discountZeroCurve;
+            zeroCurveShocked = bootstrap.discountCurve;
         }
     protected:
         // the actual shock implementation

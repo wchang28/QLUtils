@@ -17,7 +17,10 @@ namespace QLUtils {
         typedef std::vector<pInstrument> Instruments;
         typedef std::shared_ptr<Instruments> pInstruments;
     protected:
-        template <typename ImpliedValueCalculator, typename ActualVsImpliedComparison>
+        template <
+            typename ImpliedValueCalculator,
+            typename ActualVsImpliedComparison
+        >
         static QuantLib::Rate verifyImpl(
             const pInstruments& instruments,
             const ImpliedValueCalculator& impliedValueCalculator,
@@ -28,9 +31,9 @@ namespace QLUtils {
             os << std::fixed;
             os << std::setprecision(precision);
             QuantLib::Rate err = 0.0;
-            for (auto const& inst : *instruments) { // for each instrument
+            for (const auto& inst : *instruments) { // for each instrument
                 if (inst->use()) {
-                    auto const& actual = inst->value();
+                    const auto& actual = inst->value();
                     auto implied = impliedValueCalculator(inst);
                     auto diff = compare(os, inst, actual, implied);
                     err += std::pow(diff, 2.0);
@@ -39,11 +42,18 @@ namespace QLUtils {
             return std::sqrt(err);
         }
     };
-	
-    template <typename I = QuantLib::Linear>
-    class ZeroCurvesBootstrap : public Bootstrapper {
+
+    template <
+        typename Traits = QuantLib::ZeroYield,   // QuantLib::ZeroYield, QuantLib::Discount, QuantLib::ForwardRate, or QuantLib::SimpleZeroYield
+        typename Interpolator = QuantLib::Linear
+    >
+    class YieldCurvesBootstrap : public Bootstrapper {
+    public:
+        typedef PiecewiseCurveBuilder<Traits, Interpolator> PiecewiseCurveBuilderType;
+        typedef QuantLib::PiecewiseYieldCurve<Traits, Interpolator> PiecewiseCurveType;
+        typedef typename Traits::template curve<Interpolator>::type BaseCurveType;	// InterpolatedZeroCurve<Interpolator>, InterpolatedDiscountCurve<Interpolator>, InterpolatedForwardCurve<Interpolator>, or InterpolatedSimpleZeroCurve<Interpolator>
     protected:
-        std::shared_ptr<PiecewiseCurveBuilder<QuantLib::ZeroYield, I>> curveBuilder_;
+        std::shared_ptr<PiecewiseCurveBuilderType> curveBuilder_;
     public:
         enum BootstrapMode {
             BothCurvesConcurrently = 0,
@@ -52,35 +62,35 @@ namespace QLUtils {
 
         // input
         pInstruments instruments; // bootstrap instruments
-        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;   // this can be nullptr
+        QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountingTermStructure;   // this can be nullptr (mode==BothCurvesConcurrently)
 
         // output
-        QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> discountZeroCurve;   // this can be nullptr
-        QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<I>> estimatingZeroCurve;
+        QuantLib::ext::shared_ptr<BaseCurveType> discountCurve;   // this can be nullptr (mode==EstimatingCurveOnly)
+        QuantLib::ext::shared_ptr<BaseCurveType> estimatingCurve;
 
-        ZeroCurvesBootstrap() {}
+        YieldCurvesBootstrap() {}
         BootstrapMode bootstrapMode() const {
             return (discountingTermStructure != nullptr ? EstimatingCurveOnly : BothCurvesConcurrently);
         }
     protected:
         QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> verificationDiscountTermStructure() const {
-            return (bootstrapMode() == EstimatingCurveOnly ? discountingTermStructure : discountZeroCurve);
+            return (bootstrapMode() == EstimatingCurveOnly ? discountingTermStructure : discountCurve);
         }
         void checkInstruments() const {
             QL_REQUIRE(instruments != nullptr, "instruments is not set");
             QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
         }
-        std::shared_ptr<PiecewiseCurveBuilder<QuantLib::ZeroYield, I>>& curveBuilder() {
+        std::shared_ptr<PiecewiseCurveBuilderType>& curveBuilder() {
             return curveBuilder_;
         }
     public:
-        const std::shared_ptr<PiecewiseCurveBuilder<QuantLib::ZeroYield, I>>& curveBuilder() const {
+        const std::shared_ptr<PiecewiseCurveBuilderType>& curveBuilder() const {
             return curveBuilder_;
         }
         void clearOutputs() {
             curveBuilder() = nullptr;
-            discountZeroCurve = nullptr;
-            estimatingZeroCurve = nullptr;
+            discountCurve = nullptr;
+            estimatingCurve = nullptr;
         }
 
         struct DefaultActualVsImpliedComparison {
@@ -89,7 +99,7 @@ namespace QLUtils {
                 const std::shared_ptr<BootstrapInstrument>& inst,
                 const QuantLib::Real& actual,
                 const QuantLib::Real& implied
-                ) const {
+            ) const {
                 auto multiplierValue = (inst->valueType() == BootstrapInstrument::Rate ? 100.0 : 1.0);
                 auto multiplierDiffBp = (inst->valueType() == BootstrapInstrument::Rate ? 10000.0 : 100.0);
                 auto diff = implied - actual;
@@ -106,7 +116,7 @@ namespace QLUtils {
         void bootstrap(
             const QuantLib::Date& curveReferenceDate,
             const QuantLib::DayCounter& dayCounter = QuantLib::Actual365Fixed(),
-            const I& interp = I()
+            const Interpolator& interp = Interpolator()
         ) {
             clearOutputs();
             checkInstruments();
@@ -115,31 +125,33 @@ namespace QLUtils {
                 QL_REQUIRE(curveReferenceDate == expected, "curve ref. date (" << DateFormat<char>::to_yyyymmdd(curveReferenceDate, true)  << ") is not what's expected ("<< expected << ")");
             }
             QuantLib::Handle<QuantLib::YieldTermStructure> discountingCurve(discountingTermStructure);
-            curveBuilder().reset(new PiecewiseCurveBuilder<QuantLib::ZeroYield, I>());
-            for (auto const& inst : *instruments) { // for each instrument
+            curveBuilder().reset(new PiecewiseCurveBuilderType()); // create the curve builder
+            for (const auto& inst : *instruments) { // for each instrument
                 if (inst->use()) {
                     this->curveBuilder_->AddHelper(inst->rateHelper(discountingCurve));
                 }
             }
-            estimatingZeroCurve = curveBuilder()->GetCurve(curveReferenceDate, dayCounter, interp);
-            discountZeroCurve = (bootstrapMode() == BothCurvesConcurrently ? estimatingZeroCurve : nullptr);
+            estimatingCurve = curveBuilder()->GetCurve(curveReferenceDate, dayCounter, interp);
+            discountCurve = (bootstrapMode() == BothCurvesConcurrently ? estimatingCurve : nullptr);
         }
-        template<typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison>
+        template<
+            typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison
+        >
         QuantLib::Rate verify(
             std::ostream& os,
             std::streamsize precision = 16,
             const ActualVsImpliedComparison& compare = ActualVsImpliedComparison()
         ) const {
-            QuantLib::ext::shared_ptr<QuantLib::YieldTermStructure> discountTS = verificationDiscountTermStructure();
+            auto discountTS = verificationDiscountTermStructure();
             QL_REQUIRE(discountTS != nullptr, "discount term structure cannot be null");
-            QL_REQUIRE(estimatingZeroCurve != nullptr, "estimating zero curve cannot be null");
+            QL_REQUIRE(estimatingCurve != nullptr, "forward estimating curve cannot be null");
             checkInstruments();
-            QuantLib::Handle<QuantLib::YieldTermStructure> discountCurve(discountTS);
-            QuantLib::Handle<QuantLib::YieldTermStructure> estimatingCurve(estimatingZeroCurve);
+            QuantLib::Handle<QuantLib::YieldTermStructure> hDiscountCurve(discountTS);
+            QuantLib::Handle<QuantLib::YieldTermStructure> hEstimatingCurve(estimatingCurve);
             return verifyImpl(
                 instruments,
-                [&discountCurve, &estimatingCurve](const pInstrument& inst) -> QuantLib::Real {
-                    return inst->impliedQuote(estimatingCurve, discountCurve);
+                [&hDiscountCurve, &hEstimatingCurve](const pInstrument& inst) -> QuantLib::Real {
+                    return inst->impliedQuote(hEstimatingCurve, hDiscountCurve);
                 },
                 os,
                 precision,
@@ -147,4 +159,16 @@ namespace QLUtils {
             );
         }
     };
+
+    template <typename Interpolator>
+    using ZeroCurvesBootstrap = YieldCurvesBootstrap<QuantLib::ZeroYield, Interpolator>;
+
+    template <typename Interpolator>
+    using DiscountCurvesBootstrap = YieldCurvesBootstrap<QuantLib::Discount, Interpolator>;
+
+    template <typename Interpolator>
+    using ForwardCurvesBootstrap = YieldCurvesBootstrap<QuantLib::ForwardRate, Interpolator>;
+
+    template <typename Interpolator>
+    using SimpleZeroCurvesBootstrap = YieldCurvesBootstrap<QuantLib::SimpleZeroYield, Interpolator>;
 }

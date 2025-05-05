@@ -17,7 +17,7 @@ namespace QLUtils {
         std::vector<QuantLib::Time> parTerms;
         std::vector<QuantLib::Rate> parYields;
         pInstruments parInstruments;    // par instrument must be of type QLUtils::ParInstrument
-		QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<ZeroCurveInterp>> discountZeroCurve;
+        QuantLib::ext::shared_ptr<QuantLib::InterpolatedZeroCurve<ZeroCurveInterp>> discountZeroCurve;
 
         struct DefaultParInstrumentsFactory {
             pInstruments operator() (
@@ -101,7 +101,7 @@ namespace QLUtils {
             ZeroCurvesBootstrap<ZeroCurveInterp> bootstrap;
             bootstrap.instruments = parInstruments;
             bootstrap.bootstrap(curveReferenceDate, dayCounter, zcInterp);
-            discountZeroCurve = bootstrap.discountZeroCurve;
+            discountZeroCurve = bootstrap.discountCurve;
         }
         template<typename ActualVsImpliedComparison = DefaultActualVsImpliedComparison>
         QuantLib::Rate verify(
