@@ -34,7 +34,7 @@ namespace QuantLib {
       public:
         LmFixedVolatilityModelFixed(
             const std::vector<Time>& fixingTimes,
-            Array volatilities
+            std::vector<Volatility> volatilities
         ): LmVolatilityModel(fixingTimes.size(), 0), volatilities_(std::move(volatilities)), fixingTimes_(fixingTimes) {
             QL_REQUIRE(fixingTimes_.size()>1, "too few dates");
             QL_REQUIRE(volatilities_.size() == fixingTimes_.size(),
@@ -73,7 +73,7 @@ namespace QuantLib {
         void generateArguments() override {}
 
         const std::vector<Time> fixingTimes_;
-        const Array volatilities_;
+        const std::vector<Volatility> volatilities_;
     };
 
 }
