@@ -35,9 +35,9 @@ namespace QuantLib {
         LmFixedVolatilityModelFixed(
             const std::vector<Time>& fixingTimes,
             Array volatilities
-        ): LmVolatilityModel(startTimes.size(), 0), volatilities_(std::move(volatilities)), fixingTimes_(fixingTimes) {
+        ): LmVolatilityModel(fixingTimes.size(), 0), volatilities_(std::move(volatilities)), fixingTimes_(fixingTimes) {
             QL_REQUIRE(fixingTimes_.size()>1, "too few dates");
-            QL_REQUIRE(volatilities_.size() == startTimes_.size(),
+            QL_REQUIRE(volatilities_.size() == fixingTimes_.size(),
                    "volatility array and fixing time array have to have "
                    "the same size");
             for (Size i = 1; i < fixingTimes_.size(); i++) {
@@ -59,15 +59,15 @@ namespace QuantLib {
             }
 
             return tmp;
-            }
+        }
         Volatility volatility(Size i, Time t, const Array& x = {}) const override {
-            QL_REQUIRE(t >= startTimes_.front() && t <= startTimes_.back(),
+            QL_REQUIRE(t >= fixingTimes_.front() && t <= fixingTimes_.back(),
                    "invalid time given for volatility model");
             auto less_than_or_equal_to = [](const Time& t, const Time& t_i) -> bool {return t <= t_i; };
             const Size ti = std::upper_bound(fixingTimes_.begin(), fixingTimes_.end(), t, less_than_or_equal_to) - fixingTimes_.begin();
 
             return (i >= ti ? volatilities_[i-ti] : Volatility(0.0));
-            }
+        }
 
       private:
         void generateArguments() override {}
