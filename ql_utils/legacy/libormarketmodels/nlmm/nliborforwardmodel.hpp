@@ -70,7 +70,7 @@ namespace QuantLib {
             return swaptionVola = ext::make_shared<SwaptionVolatilityMatrix>(
                 today, NullCalendar(), Following,
                 exercises, lengths, volatilities,
-                index->dayCounter());
+                index->dayCounter(), false, VolatilityType::Normal);
 		}
 
 		Real discountBondOption(

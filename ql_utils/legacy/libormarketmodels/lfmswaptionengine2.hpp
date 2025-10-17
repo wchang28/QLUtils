@@ -18,24 +18,23 @@
 */
 
 /*! \file lfmswaptionengine.hpp
-    \brief libor forward model swaption engine based on black formula
+    \brief libor forward model swaption engine based on Black/Bachelier formula
 */
 
-#ifndef quantlib_libor_forward_model_swaption_engine_fixed_hpp
-#define quantlib_libor_forward_model_swaption_engine_fixed_hpp
+#pragma once
 
 #include <ql/quantlib.hpp>
 #include <utility>
 
 namespace QuantLib {
 
-    //! %Libor forward model swaption engine based on Black formula
+    //! %Libor forward model swaption engine based on Black/Bachelier formula
     /*! \ingroup swaptionengines */
-    class LfmSwaptionEngineFixed : public GenericModelEngine<LiborForwardModel,
+    class LfmSwaptionEngine2 : public GenericModelEngine<LiborForwardModel,
                                                         Swaption::arguments,
                                                         Swaption::results> {
       public:
-        LfmSwaptionEngineFixed(const ext::shared_ptr<LiborForwardModel>& model,
+        LfmSwaptionEngine2(const ext::shared_ptr<LiborForwardModel>& model,
                           Handle<YieldTermStructure> discountCurve);
         void calculate() const override;
 
@@ -43,14 +42,14 @@ namespace QuantLib {
         Handle<YieldTermStructure> discountCurve_;
     };
     
-    inline LfmSwaptionEngineFixed::LfmSwaptionEngineFixed(const ext::shared_ptr<LiborForwardModel>& model,
+    inline LfmSwaptionEngine2::LfmSwaptionEngine2(const ext::shared_ptr<LiborForwardModel>& model,
                                          Handle<YieldTermStructure> discountCurve)
     : GenericModelEngine<LiborForwardModel, Swaption::arguments, Swaption::results>(model),
       discountCurve_(std::move(discountCurve)) {
         registerWith(discountCurve_);
     }
     
-    inline void LfmSwaptionEngineFixed::calculate() const {
+    inline void LfmSwaptionEngine2::calculate() const {
 
         QL_REQUIRE(arguments_.settlementMethod != Settlement::ParYieldCurve,
                    "cash settled (ParYieldCurve) swaptions not priced with Lfm engine");
@@ -86,11 +85,14 @@ namespace QuantLib {
 
         // !!! the original QuantLib code does not apply absolute value when calculating annuity which is a bug !!!
         Real annuity = std::fabs(swap->fixedLegBPS()) / basisPoint;
-        results_.value = annuity *
-            blackFormula(w, fixedRate, fairRate, vol*std::sqrt(exercise));
+        Real stdDev = vol * std::sqrt(exercise);
+        Real blackValue = (
+            volatility->volatilityType() == VolatilityType::ShiftedLognormal ?
+            blackFormula(w, fixedRate, fairRate, stdDev) :
+            bachelierBlackFormula(w, fixedRate, fairRate, stdDev)
+        );
+        Real npv = annuity * blackValue;
+        results_.value = npv;
     }
 
 }
-
-
-#endif
