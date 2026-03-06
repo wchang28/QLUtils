@@ -21,7 +21,7 @@ namespace QLUtils {
     template <typename QL_CURRENCY>
     struct GovernmentBillTraits {
         typedef GovernmentSecurityTraits<QL_CURRENCY> SecurityTraits;
-        QuantLib::DayCounter dayCounter(const QuantLib::Period& tenor) const {
+        QuantLib::DayCounter yieldCalcDayCounter(const QuantLib::Period& tenor) const {
             throw std::logic_error("not implemented");
         }
         QuantLib::Frequency bondEquivCouponFrequency(const QuantLib::Period& tenor) const {
@@ -41,7 +41,10 @@ namespace QLUtils {
         QuantLib::Frequency couponFrequency(const QuantLib::Period& tenor) const {
             throw std::logic_error("not implemented");
         }
-        QuantLib::DayCounter accruedDayCounter(const QuantLib::Period& tenor) const {
+        QuantLib::DayCounter accrualDayCounter(const QuantLib::Period& tenor, QuantLib::Schedule schedule = QuantLib::Schedule()) const {
+            throw std::logic_error("not implemented");
+        }
+		QuantLib::DayCounter yieldCalcDayCounter(const QuantLib::Period& tenor, QuantLib::Schedule schedule = QuantLib::Schedule()) const {
             throw std::logic_error("not implemented");
         }
         bool endOfMonth(const QuantLib::Period& tenor) const {

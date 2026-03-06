@@ -4,6 +4,7 @@
 #include <ql_utils/governmentbondtraits.hpp>
 
 namespace QLUtils {
+	// US treasury security traits specialization
     template<>
     inline QuantLib::Calendar GovernmentSecurityTraits<QuantLib::USDCurrency>::settlementCalendar(const QuantLib::Period&) const {
         return QuantLib::UnitedStates(QuantLib::UnitedStates::GovernmentBond);
@@ -16,8 +17,9 @@ namespace QLUtils {
     inline QuantLib::Real GovernmentSecurityTraits<QuantLib::USDCurrency>::parNotional(const QuantLib::Period&) const {
         return 100.0;
     }
+	// US treasury bill traits specialization
     template<>
-    inline QuantLib::DayCounter GovernmentBillTraits<QuantLib::USDCurrency>::dayCounter(const QuantLib::Period&) const {
+    inline QuantLib::DayCounter GovernmentBillTraits<QuantLib::USDCurrency>::yieldCalcDayCounter(const QuantLib::Period&) const {
         return QuantLib::ActualActual(QuantLib::ActualActual::ISDA);
     }
     template<>
@@ -32,12 +34,17 @@ namespace QLUtils {
     inline QuantLib::DayCounter GovernmentBillTraits<QuantLib::USDCurrency>::parYieldSplineDayCounter(const QuantLib::Period&) const {
         return QuantLib::ActualActual(QuantLib::ActualActual::ISDA);
     }
+	// US treasury note/bond traits specialization
     template<>
     inline QuantLib::Frequency GovernmentBondTraits<QuantLib::USDCurrency>::couponFrequency(const QuantLib::Period&) const {
         return QuantLib::Semiannual;
     }
     template<>
-    inline QuantLib::DayCounter GovernmentBondTraits<QuantLib::USDCurrency>::accruedDayCounter(const QuantLib::Period&) const {
+    inline QuantLib::DayCounter GovernmentBondTraits<QuantLib::USDCurrency>::accrualDayCounter(const QuantLib::Period&, QuantLib::Schedule schedule) const {
+        return QuantLib::ActualActual(QuantLib::ActualActual::Bond);
+    }
+    template<>
+    inline QuantLib::DayCounter GovernmentBondTraits<QuantLib::USDCurrency>::yieldCalcDayCounter(const QuantLib::Period&, QuantLib::Schedule schedule) const {
         return QuantLib::ActualActual(QuantLib::ActualActual::Bond);
     }
     template<>

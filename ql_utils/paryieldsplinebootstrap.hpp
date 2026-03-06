@@ -23,7 +23,7 @@ namespace QLUtils {
             pInstruments operator() (
                 const QuantLib::Interpolation&,
                 const pInstruments& instruments
-                ) const {
+            ) const {
                 return instruments; // default just assume all input instruments are all par instruments
             }
         };
@@ -33,7 +33,7 @@ namespace QLUtils {
                 const std::shared_ptr<BootstrapInstrument>& inst,
                 const QuantLib::Rate& actual,
                 const QuantLib::Rate& implied
-                ) const {
+            ) const {
                 os << inst->tenor();
                 os << "," << inst->ticker();
                 os << "," << "actual=" << actual * 100.0;
@@ -54,16 +54,16 @@ namespace QLUtils {
             QL_REQUIRE(instruments != nullptr, "instruments is not set");
             QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
             for (auto const& i : *instruments) {
-                auto parYieldTSInst = std::dynamic_pointer_cast<QLUtils::ParYieldTermStructInstrument>(i);
-                QL_REQUIRE(parYieldTSInst != nullptr, "instrument " << i->ticker() << " is not a par yield term structure instrument");
+                auto parYieldTSInst = std::dynamic_pointer_cast<QLUtils::IParYieldSplineNode>(i);
+                QL_REQUIRE(parYieldTSInst != nullptr, "instrument " << i->ticker() << " is not a par yield spline node");
             }
         }
         void checkParInstruments() const {
             QL_REQUIRE(parInstruments != nullptr, "par instruments is not set");
             QL_REQUIRE(!parInstruments->empty(), "par instruments cannot be empty");
             for (auto const& inst : *parInstruments) {
-                auto parInstrument = std::dynamic_pointer_cast<QLUtils::ParInstrument>(inst);
-                QL_REQUIRE(parInstrument != nullptr, "instrument " << inst->ticker() << " is not a par instrument");
+                auto parInstrument = std::dynamic_pointer_cast<QLUtils::IParRateInstrument>(inst);
+                QL_REQUIRE(parInstrument != nullptr, "instrument " << inst->ticker() << " is not a par rate instrument");
             }
         }
     public:
@@ -83,7 +83,7 @@ namespace QLUtils {
             // create the par yield term structure interplation
             for (auto const& i : *instruments) {
                 if (i->use()) {
-                    auto parYieldTSInst = std::dynamic_pointer_cast<QLUtils::ParYieldTermStructInstrument>(i);
+                    auto parYieldTSInst = std::dynamic_pointer_cast<QLUtils::IParYieldSplineNode>(i);
                     auto parTerm = parYieldTSInst->parTerm();
                     auto parYield = parYieldTSInst->parYield();
                     parTerms.push_back(parTerm);
@@ -115,7 +115,7 @@ namespace QLUtils {
             return verifyImpl(
                 parInstruments,
                 [&discountingTermStructure](const pInstrument& inst) -> QuantLib::Rate {
-                    auto parInstrument = std::dynamic_pointer_cast<ParInstrument>(inst);
+                    auto parInstrument = std::dynamic_pointer_cast<IParRateInstrument>(inst);
                     return parInstrument->impliedParRate(discountingTermStructure);
                 },
                 os,

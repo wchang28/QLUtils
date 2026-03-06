@@ -251,9 +251,31 @@ namespace QLUtils {
 	typedef std::vector<QuantLib::Real> MonthlyRates;
 	typedef MonthlyRates HistoricalMonthlyRates;
 
-	struct ParYieldTermStructInstrument {
+	struct IParYieldSplineNode {
 		virtual QuantLib::Time parTerm() const = 0;
 		virtual QuantLib::Rate parYield() const = 0;
 	};
+
+    struct IParRateInstrument {
+        virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
+        virtual QuantLib::Rate impliedParRate(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const = 0;
+        virtual QuantLib::DayCounter parYieldSplineDayCounter() const = 0;
+    };
+
+    struct IWithCoupon {
+        virtual QuantLib::Rate coupon() const = 0;
+        virtual QuantLib::Frequency couponFrequency() const = 0;
+	};
+
+    struct IWithYield {
+        virtual QuantLib::Rate yield() const = 0;
+	};
+
+    struct IWithDV01 {
+        virtual QuantLib::Real dv01() const = 0;
+    };
+
     using IborIndexFactory = std::function<QuantLib::ext::shared_ptr<QuantLib::IborIndex>(const QuantLib::Handle<QuantLib::YieldTermStructure>&)>;
 }

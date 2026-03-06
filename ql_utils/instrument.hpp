@@ -101,18 +101,27 @@ namespace QLUtils {
     };
 
     // Couponed Bond instrument
+    // price-based instrument
     // US Treasury Bonds and Notes use this class for bootstrapping
     // BondTraits:
     // typedef SecurityTraits
     // couponFrequency(tenor)
-    // accruedDayCounter(tenor)
+    // accrualDayCounter(tenor, schedule)
+    // yieldCalcDayCounter(tenor, schedule)
     // endOfMonth(tenor)
     // scheduleCalendar(tenor)
     // convention(tenor)
     // terminationDateConvention(tenor)
     // parYieldSplineDayCounter(tenor)
     template <typename BondTraits>
-    class CouponedBond : public BootstrapInstrument, public ParYieldTermStructInstrument {
+    class CouponedBond :
+        public BootstrapInstrument,
+        public IParYieldSplineNode,
+		public IParRateInstrument,
+        public IWithCoupon,
+		public IWithYield,
+        public IWithDV01
+    {
     private:
         typename BondTraits::SecurityTraits securityTraits_;
         BondTraits bondTraits_;
@@ -123,7 +132,7 @@ namespace QLUtils {
             const QuantLib::Date& maturityDate,
             QuantLib::Rate coupon = 0.0
         ) : BootstrapInstrument(BootstrapInstrument::Price, tenor, maturityDate), coupon_(coupon) {}
-        const QuantLib::Rate& coupon() const {
+        QuantLib::Rate coupon() const {
             return coupon_;
         }
         QuantLib::Rate& coupon() {
@@ -150,8 +159,13 @@ namespace QLUtils {
             auto d = calendar.adjust(today);
             return calendar.advance(d, settlementDays() * QuantLib::Days);
         }
-        QuantLib::DayCounter accruedDayCounter() const {
-            return bondTraits_.accruedDayCounter(tenor());
+        QuantLib::DayCounter accrualDayCounter() const {
+            auto schedule = bondSchedule();
+            return bondTraits_.accrualDayCounter(tenor(), schedule);
+        }
+        QuantLib::DayCounter yieldCalcDayCounter() const {
+            auto schedule = bondSchedule();
+            return bondTraits_.yieldCalcDayCounter(tenor(), schedule);
         }
         QuantLib::Frequency couponFrequency() const {
             return bondTraits_.couponFrequency(tenor());
@@ -203,7 +217,10 @@ namespace QLUtils {
                 convention(),
                 terminationDateConvention()
             );
-            return scheduler(bondMaturityDate());
+            return scheduler(
+                bondMaturityDate(),
+                BondSechdulerWithoutIssueDate::AnchorAtType::anchorAtMaturityDate
+            );
         }
         // implied clean price by the discounting term structure
         QuantLib::Real impliedCleanPrice(
@@ -261,6 +278,11 @@ namespace QLUtils {
         ) const {
             return impliedCleanPrice(discountingTermStructure);
         }
+        QuantLib::Rate impliedParRate(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
+        ) const {
+			return this->impliedYield(discountingTermStructure);
+        }
         QuantLib::Rate parYield() const {
             return yield();
         }
@@ -282,7 +304,7 @@ namespace QLUtils {
             QuantLib::Bond::Price bondPrice(cleanPrice, QuantLib::Bond::Price::Clean);
             auto yield = bond->yield(
                 bondPrice,
-                accruedDayCounter(),
+                yieldCalcDayCounter(),
                 QuantLib::Compounded,
                 couponFrequency(),
                 settlementDate(),
@@ -296,12 +318,13 @@ namespace QLUtils {
             auto dv01 = std::abs(QuantLib::BondFunctions::basisPointValue(
                 *bond,
                 yield,
-                accruedDayCounter(),
+                yieldCalcDayCounter(),
                 QuantLib::Compounded,
                 couponFrequency()
             ) / parNotional());
             return dv01;
         }
+    public:
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto schedule = bondSchedule();
             auto targetPrice = cleanPrice();
@@ -312,7 +335,7 @@ namespace QLUtils {
                 parNotional(),
                 schedule,
                 std::vector<QuantLib::Rate>{coupon()},
-                accruedDayCounter(),
+                accrualDayCounter(),
                 convention(),
                 parNotional(),
                 QuantLib::Date(),
@@ -324,6 +347,7 @@ namespace QLUtils {
                 QuantLib::Bond::Price::Clean
             ));
         }
+    protected:
         std::shared_ptr<QuantLib::FixedRateBond> makeFixedRateBond() const {
             auto schedule = bondSchedule();
             return std::shared_ptr<QuantLib::FixedRateBond>(new QuantLib::FixedRateBond(
@@ -331,35 +355,31 @@ namespace QLUtils {
                 parNotional(),
                 schedule,
                 std::vector<QuantLib::Rate>{coupon()},
-                accruedDayCounter(),
+                accrualDayCounter(),
                 convention(),
                 parNotional()
             ));
         }
     };
 
-    // base class for all par instruments
-    // par instrument is a for rate-based (not price-based) bootstrap bacause the price is anchored at 100 (par)
-    class ParInstrument : public BootstrapInstrument, public ParYieldTermStructInstrument {
+    // base class for all par rate instruments
+    // par rate instrument is a for rate/yield-based (not price-based) bootstrap bacause the price is anchored at 100 (par)
+    class ParRateInstrument :
+        public BootstrapInstrument,
+        public IParYieldSplineNode,
+        public IParRateInstrument,
+        public IWithYield
+    {
     public:
-        ParInstrument(
+        ParRateInstrument(
             const QuantLib::Period& tenor,
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) : BootstrapInstrument(BootstrapInstrument::Rate, tenor, datedDate) {}
     protected:
         QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() const {
-            return fixedRateBondHelper()->bond();
+            return this->fixedRateBondHelper()->bond();
         }
     public:
-        // interfaces
-        /////////////////////////////////////////////////////////////////////////////////////////////////
-        virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
-        virtual QuantLib::Rate impliedParRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
-        ) const = 0;
-        virtual QuantLib::DayCounter parYieldSplineDayCounter() const = 0;
-        /////////////////////////////////////////////////////////////////////////////////////////////////
-
         const QuantLib::Rate& parRate() const {
             return rate();
         }
@@ -379,29 +399,30 @@ namespace QLUtils {
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            return fixedRateBondHelper();
+            return this->fixedRateBondHelper();
         };
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
-            return impliedParRate(discountingTermStructure);
+            return this->impliedParRate(discountingTermStructure);
         }
         QuantLib::Rate parYield() const {
             return parRate();
         }
         QuantLib::Time parTerm() const {
-            return parYieldSplineDayCounter().yearFraction(parBond()->settlementDate(), parBond()->maturityDate());
+            return this->parYieldSplineDayCounter().yearFraction(parBond()->settlementDate(), parBond()->maturityDate());
         }
     };
 
     // for converting spot or fwd par rates back to zero curve (par-to-zero bootstrapping)
+	// rate/yield-based par instrument
     // used during par-shock
     template <
         QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual,
         QuantLib::Thirty360::Convention THIRTY_360_DC_CONVENTION = QuantLib::Thirty360::BondBasis
     >
-    class ParRate : public ParInstrument {
+    class ParRate : public ParRateInstrument {
     private:
         using ParYieldHelperType = ParYieldHelper<COUPON_FREQ, THIRTY_360_DC_CONVENTION>;
         QuantLib::Date baseReferenceDate_;
@@ -412,7 +433,7 @@ namespace QLUtils {
             const QuantLib::Date& baseReferenceDate,
             const QuantLib::Period& forwardStart = QuantLib::Period(0, QuantLib::Days)
         ) :
-            ParInstrument(tenor),
+            ParRateInstrument(tenor),
             baseReferenceDate_(baseReferenceDate),
             forwardStart_(forwardStart)
         {}
@@ -451,12 +472,13 @@ namespace QLUtils {
     };
 
     // base class for all par bond and bill securities
+    // rate/yield-based par instrument
     // SecurityTraits
     // settlementCalendar(tenor)
     // settlementDays(tenor)
     // parNotional(tenor)
     template <typename SecurityTraits>
-    class ParBondSecurity : public ParInstrument {
+    class ParBondSecurity : public ParRateInstrument {
     public:
         enum ParSecurityType {
             Bill = 0,
@@ -470,7 +492,7 @@ namespace QLUtils {
             const ParSecurityType& securityType,
             const QuantLib::Period& tenor,
             const QuantLib::Date& bondMaturityDate = QuantLib::Date()
-        ) : ParInstrument(tenor, bondMaturityDate), securityType_(securityType) {
+        ) : ParRateInstrument(tenor, bondMaturityDate), securityType_(securityType) {
             if (bondMaturityDate == QuantLib::Date()) {
                 datedDate() = settlementCalendar().advance(settlementDate(), tenor);
             }
@@ -502,14 +524,18 @@ namespace QLUtils {
     };
 
     // US Treasury Bills use this class for bootstrapping
+	// yield/rate-based par instrument, quote can also be set by discount factor, price, or discount rate
     // ZeroCouponBillTraits
     // typedef SecurityTraits
-    // dayCounter(tenor)
+    // yieldCalcDayCounter(tenor)
     // bondEquivCouponFrequency(tenor)
     // discountRateDayCounter(tenor)
     // parYieldSplineDayCounter(tenor)
     template <typename ZeroCouponBillTraits>
-    class ZeroCouponBill : public ParBondSecurity<typename ZeroCouponBillTraits::SecurityTraits> {
+    class ZeroCouponBill :
+        public ParBondSecurity<typename ZeroCouponBillTraits::SecurityTraits>,
+        public IWithDV01
+    {
     private:
         using BaseType = ParBondSecurity<typename ZeroCouponBillTraits::SecurityTraits>;
         ZeroCouponBillTraits billTraits_;
@@ -518,8 +544,8 @@ namespace QLUtils {
             const QuantLib::Period& tenor,
             const QuantLib::Date& bondMaturityDate
         ) : BaseType(BaseType::Bill, tenor, bondMaturityDate) {}
-        QuantLib::DayCounter dayCounter() const {
-            return billTraits_.dayCounter(this->tenor());
+        QuantLib::DayCounter yieldCalcDayCounter() const {
+            return billTraits_.yieldCalcDayCounter(this->tenor());
         }
         QuantLib::Frequency bondEquivCouponFrequency() const {
             return billTraits_.bondEquivCouponFrequency(this->tenor());
@@ -534,7 +560,7 @@ namespace QLUtils {
             return billTraits_.parYieldSplineDayCounter(this->tenor());
         }
         bool simpleCompounding() const {
-            auto t = dayCounter().yearFraction(this->settlementDate(), this->bondMaturityDate());
+            auto t = yieldCalcDayCounter().yearFraction(this->settlementDate(), this->bondMaturityDate());
             auto firstCouponTime = bondEquivCouponInterval();
             return (t <= firstCouponTime);
         }
@@ -550,7 +576,7 @@ namespace QLUtils {
             auto pr = getYieldCompoundingAndFrequency();
             auto ir = QuantLib::InterestRate::impliedRate(
                 1.0 / df,
-                dayCounter(),
+                yieldCalcDayCounter(),
                 pr.first,
                 pr.second,
                 this->settlementDate(),
@@ -560,7 +586,7 @@ namespace QLUtils {
         }
         QuantLib::DiscountFactor discountFactorFromYield(QuantLib::Rate yield) const {
             auto pr = getYieldCompoundingAndFrequency();
-            QuantLib::InterestRate ir(yield, dayCounter(), pr.first, pr.second);
+            QuantLib::InterestRate ir(yield, yieldCalcDayCounter(), pr.first, pr.second);
             return ir.discountFactor(this->settlementDate(), this->bondMaturityDate());
         }
         ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -652,14 +678,19 @@ namespace QLUtils {
             auto targetPrice = discountFactorFromYield(this->yield()) * this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
             BondSechdulerWithoutIssueDate scheduler(this->settlementDays(), this->settlementCalendar(), bondEquivCouponFrequency(), false);
-            auto bondEquivSchedule = scheduler(this->bondMaturityDate());
+            auto bondEquivSchedule = scheduler(
+                this->bondMaturityDate(),
+                BondSechdulerWithoutIssueDate::AnchorAtType::anchorAtMaturityDate
+            );
+			// since it's a zero coupon bill, we can just use an arbituary accrual day counter
+			auto accrualDayCounter = yieldCalcDayCounter();
             return QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>(new QuantLib::FixedRateBondHelper(
                 QuantLib::Handle<QuantLib::Quote>(quote),
                 this->settlementDays(),
                 this->parNotional(),
                 bondEquivSchedule,
                 std::vector<QuantLib::Rate>{0.0},   // zero coupon
-                this->dayCounter(),
+                accrualDayCounter,
                 QuantLib::Unadjusted,
                 this->parNotional()
             ));
@@ -687,7 +718,7 @@ namespace QLUtils {
             auto dv01 = std::abs(QuantLib::BondFunctions::basisPointValue(
                 *bond,
                 yield,
-                dayCounter(),
+                yieldCalcDayCounter(),
                 pr.first,
                 pr.second
             ) / this->parNotional());
@@ -696,17 +727,23 @@ namespace QLUtils {
     };
 
     // Theoretical Par Bond - used for par yield spline bootstrapping
+	// rate/yield/coupon-based par instrument with price anchored at 100 (par)
     // BondTraits
     // typedef SecurityTraits
     // couponFrequency(tenor)
-    // accruedDayCounter(tenor)
+    // accrualDayCounter(tenor, schedule)
+    // yeildCalcDayCounter(tenor, schedule)
     // endOfMonth(tenor)
     // scheduleCalendar(tenor)
     // convention(tenor)
     // terminationDateConvention(tenor)
     // parYieldSplineDayCounter(tenor)
     template <typename BondTraits>
-    class ParBond : public ParBondSecurity<typename BondTraits::SecurityTraits> {
+    class ParBond :
+        public ParBondSecurity<typename BondTraits::SecurityTraits>,
+        public IWithCoupon,
+        public IWithDV01
+    {
     private:
         using BaseType = ParBondSecurity<typename BondTraits::SecurityTraits>;
         BondTraits bondTraits_;
@@ -719,8 +756,16 @@ namespace QLUtils {
                 this->datedDate() = bondSchedule().endDate();
             }
         }
-        QuantLib::DayCounter accruedDayCounter() const {
-            return bondTraits_.accruedDayCounter(this->tenor());
+        QuantLib::Rate coupon() const {
+            return this->parRate(); // par bond's coupon is the par rate
+		}
+        QuantLib::DayCounter accrualDayCounter() const {
+            auto schedule = bondSchedule();
+            return bondTraits_.accrualDayCounter(this->tenor(), schedule);
+        }
+        QuantLib::DayCounter yieldCalcDayCounter() const {
+            auto schedule = bondSchedule();
+            return bondTraits_.yieldCalcDayCounter(this->tenor(), schedule);
         }
         QuantLib::Frequency couponFrequency() const {
             return bondTraits_.couponFrequency(this->tenor());
@@ -755,11 +800,11 @@ namespace QLUtils {
             );
         }
         QuantLib::Real dv01() const {
-            auto bond = makeFixedRateBond();
+            auto bond = makeFixedRateBond(coupon());
             return bondDV01(bond, this->yield());
         }
         QuantLib::Real impliedDV01(const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure) const {
-            auto bond = makeFixedRateBond();
+            auto bond = makeFixedRateBond(coupon());
             auto yield = impliedParRate(discountingTermStructure);
             return bondDV01(bond, yield);
         }
@@ -771,7 +816,7 @@ namespace QLUtils {
                     this->parNotional(),
                     schedule,
                     std::vector<QuantLib::Rate>{bondCoupon},
-                    accruedDayCounter(),
+                    accrualDayCounter(),
                     convention(),
                     this->parNotional()
                 ));
@@ -780,7 +825,7 @@ namespace QLUtils {
             auto dv01 = std::abs(QuantLib::BondFunctions::basisPointValue(
                 *bond,
                 yield,
-                accruedDayCounter(),
+                yieldCalcDayCounter(),
                 QuantLib::Compounded,
                 couponFrequency()
             ) / this->parNotional());
@@ -798,15 +843,15 @@ namespace QLUtils {
     public:
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto schedule = bondSchedule();
-            auto targetPrice = this->parNotional();
-            auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
+			auto targetPrice = this->parNotional(); // par bond's price is always par notional (i.e. 100)
+			auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
             return QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>(new QuantLib::FixedRateBondHelper(
                 QuantLib::Handle<QuantLib::Quote>(quote),
                 this->settlementDays(),
                 this->parNotional(),
                 schedule,
-                std::vector<QuantLib::Rate>{this->parRate()},
-                accruedDayCounter(),
+                std::vector<QuantLib::Rate>{coupon()},
+                accrualDayCounter(),
                 convention(),
                 this->parNotional(),
                 QuantLib::Date(),
@@ -832,7 +877,7 @@ namespace QLUtils {
                 auto bond = me.makeFixedRateBond(coupon);
                 bond->setPricingEngine(pricingEngine);
                 return bond->cleanPrice() - me.parNotional();
-                }, accuracy, guess, step);
+            }, accuracy, guess, step);
             return parRate;
         }
     };

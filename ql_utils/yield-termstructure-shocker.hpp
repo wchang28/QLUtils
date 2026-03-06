@@ -161,7 +161,7 @@ namespace QLUtils {
             const pInstrument& pInst,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
         ) const {
-            auto pParInstrument = std::dynamic_pointer_cast<ParInstrument>(pInst);
+            auto pParInstrument = std::dynamic_pointer_cast<ParRateInstrument>(pInst);
             return pParInstrument->impliedParRate(discountingTermStructure);
         }
     };

@@ -5,7 +5,13 @@
 
 namespace QLUtils {
     // bond scheduler without knowing bond's issue date
+	// only bond's maturity date and settlement date are needed to make the schedule
     class BondSechdulerWithoutIssueDate {
+    public:
+        enum AnchorAtType {
+            anchorAtMaturityDate = 0,
+            anchorAtSettlementDate = 1,
+        };
     private:
         QuantLib::Natural settlementDays_;
         QuantLib::Calendar settlementCalendar_;
@@ -18,7 +24,7 @@ namespace QLUtils {
         BondSechdulerWithoutIssueDate(
             QuantLib::Natural settlementDays,
             const QuantLib::Calendar& settlementCalendar,
-            QuantLib::Frequency frequency = QuantLib::Semiannual,
+			QuantLib::Frequency frequency = QuantLib::Semiannual,   // bond coupon frequency, default to semiannual
             bool endOfMonth = true,
             const QuantLib::Calendar& scheduleCalendar = QuantLib::NullCalendar(),
             QuantLib::BusinessDayConvention convention = QuantLib::Unadjusted,
@@ -73,26 +79,91 @@ namespace QLUtils {
         QuantLib::BusinessDayConvention& terminationDateConvention() {
             return terminationDateConvention_;
         }
-        QuantLib::Date settlementDate() const {
-            QuantLib::Date today = QuantLib::Settings::instance().evaluationDate();
+        QuantLib::Date settlementDate(
+			QuantLib::Date today = QuantLib::Date()
+        ) const {
+            if (today == QuantLib::Date()) {
+                today = QuantLib::Settings::instance().evaluationDate();
+            }
             auto dt = settlementCalendar().adjust(today);
             return settlementCalendar().advance(dt, settlementDays() * QuantLib::Days);
         }
-        QuantLib::Schedule operator() (const QuantLib::Date& maturityDate) const {
-            auto settlementDt = settlementDate();
-            QuantLib::Period tenor(frequency());
+    private:
+        QuantLib::Schedule makeBackwardScheduleImpl(
+            const QuantLib::Date& settlementDt,
+            const QuantLib::Date& maturityDate
+        ) const {
+            QuantLib::Period tenor(frequency());    // tenor of the coupon period
             auto tenorPlus1Month = tenor + 1 * QuantLib::Months;
             auto start = settlementDt - tenorPlus1Month;
-            QuantLib::Schedule schedule(start, maturityDate, tenor, scheduleCalendar(), convention(), terminationDateConvention(), QuantLib::DateGeneration::Backward, endOfMonth());
+            QuantLib::DateGeneration::Rule rule = QuantLib::DateGeneration::Rule::Backward;
+            QuantLib::Schedule schedule(start, maturityDate, tenor, scheduleCalendar(), convention(), terminationDateConvention(), rule, endOfMonth());
             for (auto p = schedule.begin(); p != schedule.end(); ++p) {
                 if (settlementDt < *p) {
                     // --p points to the previous coupon date
                     std::vector<QuantLib::Date> dates(--p, schedule.end());
-                    // settlementCalendar and convention are just meta information for the client so the client can use it to calculate bond's settlement date (given the number of settlement days)
-                    return QuantLib::Schedule(dates, settlementCalendar(), convention());
+                    // settlementCalendar, convention, terminationDateConvention, tenor, rule, and endOfMonth are just meta information for the client so the client can use it to calculate bond's settlement date (given the number of settlement days)
+                    return QuantLib::Schedule(
+                        dates,
+                        settlementCalendar(),
+                        convention(),
+                        terminationDateConvention(),
+                        tenor,
+                        rule,
+                        endOfMonth()
+                    );
                 }
             }
             QL_FAIL("bad scheduling logic");
+        }
+        QuantLib::Schedule makeFowrardScheduleImpl(
+            const QuantLib::Date& settlementDt,
+            const QuantLib::Date& maturityDate
+        ) const {
+            QuantLib::Period tenor(frequency());    // tenor of the coupon period
+            auto endDate = maturityDate + tenor;
+            QuantLib::DateGeneration::Rule rule = QuantLib::DateGeneration::Rule::Forward;
+            QuantLib::Schedule schedule(settlementDt, endDate, tenor, scheduleCalendar(), convention(), terminationDateConvention(), rule, endOfMonth());
+            std::vector<QuantLib::Date> dates;
+            for (auto const& d : schedule.dates()) {
+                dates.push_back(d);
+                if (d >= maturityDate) {
+                    break;
+                }
+            }
+            return QuantLib::Schedule(
+                dates,
+                scheduleCalendar(),
+                convention(),
+                terminationDateConvention(),
+                tenor,
+                rule,
+                endOfMonth()
+            );
+        }
+    public:
+        // schedule maker call operator
+        QuantLib::Schedule operator() (
+            const QuantLib::Date& maturityDate,
+            AnchorAtType anchorAt = AnchorAtType::anchorAtMaturityDate,
+            QuantLib::Date today = QuantLib::Date()
+        ) const {
+            auto settlementDt = settlementDate(today);
+            QL_REQUIRE(settlementDt < maturityDate, "Settlement date (" << settlementDt << ") must be before maturity date (" << maturityDate << ")");
+            if (anchorAt == AnchorAtType::anchorAtMaturityDate) {
+                return makeBackwardScheduleImpl(settlementDt, maturityDate);
+            }
+            else {
+                return makeFowrardScheduleImpl(settlementDt, maturityDate);
+            }
+        }
+        // make the schedule
+        QuantLib::Schedule schedule(
+            const QuantLib::Date& maturityDate,
+            AnchorAtType anchorAt = AnchorAtType::anchorAtMaturityDate,
+            QuantLib::Date today = QuantLib::Date()
+        ) const {
+			return this->operator()(maturityDate, anchorAt, today);
         }
     };
 }
