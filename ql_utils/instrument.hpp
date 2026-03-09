@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
+#include <cmath>
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
@@ -524,7 +526,7 @@ namespace QLUtils {
     };
 
     // US Treasury Bills use this class for bootstrapping
-	// yield/rate-based par instrument, quote can also be set by discount factor, price, or discount rate
+    // yield/rate-based par instrument, quote can also be set by discount factor, price, or discount rate
     // ZeroCouponBillTraits
     // typedef SecurityTraits
     // yieldCalcDayCounter(tenor)
@@ -543,7 +545,8 @@ namespace QLUtils {
         ZeroCouponBill(
             const QuantLib::Period& tenor,
             const QuantLib::Date& bondMaturityDate
-        ) : BaseType(BaseType::Bill, tenor, bondMaturityDate) {}
+        ) : BaseType(BaseType::Bill, tenor, bondMaturityDate)
+        {}
         QuantLib::DayCounter yieldCalcDayCounter() const {
             return billTraits_.yieldCalcDayCounter(this->tenor());
         }
@@ -559,35 +562,82 @@ namespace QLUtils {
         QuantLib::DayCounter parYieldSplineDayCounter() const {
             return billTraits_.parYieldSplineDayCounter(this->tenor());
         }
-        bool simpleCompounding() const {
-            auto t = yieldCalcDayCounter().yearFraction(this->settlementDate(), this->bondMaturityDate());
-            auto firstCouponTime = bondEquivCouponInterval();
-            return (t <= firstCouponTime);
+        QuantLib::Schedule bondEquivSchedule() const {
+            BondSechdulerWithoutIssueDate scheduler(
+                this->settlementDays(),
+                this->settlementCalendar(),
+                bondEquivCouponFrequency(),
+                false
+            );
+            auto schedule = scheduler(
+                this->bondMaturityDate(),
+                BondSechdulerWithoutIssueDate::anchorAtSettlementDate
+            );
+            return schedule;
         }
-        std::pair<QuantLib::Compounding, QuantLib::Frequency> getYieldCompoundingAndFrequency() const {
-            auto simpleComp = simpleCompounding();
-            auto comp = (simpleComp ? QuantLib::Simple : QuantLib::Compounded);
-            auto freq = (simpleComp ? QuantLib::NoFrequency : bondEquivCouponFrequency());
-            return std::pair<QuantLib::Compounding, QuantLib::Frequency>(comp, freq);
-        }
+
         // convert between discount factor and yield
         ////////////////////////////////////////////////////////////////////////////////////////////////
         QuantLib::Rate yieldFromDiscountFactor(QuantLib::DiscountFactor df) const {
-            auto pr = getYieldCompoundingAndFrequency();
-            auto ir = QuantLib::InterestRate::impliedRate(
-                1.0 / df,
-                yieldCalcDayCounter(),
-                pr.first,
-                pr.second,
-                this->settlementDate(),
-                this->bondMaturityDate()
-            );
-            return ir.rate();
+            auto schedule = bondEquivSchedule();
+            auto n = schedule.size() - 1;
+            QL_ASSERT(n > 0, "Schedule must have at least one period");
+            QL_ASSERT(this->settlementDate() == schedule.date(0), "Settlement date must match the first schedule date");
+            auto compoundingFactor = 1.0 / df;
+            auto T = yieldCalcDayCounter().yearFraction(this->settlementDate(), this->bondMaturityDate());
+            if (n == 1) {
+                // 1 / df = 1 + yield * T, and solve for yield
+                // => yield = (1 / df - 1) / T
+                // => yield = (compoundingFactor - 1) / T
+                return (compoundingFactor - 1.0) / T;
+            }
+            else if (n == 2) {
+                // 1 / df = (1 + yield * t1) * (1 + yield * (T-t1)), and solve for yield
+                // => t1 * (T-t1) * yield * yield + T * yield + (1 - 1 / df) = 0
+                // => t1 * (T-t1) * yield * yield + T * yield + (1 - compoundingFactor) = 0
+                auto t1 = yieldCalcDayCounter().yearFraction(schedule.date(0), schedule.date(1));
+                auto t2 = T - t1;
+                auto a = t1 * t2;
+                auto b = T;
+                auto c = 1.0 - compoundingFactor;
+                return (-b + std::sqrt(b * b - 4.0 * a * c)) / (2.0 * a);
+            }
+            else {
+                QuantLib::Brent solver;
+                auto guess = (compoundingFactor - 1.0) / T; // use simple yield as the initial guess
+                auto step = 0.0010; // 10 bp step
+                solver.setMaxEvaluations(this->solverMaxIterations());
+                const auto& me = *this;
+                auto targetCompoundingFactor = compoundingFactor;
+                auto f = [&schedule, &n, &me, &targetCompoundingFactor](const QuantLib::Rate& yield) -> QuantLib::Real {
+                    QuantLib::Real compoundingFactor = 1.0;
+                    for (decltype(n) i = 0; i < n; ++i) {   // for each period
+                        const auto& start = schedule.date(i);
+                        const auto& end = schedule.date(i + 1);
+                        auto d = std::min(end, me.bondMaturityDate());
+                        auto t = me.yieldCalcDayCounter().yearFraction(start, d);
+                        compoundingFactor *= (1.0 + yield * t);
+                    }
+                    return compoundingFactor - targetCompoundingFactor;
+                };
+                QuantLib::Rate yield = solver.solve(f, this->solverAccuracy(), guess, step);
+                return yield;
+            }
         }
         QuantLib::DiscountFactor discountFactorFromYield(QuantLib::Rate yield) const {
-            auto pr = getYieldCompoundingAndFrequency();
-            QuantLib::InterestRate ir(yield, yieldCalcDayCounter(), pr.first, pr.second);
-            return ir.discountFactor(this->settlementDate(), this->bondMaturityDate());
+            auto schedule = bondEquivSchedule();
+            auto n = schedule.size() - 1;
+            QL_ASSERT(n > 0, "Schedule must have at least one period");
+            QL_ASSERT(this->settlementDate() == schedule.date(0), "Settlement date must match the first schedule date");
+            QuantLib::Real compoundingFactor = 1.0;
+            for (decltype(n) i = 0; i < n; ++i) {
+                const auto& start = schedule.date(i);
+                const auto& end = schedule.date(i + 1);
+                auto d = std::min(end, this->bondMaturityDate());
+                auto t = yieldCalcDayCounter().yearFraction(start, d);
+                compoundingFactor *= (1.0 + yield * t);
+            }
+            return 1.0 / compoundingFactor;
         }
         ////////////////////////////////////////////////////////////////////////////////////////////////
         // convert between discount rate and discount factor
@@ -602,7 +652,7 @@ namespace QLUtils {
             auto d1 = this->settlementDate();
             auto d2 = this->bondMaturityDate();
             auto t = this->discountRateDayCounter().yearFraction(d1, d2);
-            return (1.0 - discountFactor)/t;
+            return (1.0 - discountFactor) / t;
         }
         ////////////////////////////////////////////////////////////////////////////////////////////////
         // set the yield by yield
@@ -677,13 +727,18 @@ namespace QLUtils {
         QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
             auto targetPrice = discountFactorFromYield(this->yield()) * this->parNotional();
             auto quote = QuantLib::ext::make_shared<QuantLib::SimpleQuote>(targetPrice);
-            BondSechdulerWithoutIssueDate scheduler(this->settlementDays(), this->settlementCalendar(), bondEquivCouponFrequency(), false);
+            BondSechdulerWithoutIssueDate scheduler(
+                this->settlementDays(),
+                this->settlementCalendar(),
+                bondEquivCouponFrequency(),
+                false
+            );
             auto bondEquivSchedule = scheduler(
                 this->bondMaturityDate(),
                 BondSechdulerWithoutIssueDate::AnchorAtType::anchorAtMaturityDate
             );
-			// since it's a zero coupon bill, we can just use an arbituary accrual day counter
-			auto accrualDayCounter = yieldCalcDayCounter();
+            // since it's a zero coupon bill, we can just use an arbituary accrual day counter
+            auto accrualDayCounter = yieldCalcDayCounter();
             return QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper>(new QuantLib::FixedRateBondHelper(
                 QuantLib::Handle<QuantLib::Quote>(quote),
                 this->settlementDays(),
@@ -701,6 +756,12 @@ namespace QLUtils {
             return impliedYield(discountingTermStructure);
         }
     protected:
+        static QuantLib::Real solverAccuracy() {
+            return 1.0e-16;
+        }
+        static QuantLib::Size solverMaxIterations() {
+            return 300;
+        }
         std::shared_ptr<QuantLib::ZeroCouponBond> makeZeroCouponBond() const {
             return std::shared_ptr<QuantLib::ZeroCouponBond>(
                 new QuantLib::ZeroCouponBond(
@@ -713,15 +774,12 @@ namespace QLUtils {
                 )
             );
         }
-        QuantLib::Real bondDV01(const std::shared_ptr<QuantLib::ZeroCouponBond>& bond, QuantLib::Rate yield) const {
-            auto pr = getYieldCompoundingAndFrequency();
-            auto dv01 = std::abs(QuantLib::BondFunctions::basisPointValue(
-                *bond,
-                yield,
-                yieldCalcDayCounter(),
-                pr.first,
-                pr.second
-            ) / this->parNotional());
+        QuantLib::Real bondDV01(const std::shared_ptr<QuantLib::ZeroCouponBond>&, QuantLib::Rate yield) const {
+            auto notional = this->parNotional();
+            auto priceUp = discountFactorFromYield(yield + 0.0001) * notional;
+            auto priceDown = discountFactorFromYield(yield - 0.0001) * notional;
+            auto dv01 = std::abs(priceDown - priceUp) / 2.0;
+            dv01 /= notional;
             return dv01;
         }
     };

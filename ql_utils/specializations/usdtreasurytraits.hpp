@@ -41,11 +41,11 @@ namespace QLUtils {
     }
     template<>
     inline QuantLib::DayCounter GovernmentBondTraits<QuantLib::USDCurrency>::accrualDayCounter(const QuantLib::Period&, QuantLib::Schedule schedule) const {
-        return QuantLib::ActualActual(QuantLib::ActualActual::Bond);
+        return QuantLib::ActualActual(QuantLib::ActualActual::Bond, schedule);
     }
     template<>
     inline QuantLib::DayCounter GovernmentBondTraits<QuantLib::USDCurrency>::yieldCalcDayCounter(const QuantLib::Period&, QuantLib::Schedule schedule) const {
-        return QuantLib::ActualActual(QuantLib::ActualActual::Bond);
+        return QuantLib::ActualActual(QuantLib::ActualActual::Bond, schedule);
     }
     template<>
     inline bool GovernmentBondTraits<QuantLib::USDCurrency>::endOfMonth(const QuantLib::Period&) const {
@@ -65,6 +65,6 @@ namespace QLUtils {
     }
     template<>
     inline QuantLib::DayCounter GovernmentBondTraits<QuantLib::USDCurrency>::parYieldSplineDayCounter(const QuantLib::Period&) const {
-        return QuantLib::Thirty360(QuantLib::Thirty360::BondBasis);
+        return QuantLib::ActualActual(QuantLib::ActualActual::ISDA);
     }
 }
