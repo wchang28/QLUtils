@@ -784,7 +784,7 @@ namespace QLUtils {
         }
     };
 
-    // Theoretical Par Bond - used for par yield spline bootstrapping
+    // Constant Maturity Par Couponed Bond - used for par yield spline bootstrapping
 	// rate/yield/coupon-based par instrument with price anchored at 100 (par)
     // BondTraits
     // typedef SecurityTraits
@@ -797,7 +797,7 @@ namespace QLUtils {
     // terminationDateConvention(tenor)
     // parYieldSplineDayCounter(tenor)
     template <typename BondTraits>
-    class ParBond :
+    class ConstantMaturityParCouponedBond :
         public ParBondSecurity<typename BondTraits::SecurityTraits>,
         public IWithCoupon,
         public IWithDV01
@@ -806,7 +806,7 @@ namespace QLUtils {
         using BaseType = ParBondSecurity<typename BondTraits::SecurityTraits>;
         BondTraits bondTraits_;
     public:
-        ParBond(
+        ConstantMaturityParCouponedBond(
             const QuantLib::Period& tenor,
             const QuantLib::Date& bondMaturityDate = QuantLib::Date()
         ) : BaseType(BaseType::CouponedBond, tenor, bondMaturityDate) {
