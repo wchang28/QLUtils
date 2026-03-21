@@ -4,7 +4,7 @@
 #include <ql_utils/governmentbondtraits.hpp>
 
 namespace QLUtils {
-	// US treasury security traits specialization
+    // US treasury security traits specialization
     template<>
     inline QuantLib::Calendar GovernmentSecurityTraits<QuantLib::USDCurrency>::settlementCalendar(const QuantLib::Period&) const {
         return QuantLib::UnitedStates(QuantLib::UnitedStates::GovernmentBond);
@@ -17,7 +17,7 @@ namespace QLUtils {
     inline QuantLib::Real GovernmentSecurityTraits<QuantLib::USDCurrency>::parNotional(const QuantLib::Period&) const {
         return 100.0;
     }
-	// US treasury bill traits specialization
+    // US treasury bill traits specialization
     template<>
     inline QuantLib::DayCounter GovernmentBillTraits<QuantLib::USDCurrency>::yieldCalcDayCounter(const QuantLib::Period&) const {
         return QuantLib::ActualActual(QuantLib::ActualActual::ISDA);

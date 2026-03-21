@@ -100,8 +100,8 @@ namespace QLUtils {
                 const QuantLib::Real& actual,
                 const QuantLib::Real& implied
             ) const {
-                auto multiplierValue = (inst->valueType() == BootstrapInstrument::Rate ? 100.0 : 1.0);
-                auto multiplierDiffBp = (inst->valueType() == BootstrapInstrument::Rate ? 10000.0 : 100.0);
+                auto multiplierValue = (inst->valueType() == BootstrapInstrument::vtRate ? 100.0 : 1.0);
+                auto multiplierDiffBp = (inst->valueType() == BootstrapInstrument::vtRate ? 10000.0 : 100.0);
                 auto diff = implied - actual;
                 os << inst->tenor();
                 os << "," << inst->ticker();
@@ -109,7 +109,7 @@ namespace QLUtils {
                 os << "," << "implied=" << implied * multiplierValue;
                 os << "," << "diff=" << diff * multiplierDiffBp << " bp";
                 os << std::endl;
-                return (inst->valueType() == BootstrapInstrument::Rate ? diff : diff/100.0);
+                return (inst->valueType() == BootstrapInstrument::vtRate ? diff : diff/100.0);
             }
         };
 

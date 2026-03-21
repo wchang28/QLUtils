@@ -12,8 +12,8 @@ namespace QLUtils {
     class BootstrapInstrument {
     public:
         enum ValueType {
-            Rate = 0,
-            Price = 1,
+            vtRate = 0,
+            vtPrice = 1,
         };
     protected:
         std::string ticker_;
@@ -31,7 +31,7 @@ namespace QLUtils {
             valueType_(valueType),
             tenor_(tenor),
             datedDate_(datedDate),
-            value_(QuantLib::Null < QuantLib::Real >()),
+            value_(QuantLib::Null<QuantLib::Real>()),
             use_(true) {}
         const std::string& ticker() const {
             return ticker_;
@@ -80,6 +80,9 @@ namespace QLUtils {
         }
         QuantLib::Real& price() {
             return value_;
+        }
+        bool valueIsSet() const {
+            return (value_ != QuantLib::Null<QuantLib::Real>());
         }
         QuantLib::Handle<QuantLib::Quote> quote() const {
             QuantLib::Handle<QuantLib::Quote> q(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(value())));
@@ -133,7 +136,7 @@ namespace QLUtils {
             const QuantLib::Period& tenor,
             const QuantLib::Date& maturityDate,
             QuantLib::Rate coupon = 0.0
-        ) : BootstrapInstrument(BootstrapInstrument::Price, tenor, maturityDate), coupon_(coupon) {}
+        ) : BootstrapInstrument(BootstrapInstrument::vtPrice, tenor, maturityDate), coupon_(coupon) {}
         QuantLib::Rate coupon() const {
             return coupon_;
         }
@@ -376,7 +379,7 @@ namespace QLUtils {
         ParRateInstrument(
             const QuantLib::Period& tenor,
             const QuantLib::Date& datedDate = QuantLib::Date()
-        ) : BootstrapInstrument(BootstrapInstrument::Rate, tenor, datedDate) {}
+        ) : BootstrapInstrument(BootstrapInstrument::vtRate, tenor, datedDate) {}
     protected:
         QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() const {
             return this->fixedRateBondHelper()->bond();
@@ -976,7 +979,7 @@ namespace QLUtils {
     public:
         OISSwapIndex(
             const QuantLib::Period& tenor
-        ) : BootstrapInstrument(BootstrapInstrument::Rate, tenor) {}
+        ) : BootstrapInstrument(BootstrapInstrument::vtRate, tenor) {}
     private:
         QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> createSwap(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
@@ -1128,14 +1131,14 @@ namespace QLUtils {
             return days * QuantLib::Days;
         }
         IMMFuture(const IborIndexFactory& iborIndexFactory, QuantLib::Natural immOrdinal) :
-            SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Price, SwapCurveInstrument::Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
+            SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtPrice, SwapCurveInstrument::Future, QuantLib::Period(), QuantLib::Null < QuantLib::Date >()),
             immOrdinal_(immOrdinal), convexityAdj_(0.0) {
             this->datedDate_ = IMMMainCycleStartDateForOrdinal(immOrdinal);
             this->tenor_ = calculateTenor(this->datedDate_);
             this->immTicker_ = QuantLib::IMM::code(this->datedDate_);
         }
         IMMFuture(const IborIndexFactory& iborIndexFactory, const QuantLib::Date& immDate) :
-            SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Price, SwapCurveInstrument::Future, calculateTenor(immDate), immDate),
+            SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtPrice, SwapCurveInstrument::Future, calculateTenor(immDate), immDate),
             immOrdinal_(IMMMainCycleOrdinalForStartDate(immDate)),
             immTicker_(QuantLib::IMM::code(immDate)),
             convexityAdj_(0.0){}
@@ -1196,7 +1199,7 @@ namespace QLUtils {
         CashDepositIndex(
             const IborIndexFactory& iborIndexFactory,
             const QuantLib::Period& tenor
-        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::Deposit, tenor) {}
+        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtRate, SwapCurveInstrument::Deposit, tenor) {}
     private:
         std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter> getValueMaturityDates() const {
             auto iborIndex = this->iborIndex();
@@ -1266,7 +1269,7 @@ namespace QLUtils {
         FRA(
             const IborIndexFactory& iborIndexFactory,
             const QuantLib::Period& forward
-        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::FRA, forward, QuantLib::Null<QuantLib::Date>())
+        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtRate, SwapCurveInstrument::FRA, forward, QuantLib::Null<QuantLib::Date>())
         {
             this->datedDate_ = calcDates().first;    // datedDate_ stores the earliestDate/startDate
         }
@@ -1309,7 +1312,7 @@ namespace QLUtils {
         SwapIndex(
             const IborIndexFactory& iborIndexFactory,
             const QuantLib::Period& tenor
-        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::Rate, SwapCurveInstrument::Swap, tenor) {}
+        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor) {}
 
         // calculate swap index's settlement days and swap start/effective date
         static std::pair<QuantLib::Natural, QuantLib::Date> getSwapIndexStartInfo(
@@ -1492,7 +1495,7 @@ namespace QLUtils {
             const QuantLib::Period& forward,
             const QuantLib::Date& baseReferenceDate = QuantLib::Date()
         ) :
-            BootstrapInstrument(ValueType::Rate, forward),
+            BootstrapInstrument(ValueType::vtRate, forward),
             helperInternal_(
                 0.,
                 forward,
