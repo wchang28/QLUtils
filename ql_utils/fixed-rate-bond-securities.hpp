@@ -119,7 +119,8 @@ namespace QuantLib {
         private:
             // create a forward schedule of n coupon periods starting from the startDate
             Schedule createForwardSchedule(
-                const Date& effectiveDate, Natural numCoupons
+                const Date& effectiveDate,
+                Natural numCoupons
             ) const {
                 auto tenor = this->couponTenor();
                 auto p = tenor * (numCoupons + 5);
@@ -156,6 +157,7 @@ namespace QuantLib {
                 const Date& startDate,
                 const Date& terminationDate
             ) {
+				QL_REQUIRE(startDate < terminationDate, "start date (" << startDate << ") must be before the termination date (" << terminationDate << ")");
                 auto tenor = this->couponTenor();
                 auto p = tenor * 5;
                 auto effectiveDate = startDate - p;
@@ -205,26 +207,31 @@ namespace QuantLib {
                 accrualScheduleCalendar_(bondTraits_.accrualScheduleCalendar(tenor)),
                 paymentCalendar_(bondTraits_.paymentCalendar(tenor))
             {
-                QL_REQUIRE(tenor.length() > 0, "The length of the tenor (" << tenor.length() << ") must be greater than 0");
+                QL_REQUIRE(tenor.length() > 0, "The length of the bond tenor (" << tenor.length() << ") must be greater than 0");
                 auto settleDate = this->settlementDate();
 				if (maturityDate == Date()) {  // maturity date is not given
                     auto [multipile, n] = isMultiple(tenor, this->couponTenor());
                     if (multipile) {    // tenor is a multiple of coupon period => create a forward bond schedule of n coupon periods starting fro the settlement date
                         QL_ASSERT(n > 0, "the number of coupon accrual periods (" << n << ") must be greater than 0");
                         accrualSchedule_ = createForwardSchedule(settleDate, (Natural)n);
-                        QL_ASSERT(accrualSchedule_.dates().size() - 1 == n, "The number of coupon accrual periods (" << (accrualSchedule_.dates().size() - 1) << ") is not what's expected (" << n << ")");
+						auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
+                        QL_ASSERT(nCouponPeriods == n, "The number of coupon accrual periods (" << nCouponPeriods << ") is not what's expected (" << n << ")");
                         QL_ASSERT(settleDate == accrualSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << accrualSchedule_.dates().front() << ") of the first coupon accrual period");
                         this->maturityDate() = accrualSchedule_.dates().back();    // set the maturity date to the last date of the schedule
                     }
                     else {  // tenor is not a mutiple of the coupon period
                         this->maturityDate() = settleDate + tenor;    // set the maturity date to be the settle date plus the tenor
                         accrualSchedule_ = createBackwardSchedule(settleDate, this->maturityDate());    // create a schedule goting backward
+                        auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
+                        QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
                         QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
                         QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
                     }
                 }
                 else {  // maturity date is given => created a backward bond schedule from the maturity date
                     accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);
+                    auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
+                    QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
                     QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
                     QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
                 }
@@ -283,6 +290,9 @@ namespace QuantLib {
             const DayCounter& accrualDayCounter() const {
                 return accrualDayCounter_;
             }
+            Size numCouponPeriods() const {
+                return accrualSchedule_.dates().size() - 1;
+			}
             const Calendar& paymentCalendar() const {
                 return paymentCalendar_;
 			}
@@ -424,7 +434,7 @@ namespace QuantLib {
                 return dv01;
             }
         public:
-            // implied by discount term structure functions
+            // implied by discount term structure functions (impliedXXX())
             /////////////////////////////////////////////////////////////////////////////////////////////
             Real impliedPrice(
                 const Handle<YieldTermStructure>& discountingTermStructure,
@@ -493,7 +503,7 @@ namespace QuantLib {
             ) const {
                 return makeFixedRateBondHelper();
             }
-            // quote is clean proce of the bond
+            // quote is clean price of the bond
             Real impliedQuote(
                 const Handle<YieldTermStructure>& estimatingTermStructure,
                 const Handle<YieldTermStructure>& discountingTermStructure = Handle<YieldTermStructure>()
@@ -516,11 +526,14 @@ namespace QuantLib {
         protected:
             BillTraits billTraits_;
 			Schedule marketConventionSchedule_; // forward schedule (from the settle date) of the tenor length, used for calculating market convention yield
+            DayCounter marketConventionYieldCalcDayCounter_;
+            DayCounter discountRateDayCounter_;
         private:
             Schedule createForwardSchedule(
                 const Date& effectiveDate,
                 const Date& endDate
             ) const {
+				QL_REQUIRE(effectiveDate < endDate, "effective date (" << effectiveDate << ") must be before the end date (" << endDate << ")");
                 auto tenor = this->couponTenor();
                 auto p = tenor * 5;
                 auto terminationDate = endDate + p;
@@ -561,13 +574,18 @@ namespace QuantLib {
             ZeroCouponBill(
                 const Period& tenor,
                 const Date& maturityDate
-            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0.0)
+            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0.0),
+				marketConventionYieldCalcDayCounter_(billTraits_.marketConventionYieldCalcDayCounter(tenor)),
+				discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
                 auto settleDate = this->settlementDate();
                 auto paymentDate = this->paymentDate();
                 marketConventionSchedule_ = createForwardSchedule(settleDate, paymentDate);
+				auto nCouponPeriods = marketConventionSchedule_.dates().size() - 1;
+                QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
                 QL_ASSERT(settleDate == marketConventionSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << marketConventionSchedule_.dates().front() << ") of the first coupon accrual period");
                 QL_ASSERT(marketConventionSchedule_.dates().back() >= paymentDate, "The end date (" << marketConventionSchedule_.dates().back() << ") of the last coupon accrual period is less than the payment date (" << paymentDate << ")");
+                QL_ASSERT(this->accruedAmmount() == 0., "The accrued amount (" << this->accruedAmmount() << ") must be 0 for a zero-coupon bill");
             }
             // date of the sole payment (principal/face amount) for the bill
             Date paymentDate() const {
@@ -576,6 +594,137 @@ namespace QuantLib {
             const Schedule& marketConventionSchedule() const {
                 return marketConventionSchedule_;
 			}
+            const DayCounter& marketConventionYieldCalcDayCounter() const {
+                return marketConventionYieldCalcDayCounter_;
+			}
+            const DayCounter& discountRateDayCounter() const {
+                return discountRateDayCounter_;
+            }
+            // conversion between discount/compounding factor and market convention yield
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            Real compoundingFactorFromMarketConventionYield(
+                Rate yield
+            ) const {
+                const auto& schedule = marketConventionSchedule();
+                auto n = schedule.size() - 1;
+                Real compoundingFactor = 1.;
+                for (decltype(n) i = 0; i < n; ++i) {
+                    const auto& start = schedule.date(i);
+                    const auto& end = schedule.date(i + 1);
+                    auto d = std::min(end, paymentDate());
+                    auto t = marketConventionYieldCalcDayCounter().yearFraction(start, d);
+                    compoundingFactor *= (1. + yield * t);
+                }
+                return compoundingFactor;
+            }
+            Rate marketConventionYieldFromDiscountFactor(
+                DiscountFactor df
+            ) const {
+				QL_ASSERT(df > 0., "Discount factor (" << df << ") must be greater than 0");
+                auto compoundingFactor = 1. / df;
+                const auto& schedule = marketConventionSchedule();
+				auto n = schedule.size() - 1;   // number of coupon accural periods in the market convention schedule
+                auto T = marketConventionYieldCalcDayCounter().yearFraction(this->settlementDate(), paymentDate());
+                if (n == 1) {   // 1 coupon accrual period
+                    // 1 / df = 1 + yield * T, and solve for yield
+                    // => yield = (1 / df - 1) / T
+                    // => yield = (compoundingFactor - 1) / T
+                    return (compoundingFactor - 1.) / T;
+                }
+                else if (n == 2) {   // 2 coupon accrual periods
+                    // 1 / df = (1 + yield * t1) * (1 + yield * (T-t1)), and solve for yield
+                    // => t1 * (T-t1) * yield * yield + T * yield + (1 - 1 / df) = 0
+                    // => t1 * (T-t1) * yield * yield + T * yield + (1 - compoundingFactor) = 0
+                    auto t1 = marketConventionYieldCalcDayCounter().yearFraction(schedule.date(0), schedule.date(1));
+                    auto t2 = T - t1;
+                    auto a = t1 * t2;
+                    auto b = T;
+                    auto c = 1. - compoundingFactor;
+                    return (-b + std::sqrt(b * b - 4. * a * c)) / (2. * a);
+                }
+				else {  // more than 2 coupon accrual periods => use numerical solver to solve for yield
+                    const auto& me = *this;
+                    auto targetCompoundingFactor = compoundingFactor;
+                    auto f = [&me, &targetCompoundingFactor](const Rate& yield) -> Real {
+                        auto compoundingFactor = me.compoundingFactorFromMarketConventionYield(yield);
+                        return compoundingFactor - targetCompoundingFactor;
+                    };
+                    auto guess = (compoundingFactor - 1.) / T; // use simple yield as the initial guess
+                    Brent solver;
+                    solver.setMaxEvaluations(this->solverMaxIterations());
+                    Rate yield = solver.solve(f, this->solverAccuracy(), guess, this->solverRateStep());
+                    return yield;
+                }
+            }
+            DiscountFactor discountFactorFromMarketConventionYield(
+                Rate yield
+            ) const {
+				auto compoundingFactor = compoundingFactorFromMarketConventionYield(yield);
+                return 1. / compoundingFactor;
+            }
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            // conversion between discount rate and discount factor
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            DiscountFactor discountFactorFromDiscountRate(
+                Rate discountRate
+            ) const {
+                auto d1 = this->settlementDate();
+                auto d2 = paymentDate();
+                auto t = discountRateDayCounter().yearFraction(d1, d2);
+                return 1. - discountRate * t;
+            }
+            Rate discountRateFromDiscountFactor(
+                DiscountFactor discountFactor
+            ) const {
+                auto d1 = this->settlementDate();
+                auto d2 = paymentDate();
+                auto t = discountRateDayCounter().yearFraction(d1, d2);
+                return (1. - discountFactor) / t;
+            }
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+			// withXXX() methods to set the clean price of the bill based on different inputs (discount factor, discount rate, market convention yield)
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            ZeroCouponBill& withDiscountFactor(
+                DiscountFactor discountFactor
+            ) {
+				auto dirtyPrice = discountFactor * this->parNotional();
+				auto cleanPrice = dirtyPrice;   // zero-coupon bill has no accrued interest, so the clean price is the same as the dirty price
+				this->cleanPrice() = cleanPrice;
+                return *this;
+            }
+            ZeroCouponBill& withDiscountRate(
+                Rate discountRate
+            ) {
+				return withDiscountFactor(discountFactorFromDiscountRate(discountRate));
+            }
+            ZeroCouponBill& withMarketconventionYield(
+                Rate yield
+            ) {
+                return withDiscountFactor(discountFactorFromMarketConventionYield(yield));
+            }
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+			// impliedXXX() functions to calculate the implied discount factor, discount rate, and market convention yield given a discount term structure
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            DiscountFactor impliedDiscountFactor(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const {
+                auto dirtyPrice = this->impliedPrice(discountingTermStructure, Bond::Price::Type::Dirty);
+                DiscountFactor df = dirtyPrice / this->parNotional();
+                return df;
+            }
+            Rate impliedDiscountRate(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const {
+                auto df = impliedDiscountFactor(discountingTermStructure);
+				return discountRateFromDiscountFactor(df);
+            }
+            Rate impliedMarketConventionYield(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const {
+				auto df = impliedDiscountFactor(discountingTermStructure);
+                return marketConventionYieldFromDiscountFactor(df);
+			}
+            ////////////////////////////////////////////////////////////////////////////////////////////////
         };
 
         template <
