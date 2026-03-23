@@ -17,6 +17,7 @@ namespace QuantLib {
         protected:
 			BondTraits bondTraits_;
             Rate coupon_;
+			Date settlementDate_;
 			Schedule accrualSchedule_;
             Calendar settlementCalendar_;
             Calendar accrualScheduleCalendar_;
@@ -36,8 +37,10 @@ namespace QuantLib {
 			typedef std::vector<AccruedPeriod> AccruedPeriods;
         protected:
             // set the maturity date
-            Date& maturityDate() {
-                return datedDate();
+            void setMaturityDate(
+                const Date& maturityDate
+            ) {
+                this->datedDate() = maturityDate;
             }
             ext::shared_ptr<FixedRateBondHelper> makeFixedRateBondHelper() const {
                 auto targetPrice = cleanPrice();
@@ -199,15 +202,21 @@ namespace QuantLib {
             FixedCoupondedBond(
                 const Period& tenor,    // bond tenor
                 const Date& maturityDate = Date(),
-                Rate coupon = 0.0
+                Rate coupon = 0.0,
+                Date settlementDate = Date()    // bond settlement date
 			) :
                 QLUtils::BootstrapInstrument(QLUtils::BootstrapInstrument::vtPrice, tenor, maturityDate),
                 coupon_(coupon),
+                settlementDate_(settlementDate),
 				settlementCalendar_(bondTraits_.settlementCalendar(tenor)),
                 accrualScheduleCalendar_(bondTraits_.accrualScheduleCalendar(tenor)),
                 paymentCalendar_(bondTraits_.paymentCalendar(tenor))
             {
                 QL_REQUIRE(tenor.length() > 0, "The length of the bond tenor (" << tenor.length() << ") must be greater than 0");
+                if (settlementDate_ == Date()) {
+					auto today = (Settings::instance().evaluationDate() != Date() ? Settings::instance().evaluationDate() : Date::todaysDate());
+                    settlementDate_ = settlementCalendar().advance(today, settlementDays(), Days);
+				}
                 auto settleDate = this->settlementDate();
 				if (maturityDate == Date()) {  // maturity date is not given
                     auto [multipile, n] = isMultiple(tenor, this->couponTenor());
@@ -217,10 +226,10 @@ namespace QuantLib {
 						auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
                         QL_ASSERT(nCouponPeriods == n, "The number of coupon accrual periods (" << nCouponPeriods << ") is not what's expected (" << n << ")");
                         QL_ASSERT(settleDate == accrualSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << accrualSchedule_.dates().front() << ") of the first coupon accrual period");
-                        this->maturityDate() = accrualSchedule_.dates().back();    // set the maturity date to the last date of the schedule
+                        setMaturityDate(accrualSchedule_.dates().back());    // set the maturity date to the last date of the schedule
                     }
                     else {  // tenor is not a mutiple of the coupon period
-                        this->maturityDate() = settleDate + tenor;    // set the maturity date to be the settle date plus the tenor
+                        setMaturityDate(settleDate + tenor);    // set the maturity date to be the settle date plus the tenor
                         accrualSchedule_ = createBackwardSchedule(settleDate, this->maturityDate());    // create a schedule goting backward
                         auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
                         QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
@@ -246,9 +255,7 @@ namespace QuantLib {
 				return bondTraits_.settlementDays(tenor());
             }
             Date settlementDate() const {
-                auto today = Settings::instance().evaluationDate();
-				auto d = settlementCalendar().advance(today, settlementDays(), Days, Following);
-                return d;
+                return settlementDate_;
             }
             Real parNotional() const {
                 return bondTraits_.parNotional(tenor());
@@ -481,7 +488,6 @@ namespace QuantLib {
                 return dv01;
             }
             // given a discount term structure, what coupon would give the bond a clean price of 100
-            // this function can be used to calculate CMT rate if the bond is a CMT bond
             Rate impliedParCoupon(
                 const Handle<YieldTermStructure>& discountingTermStructure
             ) const {
@@ -493,6 +499,24 @@ namespace QuantLib {
                     bond->setPricingEngine(pricingEngine);
                     auto cleanPrice = bond->cleanPrice();
                     return cleanPrice - targetCleanPrice;
+                };
+                Brent solver;
+                solver.setMaxEvaluations(solverMaxIterations());
+                Rate parCoupon = solver.solve(f, solverAccuracy(), solverRateQuess(), solverRateStep());
+                return parCoupon;
+            }
+            // given a discount term structure, what coupon would give the bond a dirty price of 100
+            Rate impliedFairCoupon(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const {
+                const auto& me = *this;
+                Real targetDirtyPrice = 100.;
+                auto f = [&me, &discountingTermStructure, &targetDirtyPrice](Rate coupon) -> Real {
+                    auto bond = me.makeFixedRateBond(coupon);
+                    ext::shared_ptr<PricingEngine> pricingEngine(new DiscountingBondEngine(discountingTermStructure));
+                    bond->setPricingEngine(pricingEngine);
+                    auto dirtyPrice = bond->dirtyPrice();
+                    return dirtyPrice - targetDirtyPrice;
                 };
                 Brent solver;
                 solver.setMaxEvaluations(solverMaxIterations());
@@ -575,8 +599,9 @@ namespace QuantLib {
         public:
             ZeroCouponBill(
                 const Period& tenor,
-                const Date& maturityDate
-            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0.0),
+                const Date& maturityDate,
+                Date settlementDate = Date()    // bond settlement date
+            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0.0, settlementDate),
 				marketConventionYieldCalcDayCounter_(billTraits_.marketConventionYieldCalcDayCounter(tenor)),
 				discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
@@ -685,11 +710,14 @@ namespace QuantLib {
             }
             ////////////////////////////////////////////////////////////////////////////////////////////////
             // given bond's quoted clean price, what is it's discount factor, discount rate, and market convention yield
-            ////////////////////////////////////////////////////////////////////////////////////////////////
-            DiscountFactor discountFactor() const {
+            /////////////////////////////////////////////
+            Real bondPrice() const {
                 this->checkCleanPriceIsSet();
                 auto dirtyPrice = this->dirtyPrice();
-                DiscountFactor df = dirtyPrice / this->parNotional();
+                return dirtyPrice;
+            }
+            DiscountFactor discountFactor() const {
+                DiscountFactor df = bondPrice() / this->parNotional();
                 return df;
             }
             Rate discountRate() const {
@@ -703,6 +731,12 @@ namespace QuantLib {
             ////////////////////////////////////////////////////////////////////////////////////////////////
 			// withXXX() methods to set the clean price of the bill based on different inputs (discount factor, discount rate, market convention yield)
             ////////////////////////////////////////////////////////////////////////////////////////////////
+            ZeroCouponBill& withBondPrice(
+                Real price
+            ) {
+                this->cleanPrice() = price;
+                return *this;
+            }
             ZeroCouponBill& withDiscountFactor(
                 DiscountFactor discountFactor
             ) {
@@ -716,7 +750,7 @@ namespace QuantLib {
             ) {
 				return withDiscountFactor(discountFactorFromDiscountRate(discountRate));
             }
-            ZeroCouponBill& withMarketconventionYield(
+            ZeroCouponBill& withMarketConventionYield(
                 Rate yield
             ) {
                 return withDiscountFactor(discountFactorFromMarketConventionYield(yield));
