@@ -40,10 +40,6 @@ namespace QuantLib {
             return ActualActual(ActualActual::Bond, accrualSchedule);
         }
         template<>
-        inline BusinessDayConvention GovtBondTraits<USDCurrency>::terminationDateConvention(const Period&) const {
-            return BusinessDayConvention::Unadjusted;
-        }
-        template<>
         inline Calendar GovtBondTraits<USDCurrency>::paymentCalendar(const Period&) const {
             return UnitedStates(UnitedStates::GovernmentBond);
         }

@@ -42,9 +42,6 @@ namespace QuantLib {
             DayCounter accrualDayCounter(const Period& tenor, Schedule accrualSchedule = {}) const {
                 throw std::logic_error("not implemented");
             }
-            BusinessDayConvention terminationDateConvention(const Period& tenor) const {
-                throw std::logic_error("not implemented");
-            }
             Calendar paymentCalendar(const Period& tenor) const {
                 throw std::logic_error("not implemented");
             }
