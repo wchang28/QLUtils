@@ -322,9 +322,6 @@ namespace QuantLib {
                 auto bond = makeFixedRateBond();
                 return bond->accruedAmount();
             }
-            Real dirtyPrice() const {
-                return cleanPrice() + accruedAmmount();
-            }
             operator AccruedPeriods() const {
                 AccruedPeriods accruedPeriods;
                 auto scheduleDates = accrualSchedule_.dates();
@@ -432,6 +429,11 @@ namespace QuantLib {
                 auto ytm = bondYield(*bond, price);
                 auto dv01 = bondDV01(*bond, ytm);
                 return dv01;
+            }
+            // given bond's quoted clean price, what is it's dirty price
+            Real dirtyPrice() const {
+                checkCleanPriceIsSet();
+                return cleanPrice() + accruedAmmount();
             }
         public:
             // implied by discount term structure functions (impliedXXX())
@@ -680,6 +682,23 @@ namespace QuantLib {
                 auto d2 = paymentDate();
                 auto t = discountRateDayCounter().yearFraction(d1, d2);
                 return (1. - discountFactor) / t;
+            }
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            // given bond's quoted clean price, what is it's discount factor, discount rate, and market convention yield
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            DiscountFactor discountFactor() const {
+                this->checkCleanPriceIsSet();
+                auto dirtyPrice = this->dirtyPrice();
+                DiscountFactor df = dirtyPrice / this->parNotional();
+                return df;
+            }
+            Rate discountRate() const {
+                auto df = discountFactor();
+                return discountRateFromDiscountFactor(df);
+            }
+            Rate marketConventionYield() const {
+                auto df = discountFactor();
+                return marketConventionYieldFromDiscountFactor(df);
             }
             ////////////////////////////////////////////////////////////////////////////////////////////////
 			// withXXX() methods to set the clean price of the bill based on different inputs (discount factor, discount rate, market convention yield)
