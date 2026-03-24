@@ -42,17 +42,40 @@ namespace QuantLib {
             ) {
                 this->datedDate() = maturityDate;
             }
+			// given today's date/valuation date, find the number of settlement days that would yield the expected settlement date for this bond
             Natural getMatchingSettlementDays() const {
-                return settlementDate_;
+				auto targetSettlementDate = settlementDate();
+                auto today = Settings::instance().evaluationDate();
+                QL_ASSERT(today != Date(), "evaluation date/today not set");
+                QL_REQUIRE(today <= targetSettlementDate, "evaluation date/today is after the target settlement date");
+                auto n = settlementDays();
+				auto d = settlementCalendar().advance(today, n, Days);
+                if (d < targetSettlementDate) {
+                    while (d < targetSettlementDate) {
+                        n++;
+                        d = settlementCalendar().advance(today, n, Days);
+					}
+                }
+                else if (d > targetSettlementDate) {
+                    while (d > targetSettlementDate) {
+                        n--;
+                        d = settlementCalendar().advance(today, n, Days);
+                    }
+                }
+                QL_ASSERT(d == targetSettlementDate, "settlement calendar advance logic did not yield the expected settlement date (" << targetSettlementDate << ")");
+                QL_ASSERT(n > 0, "n (" << n << ") is not positive");
+                QL_ASSERT(settlementCalendar().advance(today, n, Days) == targetSettlementDate, "settlement calendar advance logic did not yield the expected settlement date(" << targetSettlementDate << ")");
+                return n;
 			}
         public:
             ext::shared_ptr<FixedRateBondHelper> makeFixedRateBondHelper() const {
 				auto targetPrice = cleanPrice();    // bootstrap target price is the clean price
                 auto priceType = Bond::Price::Clean;
                 auto quote = ext::make_shared<SimpleQuote>(targetPrice);
+				auto settlementDays = getMatchingSettlementDays();
                 ext::shared_ptr<FixedRateBondHelper> helper(new FixedRateBondHelper(
                     Handle<Quote>(quote),               // price
-                    settlementDays(),                   // settlementDays
+                    settlementDays,                     // settlementDays
                     parNotional(),                      // faceAmount
                     accrualSchedule(),                  // schedule
                     std::vector<Rate>{coupon()},        // coupons
@@ -83,8 +106,9 @@ namespace QuantLib {
                 if (coupon == Null<Rate>()) {
                     coupon = this->coupon();
                 }
+                auto settlementDays = getMatchingSettlementDays();
                 ext::shared_ptr<FixedRateBond> bond(new FixedRateBond(
-                    settlementDays(),               // settlementDays
+                    settlementDays,                 // settlementDays
                     parNotional(),                  // faceAmount
                     accrualSchedule(),              // schedule
                     std::vector<Rate>{coupon},      // coupons
@@ -153,14 +177,14 @@ namespace QuantLib {
                 auto rule = DateGeneration::Rule::Forward;
                 auto endOfMonth = this->accrualEndOfMonth();
                 Schedule schedule(
-                    effectiveDate,  // effectiveDate
-                    terminationDate,    // terminationDate
-                    tenor,    // tenor
-                    calendar,   // calendar
-                    convention,                     // convention
+                    effectiveDate,              // effectiveDate
+                    terminationDate,            // terminationDate
+                    tenor,                      // tenor
+                    calendar,                   // calendar
+                    convention,                 // convention
                     terminationDateConvention,  // terminationDateConvention
-                    rule,   // rule
-                    endOfMonth  // endOfMonth
+                    rule,                       // rule
+                    endOfMonth                  // endOfMonth
                 );
                 QL_ASSERT(schedule.dates().size() >= numCoupons + 1, "The number of dates in the schedule (" << schedule.dates().size() << ") is less than minimum exprected (" << (numCoupons + 1) << ")");
                 std::vector<Date> dates(schedule.dates().begin(), schedule.dates().begin() + (numCoupons + 1));
@@ -189,14 +213,14 @@ namespace QuantLib {
                 auto rule = DateGeneration::Rule::Backward;
                 auto endOfMonth = this->accrualEndOfMonth();
                 Schedule schedule(
-                    effectiveDate,  // effectiveDate
-                    terminationDate,    // terminationDate
-                    tenor,    // tenor
-                    calendar,   // calendar
-                    convention,                     // convention
+                    effectiveDate,              // effectiveDate
+                    terminationDate,            // terminationDate
+                    tenor,                      // tenor
+                    calendar,                   // calendar
+                    convention,                 // convention
                     terminationDateConvention,  // terminationDateConvention
-                    rule,   // rule
-                    endOfMonth  // endOfMonth
+                    rule,                       // rule
+                    endOfMonth                  // endOfMonth
                 );
                 std::vector<Date> dates;
                 for (auto it = schedule.dates().rbegin(); it != schedule.dates().rend(); ++it) {
