@@ -17,7 +17,7 @@ namespace QuantLib {
         protected:
 			BondTraits bondTraits_;
             Rate coupon_;
-			Date settlementDate_;
+			Date settlementDate_;   // settlement date for the bond
 			Schedule accrualSchedule_;
             Calendar settlementCalendar_;
             Calendar accrualScheduleCalendar_;
@@ -42,11 +42,12 @@ namespace QuantLib {
             ) {
                 this->datedDate() = maturityDate;
             }
+        public:
             ext::shared_ptr<FixedRateBondHelper> makeFixedRateBondHelper() const {
-                auto targetPrice = cleanPrice();
+				auto targetPrice = cleanPrice();    // bootstrap target price is the clean price
                 auto priceType = Bond::Price::Clean;
                 auto quote = ext::make_shared<SimpleQuote>(targetPrice);
-                return ext::shared_ptr<FixedRateBondHelper>(new FixedRateBondHelper(
+                ext::shared_ptr<FixedRateBondHelper> helper(new FixedRateBondHelper(
                     Handle<Quote>(quote),               // price
                     settlementDays(),                   // settlementDays
                     parNotional(),                      // faceAmount
@@ -62,14 +63,22 @@ namespace QuantLib {
                     BusinessDayConvention::Unadjusted,  // exCouponConvention
                     priceType                           // priceType
                 ));
+				auto bond = helper->bond();
+                QL_ASSERT(bond != nullptr, "bond helper's bond is null");
+                auto bondMaturityDate = bond->maturityDate();
+                QL_ASSERT(bondMaturityDate == maturityDate(), "bond's maturity date (" << bondMaturityDate << ") is not what's expected (" << maturityDate() << ")");
+                auto pillarDate = helper->pillarDate();
+                QL_ASSERT(pillarDate == maturityDate(), "bond helper's pillar date (" << pillarDate << ") is not what's expected (" << maturityDate() << ")");
+				return helper;
             }
-            std::shared_ptr<FixedRateBond> makeFixedRateBond(
+			// create a FixedRateBond with the same parameters as this instrument, except for the coupon which can be overridden
+            ext::shared_ptr<FixedRateBond> makeFixedRateBond(
                 Rate coupon = Null<Rate>()
             ) const {
                 if (coupon == Null<Rate>()) {
                     coupon = this->coupon();
                 }
-                return std::shared_ptr<FixedRateBond>(new FixedRateBond(
+                ext::shared_ptr<FixedRateBond> bond(new FixedRateBond(
                     settlementDays(),               // settlementDays
                     parNotional(),                  // faceAmount
                     accrualSchedule(),              // schedule
@@ -80,6 +89,9 @@ namespace QuantLib {
                     Date(),                         // issueDate
                     paymentCalendar()               // paymentCalendar
                 ));
+                auto bondMaturityDate = bond->maturityDate();
+                QL_ASSERT(bondMaturityDate == maturityDate(), "bond's maturity date (" << bondMaturityDate << ") is not what's expected (" << maturityDate() << ")");
+                return bond;
             }
             // is if p1 is a multiple of p2 ?
             static std::pair<bool, Integer> isMultiple(const Period& p1, const Period& p2) {
@@ -200,10 +212,10 @@ namespace QuantLib {
             }
         public:
             FixedCoupondedBond(
-                const Period& tenor,    // bond tenor
-                const Date& maturityDate = Date(),
-                Rate coupon = 0.0,
-                Date settlementDate = Date()    // bond settlement date
+                const Period& tenor,                // bond's claimed original tenor
+				const Date& maturityDate = Date(),  // bond's maturity date, if not given, it will be calculated based on the settlement date and the tenor
+				Rate coupon = 0.0,                  // bond's fixed coupon rate
+                Date settlementDate = Date()        // bond's settlement date (for calculating accrued interest, prices, and yield to maturity)
 			) :
                 QLUtils::BootstrapInstrument(QLUtils::BootstrapInstrument::vtPrice, tenor, maturityDate),
                 coupon_(coupon),
@@ -213,7 +225,7 @@ namespace QuantLib {
                 paymentCalendar_(bondTraits_.paymentCalendar(tenor))
             {
                 QL_REQUIRE(tenor.length() > 0, "The length of the bond tenor (" << tenor.length() << ") must be greater than 0");
-                if (settlementDate_ == Date()) {
+				if (settlementDate_ == Date()) {    // bond settlement date is not given => calculate the settlement date based on the evaluation date and settlement days
 					auto today = (Settings::instance().evaluationDate() != Date() ? Settings::instance().evaluationDate() : Date::todaysDate());
                     settlementDate_ = settlementCalendar().advance(today, settlementDays(), Days);
 				}
@@ -251,9 +263,11 @@ namespace QuantLib {
             const Calendar& settlementCalendar() const {
                 return settlementCalendar_;
 			}
+            // T+x settlement
             Natural settlementDays() const{
 				return bondTraits_.settlementDays(tenor());
             }
+            // settlement date for the bond
             Date settlementDate() const {
                 return settlementDate_;
             }
@@ -325,9 +339,9 @@ namespace QuantLib {
             Real& cleanPrice() {
                 return price();
             }
-            Real accruedAmmount() const {
+            Real accruedAmount() const {
                 auto bond = makeFixedRateBond();
-                return bond->accruedAmount();
+                return bond->accruedAmount(settlementDate());
             }
             operator AccruedPeriods() const {
                 AccruedPeriods accruedPeriods;
@@ -440,7 +454,7 @@ namespace QuantLib {
             // given bond's quoted clean price, what is it's dirty price
             Real dirtyPrice() const {
                 checkCleanPriceIsSet();
-                return cleanPrice() + accruedAmmount();
+                return cleanPrice() + accruedAmount();
             }
         public:
             // implied by discount term structure functions (impliedXXX())
@@ -607,12 +621,12 @@ namespace QuantLib {
             {
                 auto settleDate = this->settlementDate();
                 auto paymentDate = this->paymentDate();
-                marketConventionSchedule_ = createForwardSchedule(settleDate, paymentDate);
+				marketConventionSchedule_ = createForwardSchedule(settleDate, paymentDate); // create a forward schedule from the settlement date passing the payment date with the same tenor as the bond's coupon frequency, which will be used for calculating market convention yield
 				auto nCouponPeriods = marketConventionSchedule_.dates().size() - 1;
                 QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
                 QL_ASSERT(settleDate == marketConventionSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << marketConventionSchedule_.dates().front() << ") of the first coupon accrual period");
                 QL_ASSERT(marketConventionSchedule_.dates().back() >= paymentDate, "The end date (" << marketConventionSchedule_.dates().back() << ") of the last coupon accrual period is less than the payment date (" << paymentDate << ")");
-                QL_ASSERT(this->accruedAmmount() == 0., "The accrued amount (" << this->accruedAmmount() << ") must be 0 for a zero-coupon bill");
+                QL_ASSERT(this->accruedAmount() == 0., "The accrued amount (" << this->accruedAmount() << ") must be 0 for a zero-coupon bill");
             }
             // date of the sole payment (principal/face amount) for the bill
             Date paymentDate() const {
@@ -716,6 +730,7 @@ namespace QuantLib {
                 auto dirtyPrice = this->dirtyPrice();
                 return dirtyPrice;
             }
+			// discount factor from settlement date to payment date
             DiscountFactor discountFactor() const {
                 DiscountFactor df = bondPrice() / this->parNotional();
                 return df;
