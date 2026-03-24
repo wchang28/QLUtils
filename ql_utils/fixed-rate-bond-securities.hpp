@@ -42,6 +42,9 @@ namespace QuantLib {
             ) {
                 this->datedDate() = maturityDate;
             }
+            Natural getMatchingSettlementDays() const {
+                return settlementDate_;
+			}
         public:
             ext::shared_ptr<FixedRateBondHelper> makeFixedRateBondHelper() const {
 				auto targetPrice = cleanPrice();    // bootstrap target price is the clean price
@@ -65,6 +68,8 @@ namespace QuantLib {
                 ));
 				auto bond = helper->bond();
                 QL_ASSERT(bond != nullptr, "bond helper's bond is null");
+                auto defaultSettleDate = bond->settlementDate();
+                QL_ASSERT(defaultSettleDate == settlementDate(), "bond's default settlement logic's settlement date (" << defaultSettleDate << ") is not what's expected (" << settlementDate() << ")");
                 auto bondMaturityDate = bond->maturityDate();
                 QL_ASSERT(bondMaturityDate == maturityDate(), "bond's maturity date (" << bondMaturityDate << ") is not what's expected (" << maturityDate() << ")");
                 auto pillarDate = helper->pillarDate();
@@ -89,6 +94,8 @@ namespace QuantLib {
                     Date(),                         // issueDate
                     paymentCalendar()               // paymentCalendar
                 ));
+                auto defaultSettleDate = bond->settlementDate();
+                QL_ASSERT(defaultSettleDate == settlementDate(), "bond's default settlement logic's settlement date (" << defaultSettleDate << ") is not what's expected (" << settlementDate() << ")");
                 auto bondMaturityDate = bond->maturityDate();
                 QL_ASSERT(bondMaturityDate == maturityDate(), "bond's maturity date (" << bondMaturityDate << ") is not what's expected (" << maturityDate() << ")");
                 return bond;
@@ -226,10 +233,12 @@ namespace QuantLib {
             {
                 QL_REQUIRE(tenor.length() > 0, "The length of the bond tenor (" << tenor.length() << ") must be greater than 0");
 				if (settlementDate_ == Date()) {    // bond settlement date is not given => calculate the settlement date based on the evaluation date and settlement days
-					auto today = (Settings::instance().evaluationDate() != Date() ? Settings::instance().evaluationDate() : Date::todaysDate());
+					auto today = Settings::instance().evaluationDate();
+                    QL_ASSERT(today != Date(), "evaluation date/today not set");
                     settlementDate_ = settlementCalendar().advance(today, settlementDays(), Days);
 				}
                 auto settleDate = this->settlementDate();
+                QL_ASSERT(settleDate != Date(), "settlement date not set");
 				if (maturityDate == Date()) {  // maturity date is not given
                     auto [multipile, n] = isMultiple(tenor, this->couponTenor());
                     if (multipile) {    // tenor is a multiple of coupon period => create a forward bond schedule of n coupon periods starting fro the settlement date
@@ -256,6 +265,8 @@ namespace QuantLib {
                     QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
                     QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
                 }
+                QL_ASSERT(this->maturityDate() != Date(), "maturity date not set");
+                QL_ASSERT(settleDate < this->maturityDate(), "settlement date (" << settleDate << ") is not before maturity date (" << this->maturityDate() << ")");
 				accrualDayCounter_ = bondTraits_.accrualDayCounter(tenor, accrualSchedule_);
 				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, accrualSchedule_);
 				parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
