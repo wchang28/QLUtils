@@ -25,16 +25,6 @@ namespace QuantLib {
             DayCounter yieldCalcDayCounter_;
             Calendar paymentCalendar_;
             DayCounter parYieldSplineDayCounter_;
-        public:
-            struct AccruedPeriod {
-                Date accrualStartDate;
-                Date accrualEndDate;
-                Date paymentDate;
-                AccruedPeriod(Date accrualStart = {}, Date accrualEnd = {}, Date paymentDate = {})
-                    : accrualStartDate(accrualStart), accrualEndDate(accrualEnd), paymentDate(paymentDate)
-                {}
-			};
-			typedef std::vector<AccruedPeriod> AccruedPeriods;
         protected:
             // set the maturity date
             void setMaturityDate(
@@ -123,6 +113,30 @@ namespace QuantLib {
                 auto bondMaturityDate = bond->maturityDate();
                 QL_ASSERT(bondMaturityDate == maturityDate(), "bond's maturity date (" << bondMaturityDate << ") is not what's expected (" << maturityDate() << ")");
                 return bond;
+            }
+            Leg makeLeg(
+                Rate coupon = Null<Rate>()
+            ) const {
+                if (coupon == Null<Rate>()) {
+                    coupon = this->coupon();
+                }
+                Leg leg;
+                auto scheduleDates = accrualSchedule_.dates();
+                for (Size i = 1; i < scheduleDates.size(); ++i) {
+                    auto accrualStartDate = scheduleDates[i - 1];
+                    auto accrualEndDate = scheduleDates[i];
+                    auto paymentDate = paymentCalendar().adjust(accrualEndDate, paymentConvention());
+                    ext::shared_ptr<FixedRateCoupon> pCoupon(new FixedRateCoupon(
+                        paymentDate,            // paymentDate
+                        parNotional(),          // nominal
+                        coupon,                 // rate
+                        accrualDayCounter(),    // dayCounter
+                        accrualStartDate,       // accrualStartDate
+                        accrualEndDate          // accrualEndDate
+                    ));
+                    leg.push_back(pCoupon);
+                }
+                return leg;
             }
             // is if p1 is a multiple of p2 ?
             static std::pair<bool, Integer> isMultiple(const Period& p1, const Period& p2) {
@@ -378,16 +392,8 @@ namespace QuantLib {
                 auto bond = makeFixedRateBond();
                 return bond->accruedAmount(settlementDate());
             }
-            operator AccruedPeriods() const {
-                AccruedPeriods accruedPeriods;
-                auto scheduleDates = accrualSchedule_.dates();
-                for (Size i = 1; i < scheduleDates.size(); ++i) {
-                    auto accrualStartDate = scheduleDates[i - 1];
-                    auto accrualEndDate = scheduleDates[i];
-                    auto paymentDate = paymentCalendar().adjust(accrualEndDate, paymentConvention());
-                    accruedPeriods.push_back(AccruedPeriod{accrualStartDate, accrualEndDate, paymentDate});
-                }
-                return accruedPeriods;
+            operator Leg() const {
+                return makeLeg(coupon());
 			}
             const DayCounter& yieldCalcDayCounter() const {
                 return yieldCalcDayCounter_;
