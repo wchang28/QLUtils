@@ -65,7 +65,7 @@ namespace QuantLib {
         struct GovtBillTraits {
             typedef GovtBondTraits<QL_CURRENCY> BondTraits;
             // day counter for calculating market convention yield which is different from YTM calc day counter for the bond
-            DayCounter marketConventionYieldCalcDayCounter(const Period& tenor) const {
+            DayCounter marketConventionYieldCalcDayCounter(const Period& tenor, Schedule accrualSchedule = {}) const {
                 throw std::logic_error("not implemented");
             }
             // day counter for the discount rate

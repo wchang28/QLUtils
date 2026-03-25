@@ -622,7 +622,7 @@ namespace QuantLib {
         protected:
             BillTraits billTraits_;
 			Schedule marketConventionYieldCalcSchedule_; // forward schedule (from the settle date) of the tenor length, used for calculating market convention yield
-            DayCounter marketConventionYieldCalcDayCounter_;
+			DayCounter marketConventionYieldCalcDayCounter_;    // day count for calculating market convention yield
             DayCounter discountRateDayCounter_;
         private:
             Schedule createForwardSchedule(
@@ -672,7 +672,6 @@ namespace QuantLib {
                 Date maturityDate,
                 Date settlementDate = Date()    // bond settlement date
             ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
-				marketConventionYieldCalcDayCounter_(billTraits_.marketConventionYieldCalcDayCounter(tenor)),
 				discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
                 auto settleDate = this->settlementDate();
@@ -683,6 +682,7 @@ namespace QuantLib {
                 QL_ASSERT(settleDate == marketConventionYieldCalcSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << marketConventionYieldCalcSchedule_.dates().front() << ") of the first coupon accrual period");
                 QL_ASSERT(marketConventionYieldCalcSchedule_.dates().back() >= paymentDate, "The end date (" << marketConventionYieldCalcSchedule_.dates().back() << ") of the last coupon accrual period is less than the payment date (" << paymentDate << ")");
                 QL_ASSERT(this->accruedAmount() == 0., "The accrued amount (" << this->accruedAmount() << ") must be 0 for a zero-coupon bill");
+				marketConventionYieldCalcDayCounter_ = billTraits_.marketConventionYieldCalcDayCounter(tenor, marketConventionYieldCalcSchedule_);
             }
             // date of the sole payment (principal/face amount) for the bill
             Date paymentDate() const {

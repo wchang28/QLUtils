@@ -60,7 +60,7 @@ namespace QuantLib {
         // US treasury bill traits specialization
         ////////////////////////////////////////////////////////////////////////////////////////////
         template<>
-        inline DayCounter GovtBillTraits<USDCurrency>::marketConventionYieldCalcDayCounter(const Period&) const {
+        inline DayCounter GovtBillTraits<USDCurrency>::marketConventionYieldCalcDayCounter(const Period&, Schedule accrualSchedule) const {
             return ActualActual(ActualActual::ISDA);
         }
         template<>
