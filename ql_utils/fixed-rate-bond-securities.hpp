@@ -229,7 +229,7 @@ namespace QuantLib {
             Schedule createBackwardSchedule(
                 const Date& startDate,
                 const Date& terminationDate
-            ) {
+            ) const {
 				QL_REQUIRE(startDate < terminationDate, "start date (" << startDate << ") must be before the termination date (" << terminationDate << ")");
                 auto tenor = this->couponTenor();
                 auto p = tenor * 5;
@@ -267,6 +267,34 @@ namespace QuantLib {
                     endOfMonth
                 );
                 return sched;
+            }
+            // create a schedule for yield calculation by extending the accrual schedule to include the last payment date if necessary
+            // this is needed because yield calculation is also dependent on the payment dates
+            Schedule makeYieldCalcSchedule() const {
+				auto lastPaymentDate = this->lastPaymentDate();
+				auto maturityDate = this->maturityDate();
+                if (lastPaymentDate > maturityDate) {
+                    // extends the schedule to include the last payment date
+                    std::vector<Date> dates = accrualSchedule_.dates();
+                    auto d = maturityDate;
+                    while (d < lastPaymentDate) {
+                        d = accrualScheduleCalendar().advance(d, couponTenor(), accrualConvention(), accrualEndOfMonth());
+                        dates.push_back(d);
+					}
+                    QL_ASSERT(dates.back() >= lastPaymentDate, "The last date in the yield calculation schedule (" << dates.back() << ") does not match the last payment date (" << lastPaymentDate << ")");
+                    Schedule schedule(
+                        dates,
+						accrualSchedule_.calendar(),    // calendar
+						accrualSchedule_.businessDayConvention(),   // convention
+						accrualSchedule_.terminationDateBusinessDayConvention(),    // terminationDateConvention
+                        accrualSchedule_.tenor(),          // tenor
+                        accrualSchedule_.rule(),    // rule
+						accrualSchedule_.endOfMonth()  // endOfMonth
+					);
+                    return schedule;
+                } else {
+					return accrualSchedule_;
+				}
             }
         public:
             FixedCoupondedBond(
@@ -320,7 +348,7 @@ namespace QuantLib {
                 QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
                 QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
 				accrualDayCounter_ = bondTraits_.accrualDayCounter(tenor, accrualSchedule_);
-                yieldCalcSchedule_ = accrualSchedule_;  // TODO: extends the schedule to include the last payment date
+                yieldCalcSchedule_ = makeYieldCalcSchedule();
 				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, yieldCalcSchedule_);
 				parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
                 bondLeg_ = makeLeg(this->coupon());
@@ -329,7 +357,7 @@ namespace QuantLib {
                 return settlementCalendar_;
 			}
             // T+x settlement
-            Natural settlementDays() const{
+            Natural settlementDays() const {
 				return bondTraits_.settlementDays(tenor());
             }
             // settlement date for the bond
