@@ -332,11 +332,11 @@ namespace QuantLib {
                     }
                     else {  // tenor is not a mutiple of the coupon period
                         maturityDate = accrualScheduleCalendar().advance(settleDate, tenor, accrualConvention(), accrualEndOfMonth());
-                        accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);    // create a schedule goting backward
+                        accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);    // create a schedule going backward from the maturity date
                     }
                 }
-                else {  // maturity date is given => created a backward bond schedule from the maturity date
-                    accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);
+                else {  // maturity date is given
+                    accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);    // create a schedule going backward from the maturity date
                 }
                 QL_ASSERT(maturityDate != Date(), "maturity date cannot be determined");
                 if (this->maturityDate() == Date()) {
