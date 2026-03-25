@@ -8,63 +8,63 @@ namespace QuantLib {
         // US treasury note/bond traits specialization
         ////////////////////////////////////////////////////////////////////////////////////////////
         template<>
-        inline Calendar GovtBondTraits<USDCurrency>::settlementCalendar(const Period&) const {
+        inline Calendar GovernmentBondTraits<USDCurrency>::settlementCalendar(const Period&) const {
             return UnitedStates(UnitedStates::GovernmentBond);
         }
         template<>
-        inline Natural GovtBondTraits<USDCurrency>::settlementDays(const Period&) const {
+        inline Natural GovernmentBondTraits<USDCurrency>::settlementDays(const Period&) const {
             return 1;
         }
         template<>
-        inline Real GovtBondTraits<USDCurrency>::parNotional(const Period&) const {
+        inline Real GovernmentBondTraits<USDCurrency>::parNotional(const Period&) const {
             return 100.0;
         }
         template<>
-        inline Frequency GovtBondTraits<USDCurrency>::couponFrequency(const Period&) const {
+        inline Frequency GovernmentBondTraits<USDCurrency>::couponFrequency(const Period&) const {
             return Frequency::Semiannual;
         }
         template<>
-        inline Calendar GovtBondTraits<USDCurrency>::accrualScheduleCalendar(const Period&) const {
+        inline Calendar GovernmentBondTraits<USDCurrency>::accrualScheduleCalendar(const Period&) const {
             return UnitedStates(UnitedStates::GovernmentBond);
         }
         template<>
-        inline BusinessDayConvention GovtBondTraits<USDCurrency>::accrualConvention(const Period&) const {
+        inline BusinessDayConvention GovernmentBondTraits<USDCurrency>::accrualConvention(const Period&) const {
             return BusinessDayConvention::Unadjusted;
         }
         template<>
-        inline bool GovtBondTraits<USDCurrency>::accrualEndOfMonth(const Period&) const {
+        inline bool GovernmentBondTraits<USDCurrency>::accrualEndOfMonth(const Period&) const {
             return true;
         }
         template<>
-        inline DayCounter GovtBondTraits<USDCurrency>::accrualDayCounter(const Period&, Schedule accrualSchedule) const {
+        inline DayCounter GovernmentBondTraits<USDCurrency>::accrualDayCounter(const Period&, Schedule accrualSchedule) const {
             return ActualActual(ActualActual::Bond, accrualSchedule);
         }
         template<>
-        inline Calendar GovtBondTraits<USDCurrency>::paymentCalendar(const Period&) const {
+        inline Calendar GovernmentBondTraits<USDCurrency>::paymentCalendar(const Period&) const {
             return UnitedStates(UnitedStates::GovernmentBond);
         }
         template<>
-        inline BusinessDayConvention GovtBondTraits<USDCurrency>::paymentConvention(const Period&) const {
+        inline BusinessDayConvention GovernmentBondTraits<USDCurrency>::paymentConvention(const Period&) const {
             return BusinessDayConvention::Following;
         }
         template<>
-        inline DayCounter GovtBondTraits<USDCurrency>::yieldCalcDayCounter(const Period&, Schedule accrualSchedule) const {
-            return ActualActual(ActualActual::Bond, accrualSchedule);
+        inline DayCounter GovernmentBondTraits<USDCurrency>::yieldCalcDayCounter(const Period&, Schedule schedule) const {
+            return ActualActual(ActualActual::Bond, schedule);
         }
         template<>
-        inline DayCounter GovtBondTraits<USDCurrency>::parYieldSplineDayCounter(const Period&, Schedule accrualSchedule) const {
-            return ActualActual(ActualActual::Bond, accrualSchedule);
+        inline DayCounter GovernmentBondTraits<USDCurrency>::parYieldSplineDayCounter(const Period&, Schedule schedule) const {
+            return ActualActual(ActualActual::Bond, schedule);
         }
         ////////////////////////////////////////////////////////////////////////////////////////////
 
         // US treasury bill traits specialization
         ////////////////////////////////////////////////////////////////////////////////////////////
         template<>
-        inline DayCounter GovtBillTraits<USDCurrency>::marketConventionYieldCalcDayCounter(const Period&, Schedule accrualSchedule) const {
+        inline DayCounter GovernmentBillTraits<USDCurrency>::marketConventionYieldCalcDayCounter(const Period&, Schedule schedule) const {
             return ActualActual(ActualActual::ISDA);
         }
         template<>
-        inline DayCounter GovtBillTraits<USDCurrency>::discountRateDayCounter(const Period&) const {
+        inline DayCounter GovernmentBillTraits<USDCurrency>::discountRateDayCounter(const Period&) const {
             return Actual360();
         }
         ////////////////////////////////////////////////////////////////////////////////////////////

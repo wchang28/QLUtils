@@ -11,7 +11,7 @@ namespace QuantLib {
         template <
             typename BondTraits
         >
-        class FixedCoupondedBond :
+        class FixedCoupondBond :
             public QLUtils::BootstrapInstrument,
             public QLUtils::IParYieldSplineNode {
         protected:
@@ -26,7 +26,6 @@ namespace QuantLib {
 			DayCounter yieldCalcDayCounter_;        // day counter for yield calculation (e.g. par yield calculation)
 			Calendar paymentCalendar_;              // calendar for the payment date
             DayCounter parYieldSplineDayCounter_;
-			Leg bondLeg_;                           // bond leg (coupons and redemption)
         protected:
             // set the maturity date
             void setMaturityDate(
@@ -298,7 +297,7 @@ namespace QuantLib {
 				}
             }
         public:
-            FixedCoupondedBond(
+            FixedCoupondBond(
                 Period tenor,                       // bond's claimed original tenor
 				Date maturityDate = Date(),         // bond's maturity date, if not given, it will be calculated based on the settlement date and the tenor
 				Rate coupon = 0.,                   // bond's fixed coupon rate
@@ -352,7 +351,6 @@ namespace QuantLib {
                 yieldCalcSchedule_ = makeYieldCalcSchedule();
 				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, yieldCalcSchedule_);
 				parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
-                bondLeg_ = makeLeg(this->coupon());
             }
             const Calendar& settlementCalendar() const {
                 return settlementCalendar_;
@@ -368,9 +366,12 @@ namespace QuantLib {
             Real parNotional() const {
                 return bondTraits_.parNotional(tenor());
 			}
-            Rate coupon() const {
+            const Rate& coupon() const {
                 return coupon_;
 			}
+            Rate& coupon() {
+                return coupon_;
+            }
             bool isZeroCoupon() const {
                 return (coupon_ == 0.);
             }
@@ -435,7 +436,7 @@ namespace QuantLib {
                 return bond->accruedAmount(settlementDate());
             }
             operator Leg() const {
-                return bondLeg_;
+                return makeLeg(coupon());
 			}
             const Schedule& yieldCalcSchedule() const {
                 return yieldCalcSchedule_;
@@ -648,7 +649,7 @@ namespace QuantLib {
         template <
             typename BillTraits
         >
-        class ZeroCouponBill : public FixedCoupondedBond<typename BillTraits::BondTraits> {
+        class ZeroCouponBill : public FixedCoupondBond<typename BillTraits::BondTraits> {
         protected:
             BillTraits billTraits_;
 			Schedule marketConventionYieldCalcSchedule_; // forward schedule (from the settle date) of the tenor length, used for calculating market convention yield
@@ -701,7 +702,7 @@ namespace QuantLib {
                 Period tenor,
                 Date maturityDate,
                 Date settlementDate = Date()    // bond settlement date
-            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
+            ) : FixedCoupondBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
 				discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
                 auto settleDate = this->settlementDate();
@@ -884,12 +885,12 @@ namespace QuantLib {
         template <
             typename BondTraits
         >
-        class CMTBond : public FixedCoupondedBond<BondTraits> {
+        class ConstantMaturityBond : public FixedCoupondBond<BondTraits> {
         public:
-            CMTBond(
+            ConstantMaturityBond(
                 Period tenor,
                 Rate coupon = 0.
-            ) :FixedCoupondedBond<BondTraits>(tenor, Date(), coupon, Date()) {
+            ) :FixedCoupondBond<BondTraits>(tenor, Date(), coupon, Date()) {
 				this->cleanPrice() = this->parNotional();   // default the clean price of the bond to par by assuming the coupon variable is a par coupon
             }
         };

@@ -264,18 +264,5 @@ namespace QLUtils {
         virtual QuantLib::DayCounter parYieldSplineDayCounter() const = 0;
     };
 
-    struct IWithCoupon {
-        virtual QuantLib::Rate coupon() const = 0;
-        virtual QuantLib::Frequency couponFrequency() const = 0;
-	};
-
-    struct IWithYield {
-        virtual QuantLib::Rate yield() const = 0;
-	};
-
-    struct IWithDV01 {
-        virtual QuantLib::Real dv01() const = 0;
-    };
-
     using IborIndexFactory = std::function<QuantLib::ext::shared_ptr<QuantLib::IborIndex>(const QuantLib::Handle<QuantLib::YieldTermStructure>&)>;
 }

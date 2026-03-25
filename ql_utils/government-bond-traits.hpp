@@ -9,7 +9,7 @@ namespace QuantLib {
         template <
             typename QL_CURRENCY
         >
-        struct GovtBondTraits {
+        struct GovernmentBondTraits {
             // bond's settlement calendar
             Calendar settlementCalendar(const Period& tenor) const {
                 throw std::logic_error("not implemented");
@@ -49,10 +49,10 @@ namespace QuantLib {
                 throw std::logic_error("not implemented");
             }
             // day counter used when calculating yield to maturity (YTM)
-            DayCounter yieldCalcDayCounter(const Period& tenor, Schedule accrualSchedule = {}) const {
+            DayCounter yieldCalcDayCounter(const Period& tenor, Schedule schedule = {}) const {
                 throw std::logic_error("not implemented");
             }
-            DayCounter parYieldSplineDayCounter(const Period& tenor, Schedule accrualSchedule = {}) const {
+            DayCounter parYieldSplineDayCounter(const Period& tenor, Schedule schedule = {}) const {
                 throw std::logic_error("not implemented");
             }
         };
@@ -62,10 +62,10 @@ namespace QuantLib {
         template <
             typename QL_CURRENCY
         >
-        struct GovtBillTraits {
-            typedef GovtBondTraits<QL_CURRENCY> BondTraits;
+        struct GovernmentBillTraits {
+            typedef GovernmentBondTraits<QL_CURRENCY> BondTraits;
             // day counter for calculating market convention yield which is different from YTM calc day counter for the bond
-            DayCounter marketConventionYieldCalcDayCounter(const Period& tenor, Schedule accrualSchedule = {}) const {
+            DayCounter marketConventionYieldCalcDayCounter(const Period& tenor, Schedule schedule = {}) const {
                 throw std::logic_error("not implemented");
             }
             // day counter for the discount rate

@@ -13,7 +13,6 @@
 #include <ql_utils/swaptraits.hpp>
 #include <ql_utils/swap-fixing.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
-#include <ql_utils/governmentbondtraits.hpp>    // TODO: to be obsoleted
 #include <ql_utils/government-bond-traits.hpp>
 #include <ql_utils/specializations/all.hpp>
 #include <ql_utils/calendars/all.hpp>
