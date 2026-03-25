@@ -87,8 +87,9 @@ namespace QuantLib {
                 QL_ASSERT(defaultSettleDate == settlementDate(), "bond's default settlement logic's settlement date (" << defaultSettleDate << ") is not what's expected (" << settlementDate() << ")");
                 auto bondMaturityDate = bond->maturityDate();
                 QL_ASSERT(bondMaturityDate == maturityDate(), "bond's maturity date (" << bondMaturityDate << ") is not what's expected (" << maturityDate() << ")");
+                auto lastPaymentDate = this->lastPaymentDate();
                 auto pillarDate = helper->pillarDate();
-                QL_ASSERT(pillarDate == maturityDate(), "bond helper's pillar date (" << pillarDate << ") is not what's expected (" << maturityDate() << ")");
+                QL_ASSERT(pillarDate == lastPaymentDate, "bond helper's pillar date (" << pillarDate << ") is not what's expected (" << lastPaymentDate << ")");
 				return helper;
             }
 			// create a FixedRateBond with the same parameters as this instrument, except for the coupon which can be overridden
