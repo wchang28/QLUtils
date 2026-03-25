@@ -25,6 +25,7 @@ namespace QuantLib {
             DayCounter yieldCalcDayCounter_;
             Calendar paymentCalendar_;
             DayCounter parYieldSplineDayCounter_;
+            Leg bondLeg_;
         protected:
             // set the maturity date
             void setMaturityDate(
@@ -139,7 +140,10 @@ namespace QuantLib {
                 return leg;
             }
             // is if p1 is a multiple of p2 ?
-            static std::pair<bool, Integer> isMultiple(const Period& p1, const Period& p2) {
+            static std::pair<bool, Integer> isMultiple(
+                const Period& p1,
+                const Period& p2
+            ) {
                 // Basic check: if p2 is longer than p1, p1 can't be a multiple of p2 (unless 0)
                 // Note: QuantLib throws if comparison is undecidable (e.g. 1M vs 30D)
                 try {
@@ -257,9 +261,9 @@ namespace QuantLib {
             }
         public:
             FixedCoupondedBond(
-                const Period& tenor,                // bond's claimed original tenor
-				const Date& maturityDate = Date(),  // bond's maturity date, if not given, it will be calculated based on the settlement date and the tenor
-				Rate coupon = 0.0,                  // bond's fixed coupon rate
+                Period tenor,                       // bond's claimed original tenor
+				Date maturityDate = Date(),         // bond's maturity date, if not given, it will be calculated based on the settlement date and the tenor
+				Rate coupon = 0.,                   // bond's fixed coupon rate
                 Date settlementDate = Date()        // bond's settlement date (for calculating accrued interest, prices, and yield to maturity)
 			) :
                 QLUtils::BootstrapInstrument(QLUtils::BootstrapInstrument::vtPrice, tenor, maturityDate),
@@ -277,37 +281,39 @@ namespace QuantLib {
 				}
                 auto settleDate = this->settlementDate();
                 QL_ASSERT(settleDate != Date(), "settlement date not set");
-				if (maturityDate == Date()) {  // maturity date is not given
+				if (maturityDate == Date()) {  // maturity date is not given (CMT bond)
                     auto [multipile, n] = isMultiple(tenor, this->couponTenor());
                     if (multipile) {    // tenor is a multiple of coupon period => create a forward bond schedule of n coupon periods starting fro the settlement date
+                        QL_ASSERT(n != Null<Integer>(), "the number of coupon accrual periods is null");
                         QL_ASSERT(n > 0, "the number of coupon accrual periods (" << n << ") must be greater than 0");
                         accrualSchedule_ = createForwardSchedule(settleDate, (Natural)n);
 						auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
-                        QL_ASSERT(nCouponPeriods == n, "The number of coupon accrual periods (" << nCouponPeriods << ") is not what's expected (" << n << ")");
+                        QL_ASSERT(nCouponPeriods == Size(n), "The number of coupon accrual periods (" << nCouponPeriods << ") is not what's expected (" << n << ")");
                         QL_ASSERT(settleDate == accrualSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << accrualSchedule_.dates().front() << ") of the first coupon accrual period");
-                        setMaturityDate(accrualSchedule_.dates().back());    // set the maturity date to the last date of the schedule
+						maturityDate = accrualSchedule_.dates().back();
                     }
                     else {  // tenor is not a mutiple of the coupon period
-                        setMaturityDate(settleDate + tenor);    // set the maturity date to be the settle date plus the tenor
-                        accrualSchedule_ = createBackwardSchedule(settleDate, this->maturityDate());    // create a schedule goting backward
-                        auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
-                        QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
-                        QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
-                        QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
+                        maturityDate = accrualScheduleCalendar().advance(settleDate, tenor, accrualConvention(), accrualEndOfMonth());
+                        accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);    // create a schedule goting backward
                     }
                 }
                 else {  // maturity date is given => created a backward bond schedule from the maturity date
                     accrualSchedule_ = createBackwardSchedule(settleDate, maturityDate);
-                    auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
-                    QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
-                    QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
-                    QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
+                }
+                QL_ASSERT(maturityDate != Date(), "maturity date cannot be determined");
+                if (this->maturityDate() == Date()) {
+                    setMaturityDate(maturityDate);
                 }
                 QL_ASSERT(this->maturityDate() != Date(), "maturity date not set");
                 QL_ASSERT(settleDate < this->maturityDate(), "settlement date (" << settleDate << ") is not before maturity date (" << this->maturityDate() << ")");
+                auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
+                QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
+                QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
+                QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
 				accrualDayCounter_ = bondTraits_.accrualDayCounter(tenor, accrualSchedule_);
 				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, accrualSchedule_);
 				parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
+                bondLeg_ = makeLeg(this->coupon());
             }
             const Calendar& settlementCalendar() const {
                 return settlementCalendar_;
@@ -323,11 +329,8 @@ namespace QuantLib {
             Real parNotional() const {
                 return bondTraits_.parNotional(tenor());
 			}
-            const Rate& coupon() const {
+            Rate coupon() const {
                 return coupon_;
-			}
-            Rate& coupon() {
-				return coupon_;
 			}
             bool isZeroCoupon() const {
                 return (coupon_ == 0.);
@@ -393,7 +396,7 @@ namespace QuantLib {
                 return bond->accruedAmount(settlementDate());
             }
             operator Leg() const {
-                return makeLeg(coupon());
+                return bondLeg_;
 			}
             const DayCounter& yieldCalcDayCounter() const {
                 return yieldCalcDayCounter_;
@@ -653,10 +656,10 @@ namespace QuantLib {
 			}
         public:
             ZeroCouponBill(
-                const Period& tenor,
-                const Date& maturityDate,
+                Period tenor,
+                Date maturityDate,
                 Date settlementDate = Date()    // bond settlement date
-            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0.0, settlementDate),
+            ) : FixedCoupondedBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
 				marketConventionYieldCalcDayCounter_(billTraits_.marketConventionYieldCalcDayCounter(tenor)),
 				discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
@@ -842,9 +845,9 @@ namespace QuantLib {
         class CMTBond : public FixedCoupondedBond<BondTraits> {
         public:
             CMTBond(
-                const Period& tenor,
-                Rate coupon = 0.0
-            ) :FixedCoupondedBond<BondTraits>(tenor, Date(), coupon) {
+                Period tenor,
+                Rate coupon = 0.
+            ) :FixedCoupondedBond<BondTraits>(tenor, Date(), coupon, Date()) {
 				this->cleanPrice() = this->parNotional();   // default the clean price of the bond to par by assuming the coupon variable is a par coupon
             }
         };
