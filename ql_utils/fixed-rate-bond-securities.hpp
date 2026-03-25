@@ -15,17 +15,18 @@ namespace QuantLib {
             public QLUtils::BootstrapInstrument,
             public QLUtils::IParYieldSplineNode {
         protected:
-			BondTraits bondTraits_;
-            Rate coupon_;
-			Date settlementDate_;   // settlement date for the bond
-			Schedule accrualSchedule_;
-            Calendar settlementCalendar_;
-            Calendar accrualScheduleCalendar_;
-            DayCounter accrualDayCounter_;
-            DayCounter yieldCalcDayCounter_;
-            Calendar paymentCalendar_;
+			BondTraits bondTraits_;                 // bond traits
+			Rate coupon_;                           // bond's fixed coupon rate
+			Date settlementDate_;                   // settlement date for the bond
+			Calendar settlementCalendar_;           // calendar for the settlement date
+			Schedule accrualSchedule_;              // accrual schedule for the bond
+			Calendar accrualScheduleCalendar_;      // calendar for the accrual schedule
+			DayCounter accrualDayCounter_;          // day counter for the accrual schedule
+			Schedule yieldCalcSchedule_;            // schedule for yield calculation (e.g. par yield calculation)
+			DayCounter yieldCalcDayCounter_;        // day counter for yield calculation (e.g. par yield calculation)
+			Calendar paymentCalendar_;              // calendar for the payment date
             DayCounter parYieldSplineDayCounter_;
-            Leg bondLeg_;
+			Leg bondLeg_;                           // bond leg (coupons and redemption)
         protected:
             // set the maturity date
             void setMaturityDate(
@@ -123,10 +124,12 @@ namespace QuantLib {
                 }
                 Leg leg;
                 auto scheduleDates = accrualSchedule_.dates();
+                Date lastPaymentDate = Date();
                 for (Size i = 1; i < scheduleDates.size(); ++i) {
                     auto accrualStartDate = scheduleDates[i - 1];
                     auto accrualEndDate = scheduleDates[i];
                     auto paymentDate = paymentCalendar().adjust(accrualEndDate, paymentConvention());
+					lastPaymentDate = paymentDate;
                     ext::shared_ptr<FixedRateCoupon> pCoupon(new FixedRateCoupon(
                         paymentDate,            // paymentDate
                         parNotional(),          // nominal
@@ -137,6 +140,11 @@ namespace QuantLib {
                     ));
                     leg.push_back(pCoupon);
                 }
+                ext::shared_ptr<Redemption> pRedemption(new Redemption(
+                    parNotional(),      // amount
+                    lastPaymentDate     // date
+                ));
+                leg.push_back(pRedemption);
                 return leg;
             }
             // is if p1 is a multiple of p2 ?
@@ -311,7 +319,8 @@ namespace QuantLib {
                 QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
                 QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
 				accrualDayCounter_ = bondTraits_.accrualDayCounter(tenor, accrualSchedule_);
-				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, accrualSchedule_);
+                yieldCalcSchedule_ = accrualSchedule_;  // TODO: extends the schedule to include the last payment date
+				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, yieldCalcSchedule_);
 				parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
                 bondLeg_ = makeLeg(this->coupon());
             }
@@ -397,6 +406,9 @@ namespace QuantLib {
             }
             operator Leg() const {
                 return bondLeg_;
+			}
+            const Schedule& yieldCalcSchedule() const {
+                return yieldCalcSchedule_;
 			}
             const DayCounter& yieldCalcDayCounter() const {
                 return yieldCalcDayCounter_;
