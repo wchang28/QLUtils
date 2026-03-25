@@ -882,6 +882,7 @@ namespace QuantLib {
             ////////////////////////////////////////////////////////////////////////////////////////////////
         };
 
+		// Theoretical constant maturity bond of the desired tenor
         template <
             typename BondTraits
         >
