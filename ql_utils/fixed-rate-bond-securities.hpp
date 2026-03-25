@@ -621,7 +621,7 @@ namespace QuantLib {
         class ZeroCouponBill : public FixedCoupondedBond<typename BillTraits::BondTraits> {
         protected:
             BillTraits billTraits_;
-			Schedule marketConventionSchedule_; // forward schedule (from the settle date) of the tenor length, used for calculating market convention yield
+			Schedule marketConventionYieldCalcSchedule_; // forward schedule (from the settle date) of the tenor length, used for calculating market convention yield
             DayCounter marketConventionYieldCalcDayCounter_;
             DayCounter discountRateDayCounter_;
         private:
@@ -677,19 +677,19 @@ namespace QuantLib {
             {
                 auto settleDate = this->settlementDate();
                 auto paymentDate = this->paymentDate();
-				marketConventionSchedule_ = createForwardSchedule(settleDate, paymentDate); // create a forward schedule from the settlement date passing the payment date with the same tenor as the bond's coupon frequency, which will be used for calculating market convention yield
-				auto nCouponPeriods = marketConventionSchedule_.dates().size() - 1;
+                marketConventionYieldCalcSchedule_ = createForwardSchedule(settleDate, paymentDate); // create a forward schedule from the settlement date passing the payment date with the same tenor as the bond's coupon frequency, which will be used for calculating market convention yield
+				auto nCouponPeriods = marketConventionYieldCalcSchedule_.dates().size() - 1;
                 QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
-                QL_ASSERT(settleDate == marketConventionSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << marketConventionSchedule_.dates().front() << ") of the first coupon accrual period");
-                QL_ASSERT(marketConventionSchedule_.dates().back() >= paymentDate, "The end date (" << marketConventionSchedule_.dates().back() << ") of the last coupon accrual period is less than the payment date (" << paymentDate << ")");
+                QL_ASSERT(settleDate == marketConventionYieldCalcSchedule_.dates().front(), "Settlement date (" << settleDate << ") does not match the start date (" << marketConventionYieldCalcSchedule_.dates().front() << ") of the first coupon accrual period");
+                QL_ASSERT(marketConventionYieldCalcSchedule_.dates().back() >= paymentDate, "The end date (" << marketConventionYieldCalcSchedule_.dates().back() << ") of the last coupon accrual period is less than the payment date (" << paymentDate << ")");
                 QL_ASSERT(this->accruedAmount() == 0., "The accrued amount (" << this->accruedAmount() << ") must be 0 for a zero-coupon bill");
             }
             // date of the sole payment (principal/face amount) for the bill
             Date paymentDate() const {
                 return this->lastPaymentDate();
             }
-            const Schedule& marketConventionSchedule() const {
-                return marketConventionSchedule_;
+            const Schedule& marketConventionYieldCalcSchedule() const {
+                return marketConventionYieldCalcSchedule_;
 			}
             const DayCounter& marketConventionYieldCalcDayCounter() const {
                 return marketConventionYieldCalcDayCounter_;
@@ -702,7 +702,7 @@ namespace QuantLib {
             Real compoundingFactorFromMarketConventionYield(
                 Rate yield
             ) const {
-                const auto& schedule = marketConventionSchedule();
+                const auto& schedule = marketConventionYieldCalcSchedule();
                 auto n = schedule.size() - 1;
                 Real compoundingFactor = 1.;
                 for (decltype(n) i = 0; i < n; ++i) {
@@ -719,7 +719,7 @@ namespace QuantLib {
             ) const {
 				QL_ASSERT(df > 0., "Discount factor (" << df << ") must be greater than 0");
                 auto compoundingFactor = 1. / df;
-                const auto& schedule = marketConventionSchedule();
+                const auto& schedule = marketConventionYieldCalcSchedule();
 				auto n = schedule.size() - 1;   // number of coupon accural periods in the market convention schedule
                 auto T = marketConventionYieldCalcDayCounter().yearFraction(this->settlementDate(), paymentDate());
                 if (n == 1) {   // 1 coupon accrual period
