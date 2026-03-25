@@ -292,7 +292,8 @@ namespace QuantLib {
 						accrualSchedule_.endOfMonth()  // endOfMonth
 					);
                     return schedule;
-                } else {
+                } else {    // lastPaymentDate <= maturityDate
+					// the accrual schedule already covers all payment dates, so it can be used for yield calculation
 					return accrualSchedule_;
 				}
             }
