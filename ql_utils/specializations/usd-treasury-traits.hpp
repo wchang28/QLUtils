@@ -43,9 +43,13 @@ namespace QuantLib {
         inline Calendar GovernmentBondTraits<USDCurrency>::paymentCalendar(const Period&) const {
             return UnitedStates(UnitedStates::GovernmentBond);
         }
+        // Bloomberg uses BusinessDayConvention::Unadjusted (verified) for the calculation so the payment dates
+        // and the accrual end dates are aligned. In real life, treadury bond/bill payment date should not fall
+        // on a holiday in the payment calendar. In this case, BusinessDayConvention::Following should be used.
         template<>
         inline BusinessDayConvention GovernmentBondTraits<USDCurrency>::paymentConvention(const Period&) const {
-            return BusinessDayConvention::Following;
+            //return BusinessDayConvention::Following;
+            return BusinessDayConvention::Unadjusted;
         }
         template<>
         inline DayCounter GovernmentBondTraits<USDCurrency>::yieldCalcDayCounter(const Period&, Schedule schedule) const {
