@@ -589,6 +589,7 @@ namespace QuantLib {
                 return dv01;
             }
             // given a discount term structure, what coupon would give the bond a clean price of 100
+            // !!! this can be used to calculate CMT par coupon rate !!!
             Rate impliedParCoupon(
                 const Handle<YieldTermStructure>& discountingTermStructure
             ) const {
