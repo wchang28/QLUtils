@@ -301,7 +301,7 @@ namespace QuantLib {
                 Period tenor,                       // bond's claimed original tenor
 				Date maturityDate = Date(),         // bond's maturity date, if not given, it will be calculated based on the settlement date and the tenor
 				Rate coupon = 0.,                   // bond's fixed coupon rate
-                Date settlementDate = Date()        // bond's settlement date (for calculating accrued interest, prices, and yield to maturity)
+                Date settlementDate = Date()        // settlement date for calculating accrued interest, prices, and yield to maturity
 			) :
                 QLUtils::BootstrapInstrument(QLUtils::BootstrapInstrument::vtPrice, tenor, maturityDate),
                 coupon_(coupon),
@@ -699,9 +699,9 @@ namespace QuantLib {
 			}
         public:
             ZeroCouponBill(
-                Period tenor,
-                Date maturityDate,
-                Date settlementDate = Date()    // bond settlement date
+                Period tenor,                   // bond's claimed original tenor
+                Date maturityDate,              // maturity date of the bond
+                Date settlementDate = Date()    // settlement date for calculating accrued interest, prices, and yield to maturity
             ) : FixedCoupondBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
 				discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
@@ -882,17 +882,35 @@ namespace QuantLib {
             ////////////////////////////////////////////////////////////////////////////////////////////////
         };
 
-		// Theoretical constant maturity bond of the desired tenor
+		// Theoretical fixed rate coupon bond of the desired tenor
         template <
             typename BondTraits
         >
-        class ConstantMaturityBond : public FixedCoupondBond<BondTraits> {
+        class TheoreticalBond : public FixedCoupondBond<BondTraits> {
         public:
-            ConstantMaturityBond(
-                Period tenor,
-                Rate coupon = 0.
-            ) :FixedCoupondBond<BondTraits>(tenor, Date(), coupon, Date()) {
+            TheoreticalBond(
+                Period tenor,                   // tenor of the bond
+                Rate coupon = 0.,               // coupon of the bond
+                Date settlementDate = Date()    // settlement date for calculating accrued interest, prices, and yield to maturity
+            ) :FixedCoupondBond<BondTraits>(tenor, Date(), coupon, settlementDate) {
 				this->cleanPrice() = this->parNotional();   // default the clean price of the bond to par by assuming the coupon variable is a par coupon
+            }
+        };
+
+        // CMT par coupon bond with clean price anchor at par notional
+        // US CMT/H15Txxx rates is base on this class
+        template <
+            typename BondTraits
+        >
+        class ParCouponBond : public FixedCoupondBond<BondTraits> {
+        public:
+            ParCouponBond(
+                Period tenor,                   // bond's claimed original tenor
+				Date maturityDate,              // maturity date of the bond
+                Rate parCoupon,                 // par coupon of the bond
+				Date settlementDate = Date()    // settlement date for calculating accrued interest, prices, and yield to maturity
+            ) :FixedCoupondBond<BondTraits>(tenor, maturityDate, parCoupon, settlementDate) {
+                this->cleanPrice() = this->parNotional();   // set the clean price of the bond to par because the coupon is a par coupon
             }
         };
     }
