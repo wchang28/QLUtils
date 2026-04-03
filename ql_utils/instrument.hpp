@@ -250,6 +250,7 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto overnightIndex = swapTraits_.createOvernightIndex(estimatingTermStructure);
+            auto fixingCalendar = swapTraits_.fixingCalendar(tenor());
             QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
                 .withSettlementDays(swapTraits_.settlementDays(tenor()))
                 .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
@@ -258,6 +259,8 @@ namespace QLUtils {
                 .withPaymentAdjustment(swapTraits_.paymentConvention(tenor()))
                 .withPaymentFrequency(swapTraits_.paymentFrequency(tenor()))
                 .withPaymentCalendar(swapTraits_.paymentCalendar(tenor()))
+                .withFixedLegCalendar(fixingCalendar)
+                .withOvernightLegCalendar(fixingCalendar)
                 ;
             return swap;
         }
@@ -272,23 +275,33 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
             auto overnightIndex = swapTraits_.createOvernightIndex();
+            auto fixingCalendar = swapTraits_.fixingCalendar(tenor());
             QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
                 new QuantLib::OISRateHelper(
-                    swapTraits_.settlementDays(tenor()),
-                    tenor(),
-                    quote(),
-                    overnightIndex,
+                    swapTraits_.settlementDays(tenor()),    // settlementDays
+                    tenor(),    // tenor - swap maturity
+                    quote(),    // fixedRate
+                    overnightIndex, // overnightIndex
                     discountingTermStructure,   // exogenous discounting curve
-                    swapTraits_.telescopicValueDates(tenor()),
+                    swapTraits_.telescopicValueDates(tenor()),  // telescopicValueDates
                     swapTraits_.paymentLag(tenor()),    // paymentLag
                     swapTraits_.paymentConvention(tenor()), // paymentConvention
                     swapTraits_.paymentFrequency(tenor()),   // paymentFrequency
                     swapTraits_.paymentCalendar(tenor()),   // paymentCalendar
                     0 * QuantLib::Days, // forwardStart
                     0.,    // overnightSpread
-                    QuantLib::Pillar::MaturityDate,
+                    QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
-                    swapTraits_.averagingMethod(tenor())
+                    swapTraits_.averagingMethod(tenor()),    // averagingMethod
+                    QuantLib::ext::nullopt,   // endOfMonth
+                    QuantLib::ext::nullopt,   // fixedPaymentFrequency
+                    fixingCalendar, // fixedCalendar
+                    QuantLib::Null<QuantLib::Natural>(),    //lookbackDays
+                    0,  // lockoutDays
+                    false,  // applyObservationShift
+                    {}, // pricer
+                    QuantLib::DateGeneration::Backward,   // rule
+                    fixingCalendar  // overnightCalendar
                 )
             );
             return helper;

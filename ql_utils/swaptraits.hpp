@@ -44,6 +44,11 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.paymentCalendar();
         }
+        // !!! fixing calendar for both legs !!!
+        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.fixingCalendar();
+        }
         auto createOvernightIndex(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& indexEstimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
         ) const {
@@ -59,13 +64,16 @@ namespace QLUtils {
     // VanillaSwapTraits<QuantLib::EurLiborSwapIfrFix>
     // VanillaSwapTraits<QuantLib::GbpLiborSwapIsdaFix>
     // VanillaSwapTraits<QuantLib::JpyLiborSwapIsdaFixPm>
-    template<typename BaseSwapIndex>
+    template<
+        typename BASE_SWAP_INDEX
+    >
     struct VanillaSwapTraits {
+        typedef BASE_SWAP_INDEX BaseSwapIndex;
         QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingDays();
         }
-        // !!! calendar for both legs !!!
+        // !!! fixing calendar for both legs !!!
         QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingCalendar();

@@ -19,11 +19,12 @@ namespace QuantLib {
             OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
-                0,  // T+0 swap settlement
+                0,  // T+0 swap settlement on the fixing calendar
                 GBPCurrency(),
                 indexEstimatingTermStructure,
-                0,   // 0 day payment lag
-                OVERNIGHTINDEX().fixingCalendar()    // payment calendar: uses overnight index's fixing calendar
+                0,   // 0 day payment lag on the payment calendar
+                OVERNIGHTINDEX().fixingCalendar(),    // payment calendar: uses overnight index's fixing calendar
+                OVERNIGHTINDEX().fixingCalendar()   // fixing calendar: uses overnight index's fixing calendar
             )
         {}
     };

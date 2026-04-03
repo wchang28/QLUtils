@@ -3,11 +3,13 @@
 #include <ql/quantlib.hpp>
 #include <string>
 #include <sstream>
+#include <tuple>
+#include <ql_utils/fixing-date-adjustment.hpp>
 #include <ql_utils/indexes/overnight-compounded-avg.hpp>
 
 namespace QuantLib {
     // enhanced version of the OvernightIndexedSwapIndex that supports
-    // cashflow frequency for both legs
+    // cashflow frequency for both legs and custom fixing calendar
     // telescopicValueDates()
     // averagingMethod()
     // paymentLag()
@@ -19,6 +21,7 @@ namespace QuantLib {
     >
     class OvernightIndexedSwapIndexEnhanced : public OvernightIndexedSwapIndex {
     protected:
+        Calendar customFixingCalendar_; // a fixing calendar that is different from the default (OvernightIndex's fixingCalendar)
         Natural paymentLag_;
         Calendar paymentCalendar_;
     private:
@@ -30,9 +33,15 @@ namespace QuantLib {
             oss << currency.code();
             oss << "OvernightIndexedSwapIndex<<";
             oss << overnightIndex->name();
+            oss << ",";
+            oss << Period(FREQ);
             oss << ">>";
             return oss.str();
         }
+    public:
+        typedef Date FixingDate;
+        typedef Date EffectiveDate;
+        typedef Date MaturityDate;
     public:
         OvernightIndexedSwapIndexEnhanced(
             const Period& tenor,
@@ -40,7 +49,8 @@ namespace QuantLib {
             const Currency& currency,
             const ext::shared_ptr<OvernightIndex>& overnightIndex,
             Natural paymentLag = 0,
-            const Calendar& paymentCalendar = Calendar()
+            const Calendar& paymentCalendar = Calendar(),
+            const Calendar& fixingCalendar = Calendar()
         ) :
             OvernightIndexedSwapIndex(
                 makeFamilyName(currency, overnightIndex),   // familyName
@@ -52,7 +62,8 @@ namespace QuantLib {
                 RateAveraging::Compound                     // averagingMethod
             ),
             paymentLag_(paymentLag),
-            paymentCalendar_(paymentCalendar)
+            paymentCalendar_(paymentCalendar),
+            customFixingCalendar_(fixingCalendar)
         {
             this->fixedLegTenor_ = Period(FREQ);    // set the cashflow tenor for both legs
         }
@@ -74,23 +85,58 @@ namespace QuantLib {
         const Calendar& paymentCalendar() const {
             return paymentCalendar_;
         }
+        // fixing calendar for both legs (fixed leg and overnight leg)
+        Calendar fixingCalendar() const override {
+            return (customFixingCalendar_ == Calendar() ? InterestRateIndex::fixingCalendar() : customFixingCalendar_);
+        }
+        // make the correct adjustment to the swap fixing date so the it is a valid working date on the fixing calendar
+        Date fixingDateAdj(
+            Date d = Date()
+        ) const {
+            if (d == Date()) {
+                d = Settings::instance().evaluationDate();
+            }
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(this->currency(), fixingCalendar());
+            return fixingAdj.adjust(d);
+        }
+        Date maturityDate(
+            const Date& valueDate
+        ) const override {
+            Date d = this->fixingDate(valueDate);
+            Date fixingDate = fixingDateAdj(d);
+            return underlyingSwap(fixingDate)->maturityDate();
+        }
+        std::tuple<FixingDate, EffectiveDate, MaturityDate> getImportantDates(
+            Date refDate = Date()
+        ) const {
+            Date fixingDate = fixingDateAdj(refDate);
+            Date effectiveDate = this->valueDate(fixingDate);
+            Date maturityDate = underlyingSwap(fixingDate)->maturityDate();
+            return std::tuple<FixingDate, EffectiveDate, MaturityDate> {
+                fixingDate,
+                effectiveDate,
+                maturityDate
+            };
+        }
         ext::shared_ptr<OvernightIndexedSwap> makeSwap(
             const Date& fixingDate,
             Swap::Type type = Swap::Type::Payer,
             Rate fixedRate = Null<Rate>()
         ) const {
             QL_REQUIRE(fixingDate != Date(), "null fixing date");
-            ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor_, overnightIndex_, fixedRate)
+            auto effectiveDate = this->valueDate(fixingDate);
+            ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor(), overnightIndex(), fixedRate)
                 .withType(type)
-                .withEffectiveDate(valueDate(fixingDate))
-                .withFixedLegDayCount(dayCounter_)
-                .withTelescopicValueDates(telescopicValueDates_)
-                .withAveragingMethod(averagingMethod_)
-                .withPaymentLag(paymentLag_)
+                .withEffectiveDate(effectiveDate)
+                .withFixedLegDayCount(dayCounter()) // dayCounter() returns the fixed leg day counter
+                .withTelescopicValueDates(telescopicValueDates())
+                .withAveragingMethod(averagingMethod())
+                .withPaymentLag(paymentLag())
                 .withPaymentAdjustment(paymentConvention())
                 .withPaymentFrequency(paymentFrequency())
-                .withPaymentCalendar(paymentCalendar_)
-                .withRule(DateGeneration::Forward)
+                .withPaymentCalendar(paymentCalendar())
+                .withFixedLegCalendar(fixingCalendar())
+                .withOvernightLegCalendar(fixingCalendar())
                 ;
             return swap;
         }
@@ -122,7 +168,8 @@ namespace QuantLib {
             const Currency& currency,
             const Handle<YieldTermStructure>& indexEstimatingTermStructure = {},
             Natural paymentLag = 0,
-            const Calendar& paymentCalendar = Calendar()
+            const Calendar& paymentCalendar = Calendar(),
+            const Calendar& fixingCalendar = Calendar()
         ):
             OvernightIndexedSwapIndexEnhanced<FREQ>(
                 tenor,
@@ -130,7 +177,8 @@ namespace QuantLib {
                 currency,
                 ext::shared_ptr<OvernightIndex>(new OVERNIGHTINDEX(indexEstimatingTermStructure)),  // overnightIndex
                 paymentLag,
-                paymentCalendar
+                paymentCalendar,
+                fixingCalendar
             )
         {}
     };
