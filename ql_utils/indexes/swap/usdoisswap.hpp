@@ -33,14 +33,14 @@ namespace QuantLib {
     public:
         UsdOvernightIndexedSwapIsdaFix(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
                 2,  // T+2 swap settlement on the fixing calendar
                 USDCurrency(),
-                indexEstimatingTermStructure,
+                h,
                 2,   // 2 days payment lag on the payment calendar
                 UnitedStates(UnitedStates::FederalReserve),    // payment calendar: uses FederalReserve calendar due to backward compatibility with FedFunds OIS
                 fixingCalendarAdaptor_()  // fixing calendar
@@ -55,10 +55,10 @@ namespace QuantLib {
     class UsdOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ> {
     public:
         UsdOvernightCompoundedAverageIndex(
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
             2,  // T+2 index fixing
-            indexEstimatingTermStructure
+            h
         ) {}
     };
 
@@ -70,13 +70,13 @@ namespace QuantLib {
     public:
         UsdFwdOISVanillaSwapIndex(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
                 2,  // T+2 swap settlement
-                indexEstimatingTermStructure
+                h
             )
         {}
     };

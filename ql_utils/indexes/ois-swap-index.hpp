@@ -183,101 +183,69 @@ namespace QuantLib {
         {}
     };
 
-    // enhanced version of SwapIndex thats support end of month for both legs
+    // enhanced version of SwapIndex (Vanilla swap) thats support end of month for both legs
+    // this is needed because OIS-based vanilla swaps (such as term sofr swaps) have endOfMonth=true for both legs
+    // this class also ensure fixed leg calendar and floating leg calendar are the same
     class SwapIndexEx : public SwapIndex {
     protected:
-        bool fixedLegEndOfMonth_;
-        bool floatingLegEndOfMonth_;
+        bool endOfMonth_;   // end of month flag for both legs
+    public:
+        typedef Date FixingDate;
+        typedef Date EffectiveDate;
+        typedef Date MaturityDate;
     public:
         SwapIndexEx(
             const std::string& familyName,
             const Period& tenor,
             Natural settlementDays,
             const Currency& currency,
-            const Calendar& fixingCalendar,
+            const Calendar& fixingCalendar, // fixing calendar for both legs
             const Period& fixedLegTenor,
             BusinessDayConvention fixedLegConvention,
             const DayCounter& fixedLegDayCounter,
             ext::shared_ptr<IborIndex> iborIndex,
-            bool fixedLegEndOfMonth = false,
-            bool floatingLegEndOfMonth = false
+            bool endOfMonth = false // for vanilla swap, the default end of month is false
         ) : SwapIndex(
-            familyName,
-            tenor,
-            settlementDays,
-            currency,
-            fixingCalendar,
-            fixedLegTenor,
-            fixedLegConvention,
-            fixedLegDayCounter,
-            iborIndex
+                familyName,
+                tenor,
+                settlementDays,
+                currency,
+                fixingCalendar,
+                fixedLegTenor,
+                fixedLegConvention,
+                fixedLegDayCounter,
+                iborIndex
             ),
-            fixedLegEndOfMonth_(fixedLegEndOfMonth),
-            floatingLegEndOfMonth_(floatingLegEndOfMonth)
+            endOfMonth_(endOfMonth)
         {}
-        SwapIndexEx(const std::string& familyName,
+        SwapIndexEx(
+            const std::string& familyName,
             const Period& tenor,
             Natural settlementDays,
             const Currency& currency,
-            const Calendar& fixingCalendar,
+            const Calendar& fixingCalendar,  // fixing calendar for both legs
             const Period& fixedLegTenor,
             BusinessDayConvention fixedLegConvention,
             const DayCounter& fixedLegDayCounter,
             ext::shared_ptr<IborIndex> iborIndex,
             Handle<YieldTermStructure> discountingTermStructure,
-            bool fixedLegEndOfMonth = false,
-            bool floatingLegEndOfMonth = false
+            bool endOfMonth = false // for vanilla swap, the default end of month is false
         ): SwapIndex(
-            familyName,
-            tenor,
-            settlementDays,
-            currency,
-            fixingCalendar,
-            fixedLegTenor,
-            fixedLegConvention,
-            fixedLegDayCounter,
-            iborIndex,
-            discountingTermStructure
+                familyName,
+                tenor,
+                settlementDays,
+                currency,
+                fixingCalendar,
+                fixedLegTenor,
+                fixedLegConvention,
+                fixedLegDayCounter,
+                iborIndex,
+                discountingTermStructure
             ),
-            fixedLegEndOfMonth_(fixedLegEndOfMonth),
-            floatingLegEndOfMonth_(floatingLegEndOfMonth)
+            endOfMonth_(endOfMonth)
         {}
-        bool fixedLegEndOfMonth() const { return fixedLegEndOfMonth_; }
-        bool floatingLegEndOfMonth() const { return floatingLegEndOfMonth_; }
-        ext::shared_ptr<VanillaSwap> underlyingSwap(const Date& fixingDate) const {
-            QL_REQUIRE(fixingDate != Date(), "null fixing date");
-
-            // caching mechanism
-            if (lastFixingDate_ != fixingDate) {
-                Rate fixedRate = 0.0;
-                if (exogenousDiscount_)
-                    lastSwap_ = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
-                    .withEffectiveDate(valueDate(fixingDate))
-                    .withFixedLegCalendar(fixingCalendar())
-                    .withFixedLegDayCount(dayCounter_)
-                    .withFixedLegTenor(fixedLegTenor_)
-                    .withFixedLegConvention(fixedLegConvention_)
-                    .withFixedLegTerminationDateConvention(fixedLegConvention_)
-                    .withDiscountingTermStructure(discount_)
-                    .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
-                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
-                    .withRule(DateGeneration::Forward)
-                    ;
-                else
-                    lastSwap_ = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
-                    .withEffectiveDate(valueDate(fixingDate))
-                    .withFixedLegCalendar(fixingCalendar())
-                    .withFixedLegDayCount(dayCounter_)
-                    .withFixedLegTenor(fixedLegTenor_)
-                    .withFixedLegConvention(fixedLegConvention_)
-                    .withFixedLegTerminationDateConvention(fixedLegConvention_)
-                    .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
-                    .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
-                    .withRule(DateGeneration::Forward)
-                    ;
-                lastFixingDate_ = fixingDate;
-            }
-            return lastSwap_;
+        bool endOfMonth() const {
+            return endOfMonth_;
         }
         ext::shared_ptr<VanillaSwap> makeSwap(
             const Date& fixingDate,
@@ -285,35 +253,77 @@ namespace QuantLib {
             Rate fixedRate = Null<Rate>()
         ) const {
             QL_REQUIRE(fixingDate != Date(), "null fixing date");
+            auto effectiveDate = this->valueDate(fixingDate);
             ext::shared_ptr<VanillaSwap> swap;
-            if (exogenousDiscount_)
-                swap = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
+            if (exogenousDiscount())
+                swap = MakeVanillaSwap(tenor(), iborIndex(), fixedRate)
                 .withType(type)
-                .withEffectiveDate(valueDate(fixingDate))
+                .withEffectiveDate(effectiveDate)
                 .withFixedLegCalendar(fixingCalendar())
-                .withFixedLegDayCount(dayCounter_)
-                .withFixedLegTenor(fixedLegTenor_)
-                .withFixedLegConvention(fixedLegConvention_)
-                .withFixedLegTerminationDateConvention(fixedLegConvention_)
-                .withDiscountingTermStructure(discount_)
-                .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
-                .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
-                .withRule(DateGeneration::Forward)
+                .withFixedLegDayCount(dayCounter()) // dayCounter() returns the fixed leg day counter
+                .withFixedLegTenor(fixedLegTenor())
+                .withFixedLegConvention(fixedLegConvention())
+                .withFixedLegTerminationDateConvention(fixedLegConvention())
+                .withFixedLegEndOfMonth(endOfMonth())
+                .withFloatingLegCalendar(fixingCalendar())
+                .withFloatingLegEndOfMonth(endOfMonth())
+                .withDiscountingTermStructure(discountingTermStructure())
                 ;
             else
-                swap = MakeVanillaSwap(tenor_, iborIndex_, fixedRate)
+                swap = MakeVanillaSwap(tenor(), iborIndex(), fixedRate)
                 .withType(type)
-                .withEffectiveDate(valueDate(fixingDate))
+                .withEffectiveDate(effectiveDate)
                 .withFixedLegCalendar(fixingCalendar())
-                .withFixedLegDayCount(dayCounter_)
-                .withFixedLegTenor(fixedLegTenor_)
-                .withFixedLegConvention(fixedLegConvention_)
-                .withFixedLegTerminationDateConvention(fixedLegConvention_)
-                .withFixedLegEndOfMonth(fixedLegEndOfMonth_)
-                .withFloatingLegEndOfMonth(floatingLegEndOfMonth_)
-                .withRule(DateGeneration::Forward)
+                .withFixedLegDayCount(dayCounter()) // dayCounter() returns the fixed leg day counter
+                .withFixedLegTenor(fixedLegTenor())
+                .withFixedLegConvention(fixedLegConvention())
+                .withFixedLegTerminationDateConvention(fixedLegConvention())
+                .withFixedLegEndOfMonth(endOfMonth())
+                .withFloatingLegCalendar(fixingCalendar())
+                .withFloatingLegEndOfMonth(endOfMonth())
                 ;
             return swap;
+        }
+        ext::shared_ptr<VanillaSwap> underlyingSwap(
+            const Date& fixingDate
+        ) const {
+            QL_REQUIRE(fixingDate != Date(), "null fixing date");
+            // caching mechanism
+            if (lastFixingDate_ != fixingDate) {
+                Rate fixedRate = 0.0;
+                lastSwap_ = makeSwap(fixingDate, Swap::Type::Payer, fixedRate);
+                lastFixingDate_ = fixingDate;
+            }
+            return lastSwap_;
+        }
+        // make the correct adjustment to the swap fixing date so the it is a valid working date on the fixing calendar
+        Date fixingDateAdj(
+            Date d = Date()
+        ) const {
+            if (d == Date()) {
+                d = Settings::instance().evaluationDate();
+            }
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(this->currency(), fixingCalendar());
+            return fixingAdj.adjust(d);
+        }
+        Date maturityDate(
+            const Date& valueDate
+        ) const override {
+            Date d = this->fixingDate(valueDate);
+            Date fixingDate = fixingDateAdj(d);
+            return underlyingSwap(fixingDate)->maturityDate();
+        }
+        std::tuple<FixingDate, EffectiveDate, MaturityDate> getImportantDates(
+            Date refDate = Date()
+        ) const {
+            Date fixingDate = fixingDateAdj(refDate);
+            Date effectiveDate = this->valueDate(fixingDate);
+            Date maturityDate = underlyingSwap(fixingDate)->maturityDate();
+            return std::tuple<FixingDate, EffectiveDate, MaturityDate> {
+                fixingDate,
+                effectiveDate,
+                maturityDate
+            };
         }
     };
 
@@ -351,7 +361,7 @@ namespace QuantLib {
         FwdOISVanillaSwapIndex(
             const Period& tenor,        // tenor of the swap
             Natural settlementDays,     // number of days required to settle the swap
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             SwapIndexEx(
                 makeFamilyName(OvernightIndex().currency(), settlementDays), // familyName
@@ -365,11 +375,10 @@ namespace QuantLib {
                 ext::shared_ptr<IborIndex>(
                     new IndexType(
                         settlementDays, // fixingDays of the index matches with the settlementDays of the swap
-                        indexEstimatingTermStructure
+                        h
                     )
                 ),  // iborIndex
-                true,   // fixedLegEndOfMonth, OIS swaps usually have EndOfMonth=true for both legs
-                true    // floatingLegEndOfMonth, OIS swaps usually have EndOfMonth=true for both legs
+                true   // endOfMonth, OIS-based vanilla/overnight swaps usually have endOfMonth=true for both legs
             )
         {}
     };

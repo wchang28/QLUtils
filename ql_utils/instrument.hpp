@@ -619,15 +619,17 @@ namespace QLUtils {
             QuantLib::Calendar calendar = swapTraits_.fixingCalendar(tenor());
             auto pr = getSwapIndexStartInfo(swapTraits_.settlementDays(tenor()), iborIndex, calendar);
             auto const& settlementDays = pr.first;
+            auto endOfMonth = swapTraits_.endOfMonth(tenor());
             QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
                 .withSettlementDays(settlementDays)
                 .withFixedLegCalendar(calendar)
+                .withFixedLegDayCount(swapTraits_.fixedLegDayCount(tenor()))
                 .withFixedLegTenor(swapTraits_.fixedLegTenor(tenor()))
                 .withFixedLegConvention(swapTraits_.fixedLegConvention(tenor()))
-                .withFixedLegDayCount(swapTraits_.fixedLegDayCount(tenor()))
-                .withFixedLegEndOfMonth(swapTraits_.endOfMonth(tenor()))
+                .withFixedLegTerminationDateConvention(swapTraits_.fixedLegConvention(tenor()))
+                .withFixedLegEndOfMonth(endOfMonth)
                 .withFloatingLegCalendar(calendar)
-                .withFloatingLegEndOfMonth(swapTraits_.endOfMonth(tenor()));
+                .withFloatingLegEndOfMonth(endOfMonth);
             return swap;
         }
     public:
@@ -644,22 +646,23 @@ namespace QLUtils {
             QuantLib::Calendar calendar = swapTraits_.fixingCalendar(tenor());
             auto pr = getSwapIndexStartInfo(swapTraits_.settlementDays(tenor()), iborIndex, calendar);
             auto const& settlementDays = pr.first;
+            auto endOfMonth = swapTraits_.endOfMonth(tenor());
             QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
                 new QuantLib::SwapRateHelper(
-                    quote(),
-                    tenor(),
-                    calendar,
-                    swapTraits_.fixedLegFrequency(tenor()),
-                    swapTraits_.fixedLegConvention(tenor()),
-                    swapTraits_.fixedLegDayCount(tenor()),
-                    iborIndex,
+                    quote(),    // rate
+                    tenor(),    // tenor
+                    calendar,   // calendar
+                    swapTraits_.fixedLegFrequency(tenor()), // fixedFrequency
+                    swapTraits_.fixedLegConvention(tenor()),    // fixedConvention
+                    swapTraits_.fixedLegDayCount(tenor()),  // fixedDayCount
+                    iborIndex,  // iborIndex
                     QuantLib::Handle<QuantLib::Quote>(),    // spread
                     0 * QuantLib::Days,// fwdStart
-                    discountingTermStructure,
-                    settlementDays,
-                    QuantLib::Pillar::MaturityDate,
-                    QuantLib::Date(),
-                    swapTraits_.endOfMonth(tenor())
+                    discountingTermStructure,   // discountingCurve
+                    settlementDays, // settlementDays
+                    QuantLib::Pillar::MaturityDate, // pillar
+                    QuantLib::Date(),   // customPillarDate
+                    endOfMonth  // endOfMonth
                 )
             );
             return helper;

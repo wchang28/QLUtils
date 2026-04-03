@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ql/quantlib.hpp>
+#include <ql_utils/indexes/ois-swap-index.hpp>
 
 namespace QLUtils {
     // traits for the overnight indexes swap
@@ -58,12 +59,12 @@ namespace QLUtils {
 
     // traits for the vanilla swap
     // examples:
-    // VanillaSwapTraits<QuantLib::UsdLiborSwapIsdaFixAm>
-    // VanillaSwapTraits<QuantLib::ChfLiborSwapIsdaFix>
-    // VanillaSwapTraits<QuantLib::EuriborSwapIfrFix>
-    // VanillaSwapTraits<QuantLib::EurLiborSwapIfrFix>
-    // VanillaSwapTraits<QuantLib::GbpLiborSwapIsdaFix>
-    // VanillaSwapTraits<QuantLib::JpyLiborSwapIsdaFixPm>
+    // VanillaSwapTraits<QuantLib::EuriborSwapIsdaFixA>
+    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<1>>
+    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<3>>
+    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<6>>
+    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<12>>
+    // VanillaSwapTraits<QuantLib::UsdFwdOISVanillaSwapIndex<Sofr>>
     template<
         typename BASE_SWAP_INDEX
     >
@@ -80,7 +81,9 @@ namespace QLUtils {
         }
         // !!! end of month for both legs !!!
         bool endOfMonth(const QuantLib::Period& tenor) const {
-            return false;
+            std::shared_ptr<BaseSwapIndex> pSwapIndex(new BaseSwapIndex(tenor));
+            auto pIndexEx = std::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex);
+            return (pIndexEx != nullptr ? pIndexEx->endOfMonth() : false);
         }
         QuantLib::Period fixedLegTenor(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);

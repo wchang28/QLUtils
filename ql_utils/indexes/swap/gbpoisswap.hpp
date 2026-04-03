@@ -14,14 +14,14 @@ namespace QuantLib {
     public:
         GbpOvernightIndexedSwapIsdaFix(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
                 0,  // T+0 swap settlement on the fixing calendar
                 GBPCurrency(),
-                indexEstimatingTermStructure,
+                h,
                 0,   // 0 day payment lag on the payment calendar
                 OVERNIGHTINDEX().fixingCalendar(),    // payment calendar: uses overnight index's fixing calendar
                 OVERNIGHTINDEX().fixingCalendar()   // fixing calendar: uses overnight index's fixing calendar
@@ -36,10 +36,10 @@ namespace QuantLib {
     class GbpOvernightCompoundedAverageIndex : public OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ> {
     public:
         GbpOvernightCompoundedAverageIndex(
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
             0,  // T+0 index fixing
-            indexEstimatingTermStructure
+            h
         ) {}
     };
 
@@ -51,13 +51,13 @@ namespace QuantLib {
     public:
         GbpFwdOISVanillaSwapIndex(
             const Period& tenor,
-            const Handle<YieldTermStructure>& indexEstimatingTermStructure = {}
+            const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ>
             (
                 tenor,
                 0,  // T+0 swap settlement
-                indexEstimatingTermStructure
+                h
             )
         {}
     };
