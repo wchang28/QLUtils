@@ -2,8 +2,41 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/indexes/ois-swap-index.hpp>
+#include <ql_utils/fixing-date-adjustment.hpp>
 
 namespace QLUtils {
+    struct ISwapTraits {
+        struct FixingResult {
+			QuantLib::Calendar fixingCalendar; // swap fixing calendar
+            QuantLib::Date fixingDate;  // swap fixing date
+			QuantLib::Date effectiveDate;   // swap effective date
+        };
+        // number of days to settle
+        virtual QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const = 0;
+        // fixing calendar for both legs
+        virtual QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const = 0;
+		// calculate the fixing date and effective date for a given reference date (default to evaluation date if not provided)
+        FixingResult calculateFixing(
+            const QuantLib::Period& tenor,
+			QuantLib::Date refDate = QuantLib::Date()
+        ) const {
+            if (refDate == QuantLib::Date()) {
+                refDate = QuantLib::Settings::instance().evaluationDate();
+            }
+            auto fixingCalendar = this->fixingCalendar(tenor);
+            auto settlementDays = this->settlementDays(tenor);
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(settlementDays, fixingCalendar);
+            auto ret = fixingAdj.calculate(refDate);
+            auto fixingDate = std::get<0>(ret);
+            auto effectiveDate = std::get<1>(ret);
+            return FixingResult{
+                fixingCalendar,
+                fixingDate,
+                effectiveDate
+            };
+        }
+    };
+
     // traits for the overnight indexes swap
     // example:
     // OvernightIndexedSwapTraits<UsdOvernightIndexedSwapIsdaFix<FedFunds>>
@@ -14,12 +47,17 @@ namespace QLUtils {
     template<
         typename BASE_SWAP_INDEX
     >
-    struct OvernightIndexedSwapTraits {
+    struct OvernightIndexedSwapTraits: public ISwapTraits {
         typedef BASE_SWAP_INDEX BaseSwapIndex;
         typedef typename BaseSwapIndex::OvernightIndex OvernightIndex;
-        QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const {
+        QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const override {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingDays();
+        }
+        // fixing calendar for both legs
+        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const override {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.fixingCalendar();
         }
         bool telescopicValueDates(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
@@ -45,12 +83,7 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.paymentCalendar();
         }
-        // !!! fixing calendar for both legs !!!
-        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixingCalendar();
-        }
-        // !!! end of month flag for both legs !!!
+        // end of month flag for both legs
         bool endOfMonth(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.endOfMonth();
@@ -73,18 +106,18 @@ namespace QLUtils {
     template<
         typename BASE_SWAP_INDEX
     >
-    struct VanillaSwapTraits {
+    struct VanillaSwapTraits: public ISwapTraits {
         typedef BASE_SWAP_INDEX BaseSwapIndex;
-        QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const {
+        QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const override {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingDays();
         }
-        // !!! fixing calendar for both legs !!!
-        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const {
+        // fixing calendar for both legs
+        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const override {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingCalendar();
         }
-        // !!! end of month flag for both legs !!!
+        // end of month flag for both legs
         bool endOfMonth(const QuantLib::Period& tenor) const {
             std::shared_ptr<BaseSwapIndex> pSwapIndex(new BaseSwapIndex(tenor));
             auto pIndexEx = std::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex);
