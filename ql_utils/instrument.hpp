@@ -240,47 +240,78 @@ namespace QLUtils {
         typedef SWAP_TRAITS SwapTraits;
         typedef typename SwapTraits::BaseSwapIndex BaseSwapIndex;
         typedef typename SwapTraits::OvernightIndex OvernightIndex;
+        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> pOvernightIndex;
+        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
     private:
         SwapTraits swapTraits_;
-    public:
-        OISSwapIndex(
-            const QuantLib::Period& tenor
-        ) : BootstrapInstrument(BootstrapInstrument::vtRate, tenor) {}
+        QuantLib::Calendar fixingCalendar_; // swap fixing calendar for both legs
+        QuantLib::Date fixingDate_; // swap fixing date
+        QuantLib::Date effectiveDate_;  // swap effective date
     private:
-        QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> createSwap(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+        pOvernightIndex makeOvernightIndex(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}    // estimating term structure
         ) const {
-            auto overnightIndex = swapTraits_.createOvernightIndex(estimatingTermStructure);
-            auto fixingCalendar = swapTraits_.fixingCalendar(tenor());
-            QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
-                .withSettlementDays(swapTraits_.settlementDays(tenor()))
+            return pOvernightIndex(new OvernightIndex(h));
+        }
+        pOvernightIndexedSwap makeSwap(
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}    // estimating term structure
+        ) const {
+            auto overnightIndex = makeOvernightIndex(h);
+            pOvernightIndexedSwap swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
+                .withEffectiveDate(effectiveDate())
                 .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
                 .withAveragingMethod(swapTraits_.averagingMethod(tenor()))
                 .withPaymentLag(swapTraits_.paymentLag(tenor()))
                 .withPaymentAdjustment(swapTraits_.paymentConvention(tenor()))
                 .withPaymentFrequency(swapTraits_.paymentFrequency(tenor()))
                 .withPaymentCalendar(swapTraits_.paymentCalendar(tenor()))
-                .withFixedLegCalendar(fixingCalendar)
-                .withOvernightLegCalendar(fixingCalendar)
+                .withFixedLegCalendar(fixingCalendar())
+                .withOvernightLegCalendar(fixingCalendar())
                 ;
             return swap;
         }
     public:
+        OISSwapIndex(
+            const QuantLib::Period& tenor,
+            QuantLib::Date refDate = QuantLib::Date()
+        ) : BootstrapInstrument(BootstrapInstrument::vtRate, tenor)
+        {
+            if (refDate == QuantLib::Date()) {
+                refDate = QuantLib::Settings::instance().evaluationDate();
+            }
+            fixingCalendar_ = swapTraits_.fixingCalendar(tenor);
+            auto settlementDays = swapTraits_.settlementDays(tenor);
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(settlementDays, fixingCalendar_);
+            auto ret = fixingAdj.calculate(refDate);
+            fixingDate_ = std::get<0>(ret);
+            effectiveDate_ = std::get<1>(ret);
+            this->datedDate() = makeSwap()->maturityDate();
+        }
+        const QuantLib::Calendar& fixingCalendar() const {
+            return fixingCalendar_;
+        }
+        QuantLib::Date fixingDate() const {
+            return fixingDate_;
+        }
+        QuantLib::Date effectiveDate() const {
+            return effectiveDate_;
+        }
         QuantLib::Date startDate() const {
-            return createSwap()->startDate();
+            return effectiveDate_;
         }
         QuantLib::Date maturityDate() const {
-            return createSwap()->maturityDate();
+            return this->datedDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
         ) const {
-            auto overnightIndex = swapTraits_.createOvernightIndex();
-            auto fixingCalendar = swapTraits_.fixingCalendar(tenor());
+			auto startDate = this->startDate();
+			auto endDate = this->maturityDate();
+            auto overnightIndex = makeOvernightIndex();
             QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
                 new QuantLib::OISRateHelper(
-                    swapTraits_.settlementDays(tenor()),    // settlementDays
-                    tenor(),    // tenor - swap maturity
+                    startDate,    // startDate
+					endDate,  // endDate
                     quote(),    // fixedRate
                     overnightIndex, // overnightIndex
                     discountingTermStructure,   // exogenous discounting curve
@@ -289,30 +320,33 @@ namespace QLUtils {
                     swapTraits_.paymentConvention(tenor()), // paymentConvention
                     swapTraits_.paymentFrequency(tenor()),   // paymentFrequency
                     swapTraits_.paymentCalendar(tenor()),   // paymentCalendar
-                    0 * QuantLib::Days, // forwardStart
-                    0.,    // overnightSpread
+                    QuantLib::Spread(0.),    // overnightSpread
                     QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
                     swapTraits_.averagingMethod(tenor()),    // averagingMethod
                     QuantLib::ext::nullopt,   // endOfMonth
                     QuantLib::ext::nullopt,   // fixedPaymentFrequency
-                    fixingCalendar, // fixedCalendar
-                    QuantLib::Null<QuantLib::Natural>(),    //lookbackDays
+                    fixingCalendar(), // fixedCalendar
+                    QuantLib::Null<QuantLib::Natural>(),    // lookbackDays
                     0,  // lockoutDays
                     false,  // applyObservationShift
                     {}, // pricer
                     QuantLib::DateGeneration::Backward,   // rule
-                    fixingCalendar  // overnightCalendar
+                    fixingCalendar()  // overnightCalendar
                 )
             );
+            auto swap = helper->swap();
+			QL_ASSERT(swap->startDate() == startDate, "swap start date (" << swap->startDate() << ") is not what's expected (" << startDate << ")");
+			QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
+            QL_ASSERT(swap->fixedRate() == rate(), "swap fixed rate (" << QuantLib::io::percent(swap->fixedRate()) << ") is not what's expected (" << QuantLib::io::percent(rate()) << ")");
             return helper;
         }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}
         ) const {
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
-            auto swap = createSwap(estimatingTermStructure);
+            auto swap = makeSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
             return swapRate;

@@ -89,6 +89,12 @@ namespace QuantLib {
         Calendar fixingCalendar() const override {
             return (customFixingCalendar_ == Calendar() ? InterestRateIndex::fixingCalendar() : customFixingCalendar_);
         }
+        bool endOfMonth() const {
+            return true;
+        }
+        BusinessDayConvention convention() const {
+            return fixedLegConvention();
+        }
         // make the correct adjustment to the swap fixing date so the it is a valid working date on the fixing calendar
         Date fixingDateAdj(
             Date d = Date()
@@ -128,7 +134,6 @@ namespace QuantLib {
             ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor(), overnightIndex(), fixedRate)
                 .withType(type)
                 .withEffectiveDate(effectiveDate)
-                .withFixedLegDayCount(dayCounter()) // dayCounter() returns the fixed leg day counter
                 .withTelescopicValueDates(telescopicValueDates())
                 .withAveragingMethod(averagingMethod())
                 .withPaymentLag(paymentLag())

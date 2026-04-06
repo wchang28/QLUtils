@@ -50,11 +50,13 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingCalendar();
         }
+        /*
         auto createOvernightIndex(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& indexEstimatingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}
         ) const {
-            return QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(indexEstimatingTermStructure));
+            return QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(h));
         }
+        */
     };
 
     // traits for the vanilla swap
