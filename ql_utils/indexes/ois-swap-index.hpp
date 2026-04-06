@@ -96,7 +96,7 @@ namespace QuantLib {
             if (d == Date()) {
                 d = Settings::instance().evaluationDate();
             }
-            QuantLib::Utils::FixingDateAdjustment fixingAdj(this->currency(), fixingCalendar());
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(this->fixingDays(), fixingCalendar());
             return fixingAdj.adjust(d);
         }
         Date maturityDate(
@@ -303,7 +303,7 @@ namespace QuantLib {
             if (d == Date()) {
                 d = Settings::instance().evaluationDate();
             }
-            QuantLib::Utils::FixingDateAdjustment fixingAdj(this->currency(), fixingCalendar());
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(fixingDays(), fixingCalendar());
             return fixingAdj.adjust(d);
         }
         Date maturityDate(

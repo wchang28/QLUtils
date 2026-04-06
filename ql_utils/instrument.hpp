@@ -5,6 +5,7 @@
 #include <cmath>
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
+#include <ql_utils/fixing-date-adjustment.hpp>
 #include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 
 namespace QLUtils {
@@ -224,7 +225,7 @@ namespace QLUtils {
         IborIndexFactory& iborIndexFactory() {
             return iborIndexFactory_;
         }
-        QuantLib::ext::shared_ptr<QuantLib::IborIndex> iborIndex(const QuantLib::Handle<QuantLib::YieldTermStructure>& h = QuantLib::Handle<QuantLib::YieldTermStructure>()) const {
+        QuantLib::ext::shared_ptr<QuantLib::IborIndex> iborIndex(const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}) const {
             return iborIndexFactory()(h);
         }
     };
@@ -272,7 +273,7 @@ namespace QLUtils {
             return createSwap()->maturityDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
         ) const {
             auto overnightIndex = swapTraits_.createOvernightIndex();
             auto fixingCalendar = swapTraits_.fixingCalendar(tenor());
@@ -473,47 +474,59 @@ namespace QLUtils {
     };
 
     class CashDepositIndex : public SwapCurveInstrument {
+    private:
+        QuantLib::ext::shared_ptr<QuantLib::IborIndex> iborIndex_;
+        QuantLib::Date fixingDate_;
+        QuantLib::Date valueDate_;
     public:
         CashDepositIndex(
             const IborIndexFactory& iborIndexFactory,
-            const QuantLib::Period& tenor
-        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtRate, SwapCurveInstrument::Deposit, tenor) {}
-    private:
-        std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter> getValueMaturityDates() const {
-            auto iborIndex = this->iborIndex();
-            auto fixingDate = iborIndex->fixingCalendar().adjust(QuantLib::Settings::instance().evaluationDate());
-            auto valueDate = iborIndex->valueDate(fixingDate);
-            auto maturityDate = iborIndex->maturityDate(valueDate);
-            return std::tuple<QuantLib::Date, QuantLib::Date, QuantLib::DayCounter>(valueDate, maturityDate, iborIndex->dayCounter());
+            const QuantLib::Period& tenor,
+            QuantLib::Date refDate = QuantLib::Date()
+        ) :
+        SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtRate, SwapCurveInstrument::Deposit, tenor),
+        iborIndex_(this->iborIndex())
+        {
+            if (refDate == QuantLib::Date()) {
+                refDate = QuantLib::Settings::instance().evaluationDate();
+            }
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(iborIndex_->fixingDays(), iborIndex_->fixingCalendar());
+            fixingDate_ = fixingAdj.adjust(refDate);
+            valueDate_ = iborIndex_->valueDate(fixingDate_);
+            this->datedDate() = iborIndex_->maturityDate(valueDate_);
         }
     public:
+        QuantLib::Date fixingDate() const {
+            return fixingDate_;
+        }
+        QuantLib::Date valueDate() const {
+            return valueDate_;
+        }
         QuantLib::Date startDate() const {
-            return std::get<0>(getValueMaturityDates());
+            return valueDate_;
         }
         QuantLib::Date maturityDate() const {
-            return std::get<1>(getValueMaturityDates());
+            return datedDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
         ) const {
-            auto iborIndex = this->iborIndex();
             QuantLib::ext::shared_ptr<QuantLib::DepositRateHelper> helper(
                 new QuantLib::DepositRateHelper(
                     quote(),
-                    iborIndex
+                    fixingDate(),
+                    iborIndex_
                 )
             );
             return helper;
         }
         QuantLib::Real impliedQuote(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
         ) const {
-            auto result = getValueMaturityDates();
-            auto const& start = std::get<0>(result);
-            auto const& end = std::get<1>(result);
-            auto const& dayCounter = std::get<2>(result);
-            auto rate = this->simpleForwardRate(start, end, dayCounter, estimatingTermStructure);
+            auto start = valueDate();
+            auto end = maturityDate();
+            auto rate = this->simpleForwardRate(start, end, iborIndex_->dayCounter(), estimatingTermStructure);
             return rate;
         }
     };

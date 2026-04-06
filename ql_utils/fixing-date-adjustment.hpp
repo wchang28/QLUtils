@@ -1,43 +1,50 @@
 #pragma once
 
 #include <ql/quantlib.hpp>
+#include <utility>
 
 namespace QuantLib {
     namespace Utils {
         class FixingDateAdjustment {
         private:
-            Currency currency_;
+            Natural fixingDays_;
             Calendar fixingCalendar_;
+		public:
+			typedef Date FixingDate;
+			typedef Date ValueDate;
         public:
             FixingDateAdjustment(
-                const Currency& currency,
+                Natural fixingDays,
                 const Calendar& fixingCalendar
-            ): currency_(currency), fixingCalendar_(fixingCalendar)
+            ): fixingDays_(fixingDays), fixingCalendar_(fixingCalendar)
             {}
             static BusinessDayConvention adjConvention (
-                const Currency& currency
+                Natural fixingDays
             ) {
-                if (currency == USDCurrency())
-                    return Preceding;
-                else if (currency == EURCurrency())
-                    return Preceding;
-                else if (currency == GBPCurrency())
-                    return Following;
-                else
-                    return Preceding;
+				return (fixingDays == 0 ? Following : Preceding);
             }
-            const Currency& currency() const {
-                return currency_;
+            Natural fixingDays() const {
+                return fixingDays_;
             }
             const Calendar& fixingCalendar() const {
                 return fixingCalendar_;
             }
+			// adjust a candidate fixing date to a correct fixing date base on the number of days of fixing
             Date adjust(
-                const Date& d
+                const Date& d	// candidate fixing date
             ) const {
-                auto convention = adjConvention(currency_);
+				QL_REQUIRE(d != Date(), "date cannot be null");
+                auto convention = adjConvention(fixingDays_);
                 return fixingCalendar_.adjust(d, convention);
             }
+			std::pair<FixingDate, ValueDate> calculate(
+				const Date& d	// candidate fixing date
+			) const {
+				auto fixingDate = adjust(d);
+				auto valueDate = fixingCalendar_.advance(fixingDate, fixingDays_ * Days, Following, false);
+				QL_ASSERT(valueDate >= d, "value date (" << valueDate << ") is less than the base reference date (" << d << ")");
+				return std::pair<FixingDate, ValueDate>(fixingDate, valueDate);
+			}
         };
     }
 }
