@@ -15,6 +15,7 @@ namespace QLUtils {
             vtRate = 0,
             vtPrice = 1,
         };
+        typedef QuantLib::Handle<QuantLib::YieldTermStructure> YieldTermStructureHandle;
     protected:
         std::string ticker_;
         QuantLib::Period tenor_;
@@ -453,6 +454,22 @@ namespace QLUtils {
         ) const {
             return impliedRate(estimatingTermStructure);
         }
+    };
+
+    template <
+		typename OvernightIndex // can be Sofr, FedFunds, Sonia, Estr, Eonia
+    >
+    class OvernightCashDeposit : public CashDepositIndex {
+    public:
+        OvernightCashDeposit(
+            QuantLib::Date refDate = QuantLib::Date()
+        ) :
+            CashDepositIndex(
+                [](const YieldTermStructureHandle& h) {return pIborIndex(new OvernightIndex(h));},
+                1 * QuantLib::Days,
+                refDate
+            )
+        {}
     };
 
     class IMMFuture : public SwapCurveInstrument {
