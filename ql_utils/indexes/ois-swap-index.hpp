@@ -89,6 +89,7 @@ namespace QuantLib {
         Calendar fixingCalendar() const override {
             return (customFixingCalendar_ == Calendar() ? InterestRateIndex::fixingCalendar() : customFixingCalendar_);
         }
+        // end of month flags for both legs
         bool endOfMonth() const {
             return true;
         }

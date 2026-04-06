@@ -50,13 +50,16 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingCalendar();
         }
-        /*
-        auto createOvernightIndex(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}
-        ) const {
-            return QuantLib::ext::shared_ptr<OvernightIndex>(new OvernightIndex(h));
+        // !!! end of month flag for both legs !!!
+        bool endOfMonth(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.endOfMonth();
         }
-        */
+        // bisiness day adj convention for both legs
+        QuantLib::BusinessDayConvention convention(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.convention();
+        }
     };
 
     // traits for the vanilla swap
@@ -81,7 +84,7 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingCalendar();
         }
-        // !!! end of month for both legs !!!
+        // !!! end of month flag for both legs !!!
         bool endOfMonth(const QuantLib::Period& tenor) const {
             std::shared_ptr<BaseSwapIndex> pSwapIndex(new BaseSwapIndex(tenor));
             auto pIndexEx = std::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex);
