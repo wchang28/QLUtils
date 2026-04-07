@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ql_utils/instrument.hpp>
+#include <ql_utils/fixing-date-adjustment.hpp>
 #include <vector>
 #include <memory>
 #include <cmath>
@@ -312,15 +313,18 @@ namespace QuantLib {
             {
                 QL_REQUIRE(tenor.length() > 0, "The length of the bond tenor (" << tenor.length() << ") must be greater than 0");
 				if (settlementDate_ == Date()) {    // bond settlement date is not given => calculate the settlement date based on the evaluation date and settlement days
-					auto today = Settings::instance().evaluationDate();
-                    QL_ASSERT(today != Date(), "evaluation date/today not set");
-                    settlementDate_ = settlementCalendar().advance(today, settlementDays(), Days);
-				}
+					Date today = Settings::instance().evaluationDate();
+                    QL_REQUIRE(today != Date(), "evaluation date/today not set");
+					FixingDateAdjustment fixingAdj(settlementDays(), settlementCalendar());
+                    auto ret = fixingAdj.calculate(today);
+					auto fixingDate = std::get<0>(ret);
+                    settlementDate_ = std::get<1>(ret);
+        		}
                 auto settleDate = this->settlementDate();
                 QL_ASSERT(settleDate != Date(), "settlement date not set");
-				if (maturityDate == Date()) {  // maturity date is not given (CMT bond)
+				if (maturityDate == Date()) {  // maturity date is not given (TheoreticalBond)
                     auto [multipile, n] = isMultiple(tenor, this->couponTenor());
-                    if (multipile) {    // tenor is a multiple of coupon period => create a forward bond schedule of n coupon periods starting fro the settlement date
+                    if (multipile) {    // tenor is a multiple of coupon period => create a forward bond schedule of n coupon periods starting from the settlement date
                         QL_ASSERT(n != Null<Integer>(), "the number of coupon accrual periods is null");
                         QL_ASSERT(n > 0, "the number of coupon accrual periods (" << n << ") must be greater than 0");
                         accrualSchedule_ = createForwardSchedule(settleDate, (Natural)n);

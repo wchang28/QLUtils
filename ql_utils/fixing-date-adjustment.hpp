@@ -42,7 +42,7 @@ namespace QuantLib {
             ) const {
                 auto fixingDate = adjust(d);
                 auto valueDate = fixingCalendar_.advance(fixingDate, fixingDays_ * Days, Following, false);
-                QL_ASSERT(valueDate >= d, "value date (" << valueDate << ") is less than the base reference date (" << d << ")");
+                QL_ASSERT(valueDate >= d, "value/settle date (" << valueDate << ") is less than the base reference date (" << d << ")");
                 return std::pair<FixingDate, ValueDate>(fixingDate, valueDate);
             }
         };
