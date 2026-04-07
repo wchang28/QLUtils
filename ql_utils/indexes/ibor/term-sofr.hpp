@@ -22,32 +22,18 @@ namespace QuantLib {
         )
         {}
     };
-    class TermSofr1M : public USDTermSofr {
+	template <
+        Natural TenorMonths
+    >
+    class TermSofr : public USDTermSofr {
     public:
-        TermSofr1M(
+        TermSofr(
             const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : USDTermSofr(1, h)
+        ) : USDTermSofr(TenorMonths, h)
         {}
     };
-    class TermSofr3M : public USDTermSofr {
-    public:
-        TermSofr3M(
-            const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : USDTermSofr(3, h)
-        {}
-    };
-    class TermSofr6M : public USDTermSofr {
-    public:
-        TermSofr6M(
-            const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : USDTermSofr(6, h)
-        {}
-    };
-    class TermSofr12M : public USDTermSofr {
-    public:
-        TermSofr12M(
-            const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : USDTermSofr(12, h)
-        {}
-    };
+    using TermSofr1M = TermSofr<1>;
+    using TermSofr3M = TermSofr<3>;
+    using TermSofr6M = TermSofr<6>;
+    using TermSofr12M = TermSofr<12>;
 }

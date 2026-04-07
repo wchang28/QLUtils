@@ -40,7 +40,7 @@ namespace QuantLib {
         }
     public:
         typedef Date FixingDate;
-        typedef Date EffectiveDate;
+        typedef Date StartDate;
         typedef Date MaturityDate;
     public:
         OvernightIndexedSwapIndexEnhanced(
@@ -96,6 +96,10 @@ namespace QuantLib {
         BusinessDayConvention convention() const {
             return fixedLegConvention();
         }
+        // when the swap start date is certain the cashflow generation rule for both legs is Forward
+        DateGeneration::Rule rule() const {
+            return DateGeneration::Rule::Forward;
+        }
         // make the correct adjustment to the swap fixing date so the it is a valid working date on the fixing calendar
         Date fixingDateAdj(
             Date d = Date()
@@ -113,15 +117,16 @@ namespace QuantLib {
             Date fixingDate = fixingDateAdj(d);
             return underlyingSwap(fixingDate)->maturityDate();
         }
-        std::tuple<FixingDate, EffectiveDate, MaturityDate> getImportantDates(
+		// import dates (fixingDate, startDate, maturityDate) for the swap given a reference date
+        std::tuple<FixingDate, StartDate, MaturityDate> getImportantDates(
             Date refDate = Date()
         ) const {
             Date fixingDate = fixingDateAdj(refDate);
-            Date effectiveDate = this->valueDate(fixingDate);
+            Date startDate = this->valueDate(fixingDate);
             Date maturityDate = underlyingSwap(fixingDate)->maturityDate();
-            return std::tuple<FixingDate, EffectiveDate, MaturityDate> {
+            return std::tuple<FixingDate, StartDate, MaturityDate> {
                 fixingDate,
-                effectiveDate,
+                startDate,
                 maturityDate
             };
         }
@@ -131,10 +136,10 @@ namespace QuantLib {
             Rate fixedRate = Null<Rate>()
         ) const {
             QL_REQUIRE(fixingDate != Date(), "null fixing date");
-            auto effectiveDate = this->valueDate(fixingDate);
+            auto startDate = this->valueDate(fixingDate);
             ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor(), overnightIndex(), fixedRate)
                 .withType(type)
-                .withEffectiveDate(effectiveDate)
+                .withEffectiveDate(startDate)
                 .withTelescopicValueDates(telescopicValueDates())
                 .withAveragingMethod(averagingMethod())
                 .withPaymentLag(paymentLag())
@@ -143,6 +148,7 @@ namespace QuantLib {
                 .withPaymentCalendar(paymentCalendar())
                 .withFixedLegCalendar(fixingCalendar())
                 .withOvernightLegCalendar(fixingCalendar())
+				.withRule(rule())
                 ;
             return swap;
         }
@@ -197,7 +203,7 @@ namespace QuantLib {
         bool endOfMonth_;   // end of month flag for both legs
     public:
         typedef Date FixingDate;
-        typedef Date EffectiveDate;
+        typedef Date StartDate;
         typedef Date MaturityDate;
     public:
         SwapIndexEx(
@@ -259,12 +265,12 @@ namespace QuantLib {
             Rate fixedRate = Null<Rate>()
         ) const {
             QL_REQUIRE(fixingDate != Date(), "null fixing date");
-            auto effectiveDate = this->valueDate(fixingDate);
+            auto startDate = this->valueDate(fixingDate);
             ext::shared_ptr<VanillaSwap> swap;
             if (exogenousDiscount())
                 swap = MakeVanillaSwap(tenor(), iborIndex(), fixedRate)
                 .withType(type)
-                .withEffectiveDate(effectiveDate)
+                .withEffectiveDate(startDate)
                 .withFixedLegCalendar(fixingCalendar())
                 .withFixedLegDayCount(dayCounter()) // dayCounter() returns the fixed leg day counter
                 .withFixedLegTenor(fixedLegTenor())
@@ -278,7 +284,7 @@ namespace QuantLib {
             else
                 swap = MakeVanillaSwap(tenor(), iborIndex(), fixedRate)
                 .withType(type)
-                .withEffectiveDate(effectiveDate)
+                .withEffectiveDate(startDate)
                 .withFixedLegCalendar(fixingCalendar())
                 .withFixedLegDayCount(dayCounter()) // dayCounter() returns the fixed leg day counter
                 .withFixedLegTenor(fixedLegTenor())
@@ -319,15 +325,16 @@ namespace QuantLib {
             Date fixingDate = fixingDateAdj(d);
             return underlyingSwap(fixingDate)->maturityDate();
         }
-        std::tuple<FixingDate, EffectiveDate, MaturityDate> getImportantDates(
+        // import dates (fixingDate, startDate, maturityDate) for the swap given a reference date
+        std::tuple<FixingDate, StartDate, MaturityDate> getImportantDates(
             Date refDate = Date()
         ) const {
             Date fixingDate = fixingDateAdj(refDate);
-            Date effectiveDate = this->valueDate(fixingDate);
+            Date startDate = this->valueDate(fixingDate);
             Date maturityDate = underlyingSwap(fixingDate)->maturityDate();
-            return std::tuple<FixingDate, EffectiveDate, MaturityDate> {
+            return std::tuple<FixingDate, StartDate, MaturityDate> {
                 fixingDate,
-                effectiveDate,
+                startDate,
                 maturityDate
             };
         }

@@ -22,32 +22,18 @@ namespace QuantLib {
         )
         {}
     };
-    class TermSonia1M : public GBPTermSonia {
+    template <
+        Natural TenorMonths
+    >
+    class TermSonia : public GBPTermSonia {
     public:
-        TermSonia1M(
+        TermSonia(
             const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : GBPTermSonia(1, h)
+        ) : GBPTermSonia(TenorMonths, h)
         {}
     };
-    class TermSonia3M : public GBPTermSonia {
-    public:
-        TermSonia3M(
-            const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : GBPTermSonia(3, h)
-        {}
-    };
-    class TermSonia6M : public GBPTermSonia {
-    public:
-        TermSonia6M(
-            const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : GBPTermSonia(6, h)
-        {}
-    };
-    class TermSonia12M : public GBPTermSonia {
-    public:
-        TermSonia12M(
-            const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : GBPTermSonia(12, h)
-        {}
-    };
+    using TermSonia1M = TermSonia<1>;
+    using TermSonia3M = TermSonia<3>;
+    using TermSonia6M = TermSonia<6>;
+    using TermSonia12M = TermSonia<12>;
 }

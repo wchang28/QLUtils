@@ -9,12 +9,15 @@ namespace QLUtils {
         struct FixingResult {
 			QuantLib::Calendar fixingCalendar; // swap fixing calendar
             QuantLib::Date fixingDate;  // swap fixing date
-			QuantLib::Date effectiveDate;   // swap effective date
+			QuantLib::Date startDate;   // swap start date
         };
         // number of days to settle
         virtual QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const = 0;
         // fixing calendar for both legs
         virtual QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const = 0;
+        // end of month flag for both legs
+        virtual bool endOfMonth(const QuantLib::Period& tenor) const = 0;
+
 		// calculate the fixing date and effective date for a given reference date (default to evaluation date if not provided)
         FixingResult calculateFixing(
             const QuantLib::Period& tenor,
@@ -28,11 +31,11 @@ namespace QLUtils {
             QuantLib::Utils::FixingDateAdjustment fixingAdj(settlementDays, fixingCalendar);
             auto ret = fixingAdj.calculate(refDate);
             auto fixingDate = std::get<0>(ret);
-            auto effectiveDate = std::get<1>(ret);
+            auto startDate = std::get<1>(ret);
             return FixingResult{
                 fixingCalendar,
                 fixingDate,
-                effectiveDate
+                startDate
             };
         }
     };
@@ -59,6 +62,16 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.fixingCalendar();
         }
+        // end of month flag for both legs
+        bool endOfMonth(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.endOfMonth();
+        }
+        // cashflow generation rule for both legs
+        QuantLib::DateGeneration::Rule rule(const QuantLib::Period& tenor) const {
+            BaseSwapIndex swapIndex(tenor);
+            return swapIndex.rule();
+        }
         bool telescopicValueDates(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.telescopicValueDates();
@@ -82,11 +95,6 @@ namespace QLUtils {
         QuantLib::Calendar paymentCalendar(const QuantLib::Period& tenor) const {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.paymentCalendar();
-        }
-        // end of month flag for both legs
-        bool endOfMonth(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.endOfMonth();
         }
         // bisiness day adj convention for both legs
         QuantLib::BusinessDayConvention convention(const QuantLib::Period& tenor) const {
