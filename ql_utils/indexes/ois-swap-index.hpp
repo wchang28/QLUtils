@@ -117,7 +117,7 @@ namespace QuantLib {
             Date fixingDate = fixingDateAdj(d);
             return underlyingSwap(fixingDate)->maturityDate();
         }
-		// import dates (fixingDate, startDate, maturityDate) for the swap given a reference date
+        // import dates (fixingDate, startDate, maturityDate) for the swap given a reference date
         std::tuple<FixingDate, StartDate, MaturityDate> getImportantDates(
             Date refDate = Date()
         ) const {
@@ -148,7 +148,7 @@ namespace QuantLib {
                 .withPaymentCalendar(paymentCalendar())
                 .withFixedLegCalendar(fixingCalendar())
                 .withOvernightLegCalendar(fixingCalendar())
-				.withRule(rule())
+                .withRule(rule())
                 ;
             return swap;
         }
