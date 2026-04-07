@@ -648,6 +648,7 @@ namespace QLUtils {
     private:
         SwapTraits swapTraits_;
         typename SwapTraits::FixingResult fixingResult_;
+        QuantLib::DateGeneration::Rule rule_;   // cashflow generation rule for both legs
     private:
         pOvernightIndex makeOvernightIndex(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}    // index estimating term structure
@@ -672,7 +673,7 @@ namespace QLUtils {
                 .withPaymentCalendar(swapTraits_.paymentCalendar(tenor()))
                 .withFixedLegCalendar(fixingCalendar())
                 .withOvernightLegCalendar(fixingCalendar())
-                .withRule(swapTraits_.rule(tenor()))
+                .withRule(rule())
                 ;
             return swap;
         }
@@ -687,7 +688,8 @@ namespace QLUtils {
                 SwapCurveInstrument::Swap,
                 tenor
             ),
-			fixingResult_(swapTraits_.calculateFixing(tenor, refDate))
+			fixingResult_(swapTraits_.calculateFixing(tenor, refDate)),
+            rule_(swapTraits_.rule(tenor))
         {
             this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
         }
@@ -703,6 +705,9 @@ namespace QLUtils {
         QuantLib::Date maturityDate() const {
             return this->datedDate();
         }
+        QuantLib::DateGeneration::Rule rule() const {
+            return rule_;
+		}
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
         ) const {
@@ -732,7 +737,7 @@ namespace QLUtils {
                     0,  // lockoutDays
                     false,  // applyObservationShift
                     {}, // pricer
-                    swapTraits_.rule(tenor()),   // rule
+                    rule(),   // rule
                     fixingCalendar()  // overnightCalendar
                 )
             );
