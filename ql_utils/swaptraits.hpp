@@ -148,5 +148,12 @@ namespace QLUtils {
             BaseSwapIndex swapIndex(tenor);
             return swapIndex.dayCounter();
         }
+        QuantLib::ext::shared_ptr<QuantLib::IborIndex> makeIborIndex(
+            const QuantLib::Period& tenor,
+            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}	// index estimating term structure
+        ) const {
+            BaseSwapIndex swapIndex(tenor, h);
+            return swapIndex.iborIndex();
+        }
     };
 }

@@ -6,6 +6,7 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
+#include <ql_utils/swaptraits.hpp>
 #include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 
 namespace QLUtils {
@@ -232,6 +233,9 @@ namespace QLUtils {
         {
         }
         const IborIndexFactory& iborIndexFactory() const {
+            return iborIndexFactory_;
+        }
+        IborIndexFactory& iborIndexFactory() {
             return iborIndexFactory_;
         }
         pIborIndex makeIborIndex(
@@ -540,12 +544,16 @@ namespace QLUtils {
     };
     
     template<
-        typename SwapTraits
+        typename BASE_SWAP_INDEX
     >
-    class SwapIndex : public SwapCurveInstrument {
+    class VanillaSwapIndex : public SwapCurveInstrument {
     private:
-        SwapTraits swapTraits_;
-        typename SwapTraits::FixingResult fixingResult_;
+        typedef VanillaSwapTraits<BASE_SWAP_INDEX> TraitsType;
+    public:
+        typedef BASE_SWAP_INDEX BaseSwapIndex;
+    private:
+        TraitsType swapTraits_;
+        typename TraitsType::FixingResult fixingResult_;
         bool endOfMonth_;   // end of month flag for both legs
     public:
         typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
@@ -569,13 +577,16 @@ namespace QLUtils {
             return swap;
         }
     public:
-        SwapIndex(
-            const IborIndexFactory& iborIndexFactory,
+        VanillaSwapIndex(
             const QuantLib::Period& tenor,
             QuantLib::Date refDate = QuantLib::Date()
-        ) : SwapCurveInstrument(iborIndexFactory, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor),
+        ) : SwapCurveInstrument(nullptr, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor),
 			fixingResult_(swapTraits_.calculateFixing(tenor, refDate))
         {
+			const auto& swapTraits = this->swapTraits_;
+			this->iborIndexFactory_ = [&swapTraits, &tenor](const YieldTermStructureHandle& h) {
+                return swapTraits.makeIborIndex(tenor, h);
+            };
             this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
             endOfMonth_ = swapTraits_.endOfMonth(tenor);
         }
@@ -635,19 +646,20 @@ namespace QLUtils {
     };
 
     template <
-        typename SWAP_TRAITS
+        typename BASE_SWAP_INDEX
     >
     class OISSwapIndex :
         public SwapCurveInstrument {
+    private:
+        typedef OvernightIndexedSwapTraits<BASE_SWAP_INDEX> TraitsType;
     public:
-        typedef SWAP_TRAITS SwapTraits;
-        typedef typename SwapTraits::BaseSwapIndex BaseSwapIndex;
-        typedef typename SwapTraits::OvernightIndex OvernightIndexType;
+        typedef BASE_SWAP_INDEX BaseSwapIndex;
+        typedef typename TraitsType::OvernightIndex OvernightIndexType;
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> pOvernightIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
     private:
-        SwapTraits swapTraits_;
-        typename SwapTraits::FixingResult fixingResult_;
+        TraitsType swapTraits_;
+        typename TraitsType::FixingResult fixingResult_;
         QuantLib::DateGeneration::Rule rule_;   // cashflow generation rule for both legs
     private:
         pOvernightIndex makeOvernightIndex(
