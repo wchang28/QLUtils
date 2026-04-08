@@ -548,7 +548,7 @@ namespace QLUtils {
     >
     class VanillaSwapIndex : public SwapCurveInstrument {
     private:
-        typedef VanillaSwapTraits<BASE_SWAP_INDEX> TraitsType;
+        typedef VanillaSwapIndexTraits<BASE_SWAP_INDEX> TraitsType;
     public:
         typedef BASE_SWAP_INDEX BaseSwapIndex;
     private:
@@ -566,10 +566,10 @@ namespace QLUtils {
             pVanillaSwap swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
                 .withEffectiveDate(startDate())
                 .withFixedLegCalendar(fixingCalendar())
-                .withFixedLegDayCount(swapTraits_.fixedLegDayCount(tenor()))
-                .withFixedLegTenor(swapTraits_.fixedLegTenor(tenor()))
-                .withFixedLegConvention(swapTraits_.fixedLegConvention(tenor()))
-                .withFixedLegTerminationDateConvention(swapTraits_.fixedLegConvention(tenor()))
+                .withFixedLegDayCount(swapTraits_.fixedLegDayCount())
+                .withFixedLegTenor(swapTraits_.fixedLegTenor())
+                .withFixedLegConvention(swapTraits_.fixedLegConvention())
+                .withFixedLegTerminationDateConvention(swapTraits_.fixedLegConvention())
                 .withFixedLegEndOfMonth(endOfMonth())
                 .withFloatingLegCalendar(fixingCalendar())
                 .withFloatingLegEndOfMonth(endOfMonth())
@@ -580,15 +580,17 @@ namespace QLUtils {
         VanillaSwapIndex(
             const QuantLib::Period& tenor,
             QuantLib::Date refDate = QuantLib::Date()
-        ) : SwapCurveInstrument(nullptr, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor),
-			fixingResult_(swapTraits_.calculateFixing(tenor, refDate))
+        ) :
+            SwapCurveInstrument(nullptr, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor),
+            swapTraits_(tenor),
+			fixingResult_(swapTraits_.calculateFixing(refDate)),
+            endOfMonth_(swapTraits_.endOfMonth())
         {
 			const auto& swapTraits = this->swapTraits_;
-			this->iborIndexFactory_ = [&swapTraits, &tenor](const YieldTermStructureHandle& h) {
-                return swapTraits.makeIborIndex(tenor, h);
+			this->iborIndexFactory_ = [&swapTraits](const YieldTermStructureHandle& h) {
+                return swapTraits.makeIborIndex(h);
             };
             this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
-            endOfMonth_ = swapTraits_.endOfMonth(tenor);
         }
         const QuantLib::Calendar& fixingCalendar() const {
             return fixingResult_.fixingCalendar;
@@ -617,9 +619,9 @@ namespace QLUtils {
                     startDate,    // startDate
                     endDate,    // endDate
                     fixingCalendar(),   // calendar
-                    swapTraits_.fixedLegFrequency(tenor()), // fixedFrequency
-                    swapTraits_.fixedLegConvention(tenor()),    // fixedConvention
-                    swapTraits_.fixedLegDayCount(tenor()),  // fixedDayCount
+                    swapTraits_.fixedLegFrequency(), // fixedFrequency
+                    swapTraits_.fixedLegConvention(),    // fixedConvention
+                    swapTraits_.fixedLegDayCount(),  // fixedDayCount
                     iborIndex,  // iborIndex
                     {},    // spread
                     discountingTermStructure,   // discountingCurve - exogenous discounting curve
@@ -651,7 +653,7 @@ namespace QLUtils {
     class OISSwapIndex :
         public SwapCurveInstrument {
     private:
-        typedef OvernightIndexedSwapTraits<BASE_SWAP_INDEX> TraitsType;
+        typedef OISSwapIndexTraits<BASE_SWAP_INDEX> TraitsType;
     public:
         typedef BASE_SWAP_INDEX BaseSwapIndex;
         typedef typename TraitsType::OvernightIndex OvernightIndexType;
@@ -677,12 +679,12 @@ namespace QLUtils {
             auto overnightIndex = makeOvernightIndex(h);
             pOvernightIndexedSwap swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
                 .withEffectiveDate(startDate())
-                .withTelescopicValueDates(swapTraits_.telescopicValueDates(tenor()))
-                .withAveragingMethod(swapTraits_.averagingMethod(tenor()))
-                .withPaymentLag(swapTraits_.paymentLag(tenor()))
-                .withPaymentAdjustment(swapTraits_.paymentConvention(tenor()))
-                .withPaymentFrequency(swapTraits_.paymentFrequency(tenor()))
-                .withPaymentCalendar(swapTraits_.paymentCalendar(tenor()))
+                .withTelescopicValueDates(swapTraits_.telescopicValueDates())
+                .withAveragingMethod(swapTraits_.averagingMethod())
+                .withPaymentLag(swapTraits_.paymentLag())
+                .withPaymentAdjustment(swapTraits_.paymentConvention())
+                .withPaymentFrequency(swapTraits_.paymentFrequency())
+                .withPaymentCalendar(swapTraits_.paymentCalendar())
                 .withFixedLegCalendar(fixingCalendar())
                 .withOvernightLegCalendar(fixingCalendar())
                 .withRule(rule())
@@ -700,8 +702,9 @@ namespace QLUtils {
                 SwapCurveInstrument::Swap,
                 tenor
             ),
-			fixingResult_(swapTraits_.calculateFixing(tenor, refDate)),
-            rule_(swapTraits_.rule(tenor))
+            swapTraits_(tenor),
+			fixingResult_(swapTraits_.calculateFixing(refDate)),
+            rule_(swapTraits_.rule())
         {
             this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
         }
@@ -733,15 +736,15 @@ namespace QLUtils {
                     quote(),    // fixedRate
                     overnightIndex, // overnightIndex
                     discountingTermStructure,   // discountingCurve - exogenous discounting curve
-                    swapTraits_.telescopicValueDates(tenor()),  // telescopicValueDates
-                    swapTraits_.paymentLag(tenor()),    // paymentLag
-                    swapTraits_.paymentConvention(tenor()), // paymentConvention
-                    swapTraits_.paymentFrequency(tenor()),   // paymentFrequency
-                    swapTraits_.paymentCalendar(tenor()),   // paymentCalendar
+                    swapTraits_.telescopicValueDates(),  // telescopicValueDates
+                    swapTraits_.paymentLag(),    // paymentLag
+                    swapTraits_.paymentConvention(), // paymentConvention
+                    swapTraits_.paymentFrequency(),   // paymentFrequency
+                    swapTraits_.paymentCalendar(),   // paymentCalendar
                     QuantLib::Spread(0.),    // overnightSpread
                     QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
-                    swapTraits_.averagingMethod(tenor()),    // averagingMethod
+                    swapTraits_.averagingMethod(),    // averagingMethod
                     QuantLib::ext::nullopt,   // endOfMonth
                     QuantLib::ext::nullopt,   // fixedPaymentFrequency
                     fixingCalendar(), // fixedCalendar

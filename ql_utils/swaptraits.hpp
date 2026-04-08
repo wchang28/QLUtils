@@ -1,33 +1,58 @@
 #pragma once
 
 #include <ql/quantlib.hpp>
+#include <memory>
 #include <ql_utils/indexes/ois-swap-index.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
 
 namespace QLUtils {
-    struct ISwapTraits {
+	// base class for swap index traits, which defines the common interface for swap index traits
+    class SwapIndexTraitsBase {
+    protected:
+        QuantLib::Period tenor_;
+    public:
         struct FixingResult {
-			QuantLib::Calendar fixingCalendar; // swap fixing calendar
+            QuantLib::Calendar fixingCalendar; // swap fixing calendar
             QuantLib::Date fixingDate;  // swap fixing date
-			QuantLib::Date startDate;   // swap start date
+            QuantLib::Date startDate;   // swap start date
         };
-        // number of days to settle
-        virtual QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const = 0;
-        // fixing calendar for both legs
-        virtual QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const = 0;
-        // end of month flag for both legs
-        virtual bool endOfMonth(const QuantLib::Period& tenor) const = 0;
+    public:
+        SwapIndexTraitsBase(
+            const QuantLib::Period& tenor
+        ) : tenor_(tenor)
+        {}
+        const QuantLib::Period& tenor() const {
+            return tenor_;
+		}
 
+        // number of days to settle for the swap
+        virtual QuantLib::Natural settlementDays() const = 0;
+        // fixing calendar for both legs
+        virtual QuantLib::Calendar fixingCalendar() const = 0;
+        // end of month flag for both legs
+        virtual bool endOfMonth() const = 0;
+		// whether cashflow/coupon for both legs aligned (accrual dates + payment dates + couponday counter)
+        // coupon aligned means
+		// 1. same fixing calendar for both legs
+        // 2. same coupon tenor/frequency for both legs
+		// 3. same business day adj convention for both legs
+		// 4. same payment calendar for both legs (if applicable)
+		// 5. same payment leg for both legs (if applicable)
+		// 6. same payment business day adj convention for both legs (if applicable)
+		// 7. same end of month flag for both legs
+		// 8. same cashflow generation rule for both legs (if applicable)
+		// 9. same day count convention for both legs
+        virtual bool bothLegsCouponsAligned(bool includeDayCounter = true) const = 0;
+        
 		// calculate the fixing date and effective date for a given reference date (default to evaluation date if not provided)
         FixingResult calculateFixing(
-            const QuantLib::Period& tenor,
 			QuantLib::Date refDate = QuantLib::Date()
         ) const {
             if (refDate == QuantLib::Date()) {
                 refDate = QuantLib::Settings::instance().evaluationDate();
             }
-            auto fixingCalendar = this->fixingCalendar(tenor);
-            auto settlementDays = this->settlementDays(tenor);
+            auto fixingCalendar = this->fixingCalendar();
+            auto settlementDays = this->settlementDays();
             QuantLib::Utils::FixingDateAdjustment fixingAdj(settlementDays, fixingCalendar);
             auto ret = fixingAdj.calculate(refDate);
             auto fixingDate = std::get<0>(ret);
@@ -40,120 +65,186 @@ namespace QLUtils {
         }
     };
 
-    // traits for the overnight indexes swap
+    // traits class for the OIS swap index
+	// both legs of the OIS swap index have the exact same characteristics 
     // example:
-    // OvernightIndexedSwapTraits<UsdOvernightIndexedSwapIsdaFix<FedFunds>>
-    // OvernightIndexedSwapTraits<UsdOvernightIndexedSwapIsdaFix<Sofr>>
-    // OvernightIndexedSwapTraits<GbpOvernightIndexedSwapIsdaFix<Sonia>>
-    // OvernightIndexedSwapTraits<EurOvernightIndexedSwapIsdaFix<Estr>>
-    // OvernightIndexedSwapTraits<EurOvernightIndexedSwapIsdaFix<Eonia>>
+    // OISSwapIndexTraits<UsdOvernightIndexedSwapIsdaFix<FedFunds>>
+    // OISSwapIndexTraits<UsdOvernightIndexedSwapIsdaFix<Sofr>>
+    // OISSwapIndexTraits<GbpOvernightIndexedSwapIsdaFix<Sonia>>
+    // OISSwapIndexTraits<EurOvernightIndexedSwapIsdaFix<Estr>>
+    // OISSwapIndexTraits<EurOvernightIndexedSwapIsdaFix<Eonia>>
     template<
         typename BASE_SWAP_INDEX
     >
-    struct OvernightIndexedSwapTraits: public ISwapTraits {
+    class OISSwapIndexTraits: public SwapIndexTraitsBase {
+    public:
         typedef BASE_SWAP_INDEX BaseSwapIndex;
         typedef typename BaseSwapIndex::OvernightIndex OvernightIndex;
-        QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const override {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixingDays();
+    private:
+        std::shared_ptr<BaseSwapIndex> pSwapIndex_;
+    public:
+        OISSwapIndexTraits(
+            const QuantLib::Period& tenor
+		) :
+            SwapIndexTraitsBase(tenor),
+            pSwapIndex_(new BaseSwapIndex(tenor))
+        {}
+        // number of days to settle for the swap
+        QuantLib::Natural settlementDays() const override {
+            return pSwapIndex_->fixingDays();
         }
         // fixing calendar for both legs
-        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const override {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixingCalendar();
+        QuantLib::Calendar fixingCalendar() const override {
+            return pSwapIndex_->fixingCalendar();
         }
         // end of month flag for both legs
-        bool endOfMonth(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.endOfMonth();
+        bool endOfMonth() const override {
+            return pSwapIndex_->endOfMonth();
+        }
+        // whether cashflow/coupon for both legs aligned
+        bool bothLegsCouponsAligned(bool) const override {
+            return true;
         }
         // cashflow generation rule for both legs
-        QuantLib::DateGeneration::Rule rule(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.rule();
+        QuantLib::DateGeneration::Rule rule() const {
+            return pSwapIndex_->rule();
         }
-        bool telescopicValueDates(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.telescopicValueDates();
+		// whether the swap has telescopic value dates
+        bool telescopicValueDates() const {
+            return pSwapIndex_->telescopicValueDates();
         }
-        QuantLib::RateAveraging::Type averagingMethod(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.averagingMethod();
+		// averaging method for the overnight leg
+        QuantLib::RateAveraging::Type averagingMethod() const {
+            return pSwapIndex_->averagingMethod();
         }
-        QuantLib::Frequency paymentFrequency(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.paymentFrequency();
+		// cashflow frequency for both legs
+        QuantLib::Frequency paymentFrequency() const {
+            return pSwapIndex_->paymentFrequency();
         }
-        QuantLib::BusinessDayConvention paymentConvention(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.paymentConvention();
+        // cashflow tenor for both legs
+        QuantLib::Period paymentTenor() const {
+            return QuantLib::Period(paymentFrequency());
         }
-        QuantLib::Natural paymentLag(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.paymentLag();
+		// business day adj convention for payment date for both legs
+        QuantLib::BusinessDayConvention paymentConvention() const {
+            return pSwapIndex_->paymentConvention();
         }
-        QuantLib::Calendar paymentCalendar(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.paymentCalendar();
+		// payment lag for both legs
+        QuantLib::Natural paymentLag() const {
+            return pSwapIndex_->paymentLag();
         }
-        // bisiness day adj convention for both legs
-        QuantLib::BusinessDayConvention convention(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.convention();
+		// payment calendar for both legs
+        QuantLib::Calendar paymentCalendar() const {
+            return pSwapIndex_->paymentCalendar();
+        }
+        // business day adj convention for both legs
+        QuantLib::BusinessDayConvention convention() const {
+            return pSwapIndex_->convention();
+        }
+		// day count convention for both legs
+        QuantLib::DayCounter dayCounter() const {
+            return pSwapIndex_->dayCounter();
         }
     };
 
-    // traits for the vanilla swap
+    // traits class for the vanilla swap index
     // examples:
-    // VanillaSwapTraits<QuantLib::EuriborSwapIsdaFixA>
-    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<1>>
-    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<3>>
-    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<6>>
-    // VanillaSwapTraits<QuantLib::UsdTermSofrSwapIsdaFix<12>>
-    // VanillaSwapTraits<QuantLib::UsdFwdOISVanillaSwapIndex<Sofr>>
+    // VanillaSwapIndexTraits<EuriborSwapIsdaFixA>
+    // VanillaSwapIndexTraits<UsdTermSofrSwapIsdaFix<1>>
+    // VanillaSwapIndexTraits<UsdTermSofrSwapIsdaFix<3>>
+    // VanillaSwapIndexTraits<UsdTermSofrSwapIsdaFix<6>>
+    // VanillaSwapIndexTraits<UsdTermSofrSwapIsdaFix<12>>
+    // VanillaSwapIndexTraits<UsdFwdOISVanillaSwapIndex<Sofr>>
     template<
         typename BASE_SWAP_INDEX
     >
-    struct VanillaSwapTraits: public ISwapTraits {
+    class VanillaSwapIndexTraits: public SwapIndexTraitsBase {
+    public:
         typedef BASE_SWAP_INDEX BaseSwapIndex;
-        QuantLib::Natural settlementDays(const QuantLib::Period& tenor) const override {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixingDays();
+    private:
+        std::shared_ptr<BaseSwapIndex> pSwapIndex_;
+    public:
+        VanillaSwapIndexTraits(
+			const QuantLib::Period& tenor
+        ) :
+            SwapIndexTraitsBase(tenor),
+            pSwapIndex_(new BaseSwapIndex(tenor))
+		{}
+        // number of days to settle for the swap
+        QuantLib::Natural settlementDays() const override {
+            return pSwapIndex_->fixingDays();
         }
         // fixing calendar for both legs
-        QuantLib::Calendar fixingCalendar(const QuantLib::Period& tenor) const override {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixingCalendar();
+        QuantLib::Calendar fixingCalendar() const override {
+            return pSwapIndex_->fixingCalendar();
         }
         // end of month flag for both legs
-        bool endOfMonth(const QuantLib::Period& tenor) const {
-            std::shared_ptr<BaseSwapIndex> pSwapIndex(new BaseSwapIndex(tenor));
-            auto pIndexEx = std::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex);
+        bool endOfMonth() const override {
+            auto pIndexEx = std::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex_);
             return (pIndexEx != nullptr ? pIndexEx->endOfMonth() : false);
         }
-        QuantLib::Period fixedLegTenor(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixedLegTenor();
+        // whether cashflow/coupon for both legs aligned
+        bool bothLegsCouponsAligned(
+            bool includeDayCounter
+        ) const override {
+            auto sameCouponFrequency = (fixedLegFrequency() == floatingLegFrequency());
+			auto sameBusinessDayAdj = (fixedLegConvention() == floatingLegConvention());
+			auto ret = (sameCouponFrequency && sameBusinessDayAdj);
+            if (includeDayCounter) {
+                auto sameDayCount = (fixedLegDayCount() == floatingLegDayCount());
+				ret = ret && sameDayCount;
+            }
+			return ret;
         }
-        QuantLib::Frequency fixedLegFrequency(const QuantLib::Period& tenor) const {
-            auto freq = fixedLegTenor(tenor).frequency();
-            QL_ASSERT(freq != QuantLib::OtherFrequency, "bad tenor for the fixed leg of the swap");
+		// fixed leg's cashflow tenor
+        QuantLib::Period fixedLegTenor() const {
+            return pSwapIndex_->fixedLegTenor();
+        }
+		// fixed leg's cashflow frequency
+        QuantLib::Frequency fixedLegFrequency() const {
+            auto freq = fixedLegTenor().frequency();
             return freq;
         }
-        QuantLib::BusinessDayConvention fixedLegConvention(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.fixedLegConvention();
+		// fixed leg's business day adj convention
+        QuantLib::BusinessDayConvention fixedLegConvention() const {
+			return pSwapIndex_->fixedLegConvention();
         }
-        QuantLib::DayCounter fixedLegDayCount(const QuantLib::Period& tenor) const {
-            BaseSwapIndex swapIndex(tenor);
-            return swapIndex.dayCounter();
+		// fixed leg's day count convention
+        QuantLib::DayCounter fixedLegDayCount() const {
+            return pSwapIndex_->dayCounter();
         }
+        // floating leg's cashflow tenor
+        QuantLib::Period floatingLegTenor() const {
+            return pSwapIndex_->iborIndex()->tenor();
+        }
+        // floating leg's cashflow frequency
+        QuantLib::Frequency floatingLegFrequency() const {
+            return floatingLegTenor().frequency();
+        }
+        // floating leg's business day adj convention
+        QuantLib::BusinessDayConvention floatingLegConvention() const {
+            return pSwapIndex_->iborIndex()->businessDayConvention();
+        }
+		// floating leg's day count convention
+        QuantLib::DayCounter floatingLegDayCount() const {
+            return pSwapIndex_->iborIndex()->dayCounter();
+        }
+		// create floating leg's ibor index given an optional index estimating term structure
         QuantLib::ext::shared_ptr<QuantLib::IborIndex> makeIborIndex(
-            const QuantLib::Period& tenor,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}	// index estimating term structure
         ) const {
-            BaseSwapIndex swapIndex(tenor, h);
-            return swapIndex.iborIndex();
+            BaseSwapIndex swapIndex(tenor(), h);
+            auto pIndex = swapIndex.iborIndex();
+			QL_ASSERT(pIndex != nullptr, "the ibor index of the swap index " << swapIndex.name() << " is empty");
+			auto h2 = pIndex->forwardingTermStructure();
+            if (!h.empty()) {
+                QL_ASSERT(!h2.empty(), "the forwarding term structure of the ibor index does not match the provided handle");
+                QL_ASSERT(h2.currentLink() == h.currentLink(), "the forwarding term structure of the ibor index does not match the provided handle");
+            }
+            else {
+				QL_ASSERT(h2.empty(), "the ibor index of the swap index " << swapIndex.name() << " has a non-empty forwarding term structure, but no handle was provided to match it");
+            }
+            return pIndex;
         }
     };
 }
