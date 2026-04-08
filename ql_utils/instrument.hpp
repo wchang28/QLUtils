@@ -6,7 +6,7 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
-#include <ql_utils/swaptraits.hpp>
+#include <ql_utils/swap-index-traits.hpp>
 #include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 
 namespace QLUtils {

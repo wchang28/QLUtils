@@ -6,12 +6,12 @@
 #include <ql_utils/ParYield.hpp>
 #include <ql_utils/monthly-moving-average-proj.hpp>
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
+#include <ql_utils/swap-index-traits.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/fixed-rate-bond-securities.hpp>
 #include <ql_utils/bootstrap.hpp>
 #include <ql_utils/yield-termstructure-shocker.hpp>
 #include <ql_utils/paryieldsplinebootstrap.hpp>
-#include <ql_utils/swaptraits.hpp>
 #include <ql_utils/swap-fixing.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
 #include <ql_utils/government-bond-traits.hpp>

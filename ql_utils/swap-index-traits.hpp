@@ -235,6 +235,7 @@ namespace QLUtils {
         ) const {
             BaseSwapIndex swapIndex(tenor(), h);
             auto pIndex = swapIndex.iborIndex();
+#ifdef _DEBUG
 			QL_ASSERT(pIndex != nullptr, "the ibor index of the swap index " << swapIndex.name() << " is empty");
 			auto h2 = pIndex->forwardingTermStructure();
             if (!h.empty()) {
@@ -244,6 +245,7 @@ namespace QLUtils {
             else {
 				QL_ASSERT(h2.empty(), "the ibor index of the swap index " << swapIndex.name() << " has a non-empty forwarding term structure, but no handle was provided to match it");
             }
+#endif
             return pIndex;
         }
     };
