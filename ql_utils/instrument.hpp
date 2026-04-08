@@ -14,7 +14,8 @@ namespace QLUtils {
     public:
         enum ValueType {
             vtRate = 0,
-            vtPrice = 1,
+            vtPrice = 1,    // 100 nominal/notional price
+            vtSpread = 2,
         };
         typedef QuantLib::Handle<QuantLib::YieldTermStructure> YieldTermStructureHandle;
     protected:
@@ -34,7 +35,8 @@ namespace QLUtils {
             tenor_(tenor),
             datedDate_(datedDate),
             value_(QuantLib::Null<QuantLib::Real>()),
-            use_(true) {}
+            use_(true)
+        {}
         const std::string& ticker() const {
             return ticker_;
         }
@@ -83,8 +85,53 @@ namespace QLUtils {
         QuantLib::Real& price() {
             return value_;
         }
+        const QuantLib::Spread& spread() const {
+            return value_;
+        }
+        QuantLib::Spread& spread() {
+            return value_;
+        }
         bool valueIsSet() const {
             return (value_ != QuantLib::Null<QuantLib::Real>());
+        }
+        // a multiplier that converts the difference in values between actual vs. implied to decimal unit
+        // (implied-actual)*absoluteDiffMultiplier()
+        QuantLib::Real absoluteDiffMultiplier() const {
+            if (valueType_ == vtRate || valueType_ == vtSpread) {   // values already in decimal unit
+                return 1.;
+            } else if (valueType_ == vtPrice) {
+                return 0.01;    // (100 - price) is "rate" in % unit, multiply by 0.01 to convert to decimal unit
+            } else {
+                return 1.;
+            }
+        }
+        // a multiplier that converts the difference in values between actual vs. implied to basis point unit
+        // (implied-actual)*basisPointDiffMultiplier() << " bp"
+        QuantLib::Real basisPointDiffMultiplier() const {
+            return absoluteDiffMultiplier() * 10000.;
+        }
+        // a multiplier that convert quote value to it's native unit
+        QuantLib::Real valueMultiplier() const {
+            if (valueType_ == vtRate) {
+                return 100.; // decimal to percent unit (%)
+            } else if (valueType_ == vtSpread) {
+                return 10000.;  // decimal to basis point unit (bp)
+            } else if (valueType_ == vtPrice) {
+                return 1.;
+            } else {
+                return 1.;
+            }
+        }
+        std::string nativeUnitString() const {
+            if (valueType_ == vtRate) {
+                return "%";
+            } else if (valueType_ == vtSpread) {
+                return "bp";
+            } else if (valueType_ == vtPrice) {
+                return "";
+            } else {
+                return "";
+            }
         }
         QuantLib::Handle<QuantLib::Quote> quote() const {
             QuantLib::Handle<QuantLib::Quote> q(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(value())));
@@ -271,6 +318,8 @@ namespace QLUtils {
 
     class CashDepositIndex : public SwapCurveInstrument {
     private:
+        QuantLib::Natural fixingDays_;  // fixing days for the index
+        QuantLib::Calendar fixingCalendar_; // fixing calendar for the index
         QuantLib::DayCounter dayCounter_;   // day counter for the index
         QuantLib::Date fixingDate_; // fixing date for the index
         QuantLib::Date valueDate_;  // value date for the index, also the start date of the deposit
@@ -286,14 +335,22 @@ namespace QLUtils {
                 refDate = QuantLib::Settings::instance().evaluationDate();
             }
             auto iborIndex = makeIborIndex();
+            fixingDays_ = iborIndex->fixingDays();
+            fixingCalendar_ = iborIndex->fixingCalendar();
             dayCounter_ = iborIndex->dayCounter();
-            QuantLib::Utils::FixingDateAdjustment fixingAdj(iborIndex->fixingDays(), iborIndex->fixingCalendar());
+            QuantLib::Utils::FixingDateAdjustment fixingAdj(fixingDays_, fixingCalendar_);
             auto ret = fixingAdj.calculate(refDate);
             fixingDate_ = std::get<0>(ret);
             valueDate_ = std::get<1>(ret);
-            this->datedDate() = iborIndex->maturityDate(valueDate_);
+            datedDate() = iborIndex->maturityDate(valueDate_);  // calculate the maturity date
         }
     public:
+        QuantLib::Natural fixingDays() const {
+            return fixingDays_;
+        }
+        const QuantLib::Calendar& fixingCalendar() const {
+            return fixingCalendar_;
+        }
         QuantLib::Date fixingDate() const {
             return fixingDate_;
         }
@@ -315,7 +372,7 @@ namespace QLUtils {
             QuantLib::ext::shared_ptr<QuantLib::DepositRateHelper> helper(
                 new QuantLib::DepositRateHelper(
                     quote(),    // rate
-					fixingDate(),   // fixingdate
+					fixingDate(),   // fixingDate
                     makeIborIndex() // iborIndex
                 )
             );
@@ -337,16 +394,16 @@ namespace QLUtils {
     };
 
     template <
-		typename OvernightIndex // can be Sofr, FedFunds, Sonia, Estr, Eonia
+		typename IborIndexType // can be Sofr, FedFunds, Sonia, Estr, Eonia, TermSofr<1>, TermSofr<3>, TermSofr<6>, TermSofr<12>
     >
-    class OvernightCashDeposit : public CashDepositIndex {
+    class IborIndexCashDeposit : public CashDepositIndex {
     public:
-        OvernightCashDeposit(
+        IborIndexCashDeposit(
             QuantLib::Date refDate = QuantLib::Date()
         ) :
             CashDepositIndex(
-                [](const YieldTermStructureHandle& h) {return pIborIndex(new OvernightIndex(h));},
-                1 * QuantLib::Days,
+                [](const YieldTermStructureHandle& h) {return pIborIndex(new IborIndexType(h));},
+                IborIndexType{}.tenor(),
                 refDate
             )
         {}
