@@ -26,6 +26,9 @@ namespace QuantLib {
 			Schedule yieldCalcSchedule_;            // schedule for yield calculation (e.g. par yield calculation)
 			DayCounter yieldCalcDayCounter_;        // day counter for yield calculation (e.g. par yield calculation)
 			Calendar paymentCalendar_;              // calendar for the payment date
+			Date currentAccrualStartDate_;          // start date of the current accrual period (used for accrued interest calculation)
+			Date currentAccrualEndDate_;            // end date of the current accrual period (used for accrued interest calculation)
+			Time accrualYearFraction_;              // year fraction of the current accrual period (used for accrued interest calculation)
             DayCounter parYieldSplineDayCounter_;
         protected:
             // set the maturity date
@@ -349,9 +352,13 @@ namespace QuantLib {
                 QL_ASSERT(settleDate < this->maturityDate(), "settlement date (" << settleDate << ") is not before maturity date (" << this->maturityDate() << ")");
                 auto nCouponPeriods = accrualSchedule_.dates().size() - 1;
                 QL_ASSERT(nCouponPeriods > 0, "the number of coupon accrual periods (" << nCouponPeriods << ") must be greater than 0");
-                QL_ASSERT(accrualSchedule_.dates().front() <= settleDate, "The start date of the first coupon accrual period (" << accrualSchedule_.dates().front() << ") is greater than the settlement date (" << settleDate << ")");
+				currentAccrualStartDate_ = accrualSchedule_.dates().front();
+				currentAccrualEndDate_ = accrualSchedule_.dates()[1];
+                QL_ASSERT(currentAccrualStartDate_ <= settleDate, "The start date of the current coupon accrual period (" << currentAccrualStartDate_ << ") is greater than the settlement date (" << settleDate << ")");
+                QL_ASSERT(settleDate < currentAccrualEndDate_, "The settlement date (" << settleDate << ") is not before the end date of the current coupon accrual period (" << currentAccrualEndDate_ << ")");
                 QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
 				accrualDayCounter_ = bondTraits_.accrualDayCounter(tenor, accrualSchedule_);
+                accrualYearFraction_ = accrualDayCounter_.yearFraction(currentAccrualStartDate_, settleDate);
                 yieldCalcSchedule_ = makeYieldCalcSchedule();
 				yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, yieldCalcSchedule_);
 				parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
@@ -421,6 +428,15 @@ namespace QuantLib {
 				auto d = paymentCalendar().adjust(lastAccrualEndDate, paymentConvention());
 				return d;
             }
+            Date currentAccrualStartDate() const {
+                return currentAccrualStartDate_;
+            }
+            Date currentAccrualEndDate() const {
+                return currentAccrualEndDate_;
+            }
+            Time accrualYearFraction() const {
+                return accrualYearFraction_;
+			}
             bool cleanPriceIsSet() const {
                 return this->valueIsSet();
             }
