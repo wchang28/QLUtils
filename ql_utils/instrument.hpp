@@ -299,6 +299,7 @@ namespace QLUtils {
             Future = 1,
             FRA = 2,
             Swap = 3,
+            BasisSwap = 4,
         };
     protected:
         InstType instType_;
