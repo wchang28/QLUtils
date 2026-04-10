@@ -92,7 +92,6 @@ namespace QLUtils {
             discountCurve = nullptr;
             estimatingCurve = nullptr;
         }
-
         struct DefaultActualVsImpliedComparison {
             QuantLib::Rate operator() (
                 std::ostream& os,
@@ -100,29 +99,31 @@ namespace QLUtils {
                 const QuantLib::Real& actual,
                 const QuantLib::Real& implied
             ) const {
-                auto multiplierValue = (inst->valueType() == BootstrapInstrument::vtRate ? 100.0 : 1.0);
-                auto multiplierDiffBp = (inst->valueType() == BootstrapInstrument::vtRate ? 10000.0 : 100.0);
+                using DtFormat = DateFormat<char>;
+                auto startDate = inst->startDate();
+                auto endDate = inst->maturityDate();
                 auto diff = implied - actual;
                 os << inst->tenor();
                 os << "," << inst->ticker();
-                os << "," << "actual=" << actual * multiplierValue;
-                os << "," << "implied=" << implied * multiplierValue;
-                os << "," << "diff=" << diff * multiplierDiffBp << " bp";
+                os << "," << "[" << DtFormat::to_yyyymmdd(startDate, true) << "," << DtFormat::to_yyyymmdd(endDate, true) << ")";
+                os << "," << "actual=" << actual * inst->valueMultiplier();
+                os << "," << "implied=" << implied * inst->valueMultiplier();
+                os << "," << "diff=" << diff * inst->basisPointDiffMultiplier() << " bp";
                 os << std::endl;
-                return (inst->valueType() == BootstrapInstrument::vtRate ? diff : diff/100.0);
+                return diff * inst->absoluteDiffMultiplier();
             }
         };
-
         void bootstrap(
             const QuantLib::Date& curveReferenceDate,
             const QuantLib::DayCounter& dayCounter = QuantLib::Actual365Fixed(),
             const Interpolator& interp = Interpolator()
         ) {
+            using DtFormat = DateFormat<char>;
             clearOutputs();
             checkInstruments();
             if (bootstrapMode() == EstimatingCurveOnly) {
                 auto expected = discountingTermStructure->referenceDate();
-                QL_REQUIRE(curveReferenceDate == expected, "curve ref. date (" << DateFormat<char>::to_yyyymmdd(curveReferenceDate, true)  << ") is not what's expected ("<< expected << ")");
+                QL_REQUIRE(curveReferenceDate == expected, "to be bootstrapped estimating curve ref. date (" << DtFormat::to_yyyymmdd(curveReferenceDate, true) << ") is not what's expected (discount curve ref. date=" << DtFormat::to_yyyymmdd(expected, true) << ")");
             }
             QuantLib::Handle<QuantLib::YieldTermStructure> discountingCurve(discountingTermStructure);
             curveBuilder().reset(new PiecewiseCurveBuilderType()); // create the curve builder

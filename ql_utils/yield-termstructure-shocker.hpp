@@ -5,6 +5,7 @@
 #include <ql_utils/ParYield.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/bootstrap.hpp>
+#include <ql_utils/dateformat.hpp>
 #include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 #include <memory>
 #include <vector>
@@ -23,16 +24,21 @@ namespace QLUtils {
             QuantLib::Rate operator() (
                 std::ostream& os,
                 const std::shared_ptr<BootstrapInstrument>& inst,
-                const QuantLib::Rate& actual,
-                const QuantLib::Rate& implied
+                const QuantLib::Real& actual,
+                const QuantLib::Real& implied
             ) const {
+                using DtFormat = DateFormat<char>;
+                auto startDate = inst->startDate();
+                auto endDate = inst->maturityDate();
+                auto diff = implied - actual;
                 os << inst->tenor();
                 os << "," << inst->ticker();
-                os << "," << "actual=" << actual * 100.;
-                os << "," << "implied=" << implied * 100.;
-                os << "," << "diff=" << (implied - actual) * 10000. << " bp";
+                os << "," << "[" << DtFormat::to_yyyymmdd(startDate, true) << "," << DtFormat::to_yyyymmdd(endDate, true) << ")";
+                os << "," << "actual=" << actual * inst->valueMultiplier();
+                os << "," << "implied=" << implied * inst->valueMultiplier();
+                os << "," << "diff=" << diff * inst->basisPointDiffMultiplier() << " bp";
                 os << std::endl;
-                return implied - actual;
+                return diff * inst->absoluteDiffMultiplier();
             }
         };
     public:
