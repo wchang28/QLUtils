@@ -10,6 +10,7 @@
 #include <ql_utils/ratehelpers/nominal_forward_ratehelper.hpp>
 
 namespace QLUtils {
+    // base class for all yied curve bootstrap instruments
     class BootstrapInstrument {
     public:
         enum ValueType {
@@ -18,6 +19,7 @@ namespace QLUtils {
             vtSpread = 2,
         };
         typedef QuantLib::Handle<QuantLib::YieldTermStructure> YieldTermStructureHandle;
+        typedef QuantLib::ext::shared_ptr<QuantLib::RateHelper> pRateHelper;
     protected:
         std::string ticker_;
         QuantLib::Period tenor_;
@@ -91,9 +93,35 @@ namespace QLUtils {
         QuantLib::Spread& spread() {
             return value_;
         }
+        // derived classes can override the following methods to provide more specific alias for the instrument type and value type for better error message
+        //////////////////////////////////////////////////////////
+        virtual std::string instrumentTypeAlias() const {
+            return "bootstrap instrument";
+        }
+        virtual std::string valueTypeAlias() const {
+            if (valueType_ == vtRate) {
+                return "rate";
+            }
+            else if (valueType_ == vtSpread) {
+                return "spread";
+            }
+            else if (valueType_ == vtPrice) {
+                return "price";
+            }
+            else {
+                return "value";
+            }
+        }
+        //////////////////////////////////////////////////////////
+        // checking the quoted value is set or not
+        //////////////////////////////////////////////////////////
         bool valueIsSet() const {
             return (value_ != QuantLib::Null<QuantLib::Real>());
         }
+        void ensureValueIsSet() const {
+            QL_REQUIRE(valueIsSet(), "quoted " << this->valueTypeAlias() << " is not set for " << this->instrumentTypeAlias() << (ticker_.empty() ? std::string{} : std::string(": ") + ticker_));
+        }
+        //////////////////////////////////////////////////////////
         // a multiplier that converts the difference in values between actual vs. implied to decimal unit
         // (implied-actual)*absoluteDiffMultiplier()
         QuantLib::Real absoluteDiffMultiplier() const {
@@ -134,19 +162,11 @@ namespace QLUtils {
             }
         }
         QuantLib::Handle<QuantLib::Quote> quote() const {
+            ensureValueIsSet();
             QuantLib::Handle<QuantLib::Quote> q(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(value())));
             return q;
         }
-        virtual QuantLib::Date startDate() const = 0;
-        virtual QuantLib::Date maturityDate() const = 0;
-        virtual QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const = 0;
-        virtual QuantLib::Real impliedQuote(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const = 0;
-		// calculate the simple forward rate between start and end date using the discount factors from the given yield term structure
+        // calculate the simple forward rate between start and end date using the discount factors from the given yield term structure
         static QuantLib::Rate simpleForwardRate(
             const QuantLib::Date& start,
             const QuantLib::Date& end,
@@ -154,11 +174,23 @@ namespace QLUtils {
             const QuantLib::Handle<QuantLib::YieldTermStructure>& h
         ) {
             auto t = dayCounter.yearFraction(start, end);
-			auto df_start = h->discount(start, true);
-			auto df_end = h->discount(end, true);
+            auto df_start = h->discount(start, true);
+            auto df_end = h->discount(end, true);
             auto compounding = df_start / df_end;
-			return (compounding - 1.) / t;  // compounding = 1 + forwardRate * t
+            return (compounding - 1.) / t;  // compounding = 1 + forwardRate * t
         }
+        // virtual methods that must be implemented by derived classes for bootstrapping
+        ////////////////////////////////////////////////////////////////////////////////
+        virtual QuantLib::Date startDate() const = 0;
+        virtual QuantLib::Date maturityDate() const = 0;
+        virtual pRateHelper rateHelper(
+            const YieldTermStructureHandle& discountingTermStructure = {}   // empty if bootstrapping both estimating and discounting term structures concurrently, non-empty if bootstrapping estimating term structure only with an already exist exogenous discounting term structure
+        ) const = 0;    // rate helper factory for the yield term structure bootstrapping
+        virtual QuantLib::Real impliedQuote(
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const = 0;
+        ////////////////////////////////////////////////////////////////////////////////
     };
 
     // base class for all par rate instruments
@@ -210,7 +242,7 @@ namespace QLUtils {
     };
 
     // for converting spot or fwd par rates back to zero curve (par-to-zero bootstrapping)
-	// rate/yield-based par instrument
+    // rate/yield-based par instrument
     // used during par-shock
     template <
         QuantLib::Frequency COUPON_FREQ = QuantLib::Semiannual,
@@ -277,8 +309,7 @@ namespace QLUtils {
             const QuantLib::Period& tenor = QuantLib::Period(),
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) : BootstrapInstrument(valueType, tenor, datedDate), iborIndexFactory_(iborIndexFactory)
-        {
-        }
+        {}
         const IborIndexFactory& iborIndexFactory() const {
             return iborIndexFactory_;
         }
@@ -358,44 +389,50 @@ namespace QLUtils {
         QuantLib::Date valueDate() const {
             return valueDate_;
         }
-        QuantLib::Date startDate() const {
+        std::string instrumentTypeAlias() const override {
+            return "cash deposit";
+        }
+        std::string valueTypeAlias() const override {
+            return "cash rate";
+        }
+        QuantLib::Date startDate() const override {
             return valueDate_;
         }
-        QuantLib::Date maturityDate() const {
+        QuantLib::Date maturityDate() const override {
             return datedDate();
         }
         const QuantLib::DayCounter& dayCounter() const {
             return dayCounter_;
         }
-        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
-        ) const {
+        pRateHelper rateHelper(
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
+        ) const override {
             QuantLib::ext::shared_ptr<QuantLib::DepositRateHelper> helper(
                 new QuantLib::DepositRateHelper(
                     quote(),    // rate
-					fixingDate(),   // fixingDate
+                    fixingDate(),   // fixingDate
                     makeIborIndex() // iborIndex
                 )
             );
             return helper;
         }
         QuantLib::Rate impliedRate(
-			const QuantLib::Handle<QuantLib::YieldTermStructure>& h // index estimating term structure
+            const YieldTermStructureHandle& h // index estimating term structure
         ) const {
             auto iborIndex = makeIborIndex(h);
             auto rate = iborIndex->fixing(fixingDate());
             return rate;
         }
         QuantLib::Real impliedQuote(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
-        ) const {
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
+        ) const override {
             return impliedRate(estimatingTermStructure);
         }
     };
 
     template <
-		typename IborIndexType // can be Sofr, FedFunds, Sonia, Estr, Eonia, TermSofr<1>, TermSofr<3>, TermSofr<6>, TermSofr<12>
+        typename IborIndexType // can be Sofr, FedFunds, Sonia, Estr, Eonia, TermSofr<1>, TermSofr<3>, TermSofr<6>, TermSofr<12>
     >
     class IborIndexCashDeposit : public CashDepositIndex {
     public:
@@ -536,7 +573,7 @@ namespace QLUtils {
             return 100.0 * (1.0 - futureRate);
         }
     };
-    
+
     // FRA
     // this can be use to bootstrap Libor 3m estimating zero curve given a monthly Libor 3m forward rate curves
     class FRA : public SwapCurveInstrument {
@@ -600,7 +637,7 @@ namespace QLUtils {
             return impliedRate(estimatingTermStructure.currentLink());
         }
     };
-    
+
     template<
         typename BASE_SWAP_INDEX
     >
@@ -616,9 +653,9 @@ namespace QLUtils {
     public:
         typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
     private:
-		// create a vanilla swap with the given swap spec/traits
+        // create a vanilla swap with the given swap spec/traits
         pVanillaSwap makeSwap(
-			const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}    // index estimating term structure
+            const YieldTermStructureHandle& h = {}    // index estimating term structure
         ) const {
             auto iborIndex = this->makeIborIndex(h);
             pVanillaSwap swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
@@ -641,11 +678,11 @@ namespace QLUtils {
         ) :
             SwapCurveInstrument(nullptr, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor),
             swapTraits_(tenor),
-			fixingResult_(swapTraits_.calculateFixing(refDate)),
+            fixingResult_(swapTraits_.calculateFixing(refDate)),
             endOfMonth_(swapTraits_.endOfMonth())
         {
-			const auto& swapTraits = this->swapTraits_;
-			this->iborIndexFactory_ = [&swapTraits](const YieldTermStructureHandle& h) {
+            const auto& swapTraits = this->swapTraits_;
+            this->iborIndexFactory_ = [&swapTraits](const YieldTermStructureHandle& h) {
                 return swapTraits.makeIborIndex(h);
             };
             this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
@@ -656,18 +693,24 @@ namespace QLUtils {
         QuantLib::Date fixingDate() const {
             return fixingResult_.fixingDate;
         }
-        QuantLib::Date startDate() const {
+        std::string instrumentTypeAlias() const override {
+            return "vanilla swap";
+        }
+        std::string valueTypeAlias() const override {
+            return "swap rate";
+        }
+        QuantLib::Date startDate() const override {
             return fixingResult_.startDate;
         }
-        QuantLib::Date maturityDate() const {
+        QuantLib::Date maturityDate() const override {
             return this->datedDate();
         }
         bool endOfMonth() const {
             return endOfMonth_;
         }
-        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
-        ) const {
+        pRateHelper rateHelper(
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
+        ) const override {
             auto startDate = this->startDate();
             auto endDate = this->maturityDate();
             auto iborIndex = this->makeIborIndex();
@@ -694,9 +737,9 @@ namespace QLUtils {
             return helper;
         }
         QuantLib::Real impliedQuote(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}
-        ) const {
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
             auto swap = makeSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
@@ -723,16 +766,16 @@ namespace QLUtils {
         QuantLib::DateGeneration::Rule rule_;   // cashflow generation rule for both legs
     private:
         pOvernightIndex makeOvernightIndex(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}    // index estimating term structure
+            const YieldTermStructureHandle& h = {}    // index estimating term structure
         ) const {
-			auto iborIndex = this->makeIborIndex(h);
-			auto pIndex = QuantLib::ext::dynamic_pointer_cast<QuantLib::OvernightIndex>(iborIndex);
-			QL_REQUIRE(pIndex != nullptr, "ibor index created by factory is not an overnight index");
+            auto iborIndex = this->makeIborIndex(h);
+            auto pIndex = QuantLib::ext::dynamic_pointer_cast<QuantLib::OvernightIndex>(iborIndex);
+            QL_REQUIRE(pIndex != nullptr, "ibor index created by factory is not an overnight index");
             return pIndex;
         }
         // create a overnight index swap with the given swap spec/traits
         pOvernightIndexedSwap makeSwap(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}    // index estimating term structure
+            const YieldTermStructureHandle& h = {}    // index estimating term structure
         ) const {
             auto overnightIndex = makeOvernightIndex(h);
             pOvernightIndexedSwap swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
@@ -761,7 +804,7 @@ namespace QLUtils {
                 tenor
             ),
             swapTraits_(tenor),
-			fixingResult_(swapTraits_.calculateFixing(refDate)),
+            fixingResult_(swapTraits_.calculateFixing(refDate)),
             rule_(swapTraits_.rule())
         {
             this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
@@ -772,18 +815,24 @@ namespace QLUtils {
         QuantLib::Date fixingDate() const {
             return fixingResult_.fixingDate;
         }
-        QuantLib::Date startDate() const {
+        std::string instrumentTypeAlias() const override {
+            return "ois swap";
+        }
+        std::string valueTypeAlias() const override {
+            return "swap rate";
+        }
+        QuantLib::Date startDate() const override {
             return fixingResult_.startDate;
         }
-        QuantLib::Date maturityDate() const {
+        QuantLib::Date maturityDate() const override {
             return this->datedDate();
         }
         QuantLib::DateGeneration::Rule rule() const {
             return rule_;
-		}
-        QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
-        ) const {
+        }
+        pRateHelper rateHelper(
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
+        ) const override {
             auto startDate = this->startDate();
             auto endDate = this->maturityDate();
             auto overnightIndex = makeOvernightIndex();
@@ -820,14 +869,261 @@ namespace QLUtils {
             return helper;
         }
         QuantLib::Real impliedQuote(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}
-        ) const {
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
             auto swap = makeSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
             return swapRate;
+        }
+    };
+
+    // basis swap between a base ois swap's overnight leg and a target vanilla swap's floating leg
+    // the reason ois swap being the base swap is because ois rates are now considered risk free
+    template <
+        typename TARGET_VANILLA_SWAP_INDEX,
+        typename BASE_OIS_SWAP_INDEX
+    >
+    class VanillaOISBasisSwapIndex : public SwapCurveInstrument {
+    private:
+        typedef VanillaSwapIndexTraits<TARGET_VANILLA_SWAP_INDEX> TargetTraitsType;
+        typedef OISSwapIndexTraits<BASE_OIS_SWAP_INDEX> BaseTraitsType;
+    public:
+        typedef TARGET_VANILLA_SWAP_INDEX TargetVanillaSwapIndex;
+        typedef BASE_OIS_SWAP_INDEX BaseOISSwapIndex;
+        typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
+        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
+    private:
+        TargetTraitsType targetSwapTraits_;
+        BaseTraitsType baseSwapTraits_;
+        bool spreadOnBaseLeg_;
+        typename TargetTraitsType::FixingResult targetFixingResult_;
+        typename BaseTraitsType::FixingResult baseFixingResult_;
+        QuantLib::Date baseSwapMaturityDate_;   // maturity date for the base ois swap
+        mutable QuantLib::Rate quotedSpreadImpliedTargetSwapFairRate_ = QuantLib::Null<QuantLib::Rate>();
+    private:
+        // base ois swap factory
+        pOvernightIndexedSwap makeBaseSwap(
+            const QuantLib::Date& startDate,    // start date of the swap
+            QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // swap type
+            QuantLib::Rate fixedRate = 0.,  // fixed rate
+            QuantLib::Spread overnightSpread = 0.,  // spread added to the overnight leg
+            const YieldTermStructureHandle& h = {}    // index estimating term structure
+        ) const {
+            auto pSwap = baseSwapTraits_.makeSwap(
+                startDate,
+                type,   // a payer swap will give the overnight leg a positive npv
+                0., // fixed rate on the fixed leg does not matter, only overnight leg matters in basis swap calculation
+                overnightSpread,
+                h
+            );
+            return pSwap;
+        }
+        // target vanilla swap factory
+        pVanillaSwap makeTargetSwap(
+            const QuantLib::Date& startDate,    // start date of the swap
+            QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // swap type
+            QuantLib::Rate fixedRate = 0.,  // fixed rate on the fixed leg
+            QuantLib::Spread floatSpread = 0.,  // spread added to the floating leg
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
+        ) const {
+            auto pSwap = targetSwapTraits_.makeSwap(
+                startDate,
+                type,
+                fixedRate,
+                floatSpread,
+                h
+            );
+            return pSwap;
+        }
+    public:
+        VanillaOISBasisSwapIndex(
+            const QuantLib::Period& tenor,  // tenor of the basis swap
+            bool spreadOnBaseLeg,   // a flag indicating whether the spread is applying on base swap's overnight leg or targe swap's floating leg
+            QuantLib::Date refDate = QuantLib::Date()
+        ):
+            SwapCurveInstrument(nullptr, BootstrapInstrument::vtSpread, SwapCurveInstrument::BasisSwap, tenor),
+            targetSwapTraits_(tenor),
+            baseSwapTraits_(tenor),
+            spreadOnBaseLeg_(spreadOnBaseLeg),
+            targetFixingResult_(targetSwapTraits_.calculateFixing(refDate)),
+            baseFixingResult_(baseSwapTraits_.calculateFixing(refDate))
+        {
+            const auto& swapTraits = this->targetSwapTraits_;
+            this->iborIndexFactory_ = [&swapTraits](const YieldTermStructureHandle& h) {
+                return swapTraits.makeIborIndex(h);
+            };
+            QL_REQUIRE(baseSwapTraits_.bothLegsCouponsAligned(true), "for Vanilla-OIS basis swap, the base OIS swap's fixed leg and overnight leg coupons must be aligned");
+            QL_REQUIRE(targetSwapTraits_.bothLegsCouponsAligned(true), "for Vanilla-OIS basis swap, the target vanilla swap's fixed leg and floating leg coupons must be aligned");
+            baseSwapMaturityDate_ = makeBaseSwap(baseFixingResult_.startDate)->maturityDate();  // calculate the base swap maturity date
+            this->datedDate() = makeTargetSwap(targetFixingResult_.startDate)->maturityDate();  // calculate the target swap maturity date
+        }
+        bool spreadOnBaseLeg() const {
+            return spreadOnBaseLeg_;
+        }
+        std::string instrumentTypeAlias() const override {
+            return "basis swap";
+        }
+        std::string valueTypeAlias() const override {
+            return "basis spread";
+        }
+        QuantLib::Date baseSwapFixingDate() const {
+            return baseFixingResult_.fixingDate;
+        }
+        QuantLib::Date baseSwapStartDate() const {
+            return baseFixingResult_.startDate;
+        }
+        QuantLib::Date baseSwapMaturityDate() const {
+            return baseSwapMaturityDate_;
+        }
+        QuantLib::Date targetSwapFixingDate() const {
+            return targetFixingResult_.fixingDate;
+        }
+        QuantLib::Date targetSwapStartDate() const {
+            return targetFixingResult_.startDate;
+        }
+        QuantLib::Date targetSwapMaturityDate() const {
+            return this->datedDate();
+        }
+        QuantLib::Date startDate() const override {
+            return targetSwapStartDate();
+        }
+        QuantLib::Date maturityDate() const override {
+            return targetSwapMaturityDate();
+        }
+        QuantLib::Rate quotedSpreadImpliedTargetSwapFairRate() const {
+            return quotedSpreadImpliedTargetSwapFairRate_;
+        }
+    protected:
+        // solver setting functions
+        /////////////////////////////////////////////////////////////////
+        static QuantLib::Real solverAccuracy() {
+            return 1.0e-16;
+        }
+        static QuantLib::Real solverRateStep() {
+            return 0.0010; // 10 bp step
+        }
+        static QuantLib::Size solverMaxIterations() {
+            return 300;
+        }
+        /////////////////////////////////////////////////////////////////
+    public:
+        // calculate the fair rate for the target vanilla swap implied by the quoted basis spread
+        QuantLib::Rate calculateQuotedSpreadImpliedTargetSwapFairRate(
+            const YieldTermStructureHandle& discountTermStructure // discount term structure
+        ) const {
+            this->ensureValueIsSet();
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountTermStructure));
+            auto quotedBasisSpread = this->spread();
+            auto baseSwapOvernightLegSpread = (spreadOnBaseLeg() ? quotedBasisSpread : 0.);
+            auto baseSwapIndexEstimatingTermStructure = discountTermStructure;    // for OIS swap, the index estimating term structure is the same as the discounting term structure
+            auto baseSwap = makeBaseSwap(
+                baseSwapStartDate(),
+                QuantLib::Swap::Type::Payer,    // a payer swap will give the overnight leg a positive npv
+                0., // fixedRate - don't care the fixed rate
+                baseSwapOvernightLegSpread,
+                baseSwapIndexEstimatingTermStructure
+            );
+            baseSwap->setPricingEngine(swapPricingEngine);
+            auto tryToMatchNPV = baseSwap->overnightLegNPV();   // should be positive since it's a payer (receive overnight) swap
+            auto baseSwapFairRate = baseSwap->fairRate() - baseSwapOvernightLegSpread;    // fair rate of the base swap without adding the overnight spread
+            auto targetSwapFairRateGuess = baseSwapFairRate + (spreadOnBaseLeg() ? quotedBasisSpread : -quotedBasisSpread);
+            const auto& me = *this;
+            auto f = [
+                &me,
+                &discountTermStructure,
+                &quotedBasisSpread,
+                &tryToMatchNPV,
+                &swapPricingEngine
+            ](const QuantLib::Rate& targetSwapFairRate) -> QuantLib::Real {
+                auto fixedRate = targetSwapFairRate + (me.spreadOnBaseLeg() ? 0. : quotedBasisSpread);
+                auto targetSwapIndexEstimatingTermStructure = discountTermStructure;    // since target vanilla swap's floating leg does not matter, just use an arbitrary term structure for index estimating
+                auto targetSwap = me.makeTargetSwap(
+                    me.targetSwapStartDate(),
+                    QuantLib::Swap::Type::Receiver, // a receiver swap will give the fixed leg a positive npv
+                    fixedRate,  // fixedRate
+                    0., // floatSpread - don't care the floating spread
+                    targetSwapIndexEstimatingTermStructure
+                );
+                targetSwap->setPricingEngine(swapPricingEngine);
+                auto targetSwapFixedLegNPV = targetSwap->fixedLegNPV();    // should be positive since it's a receiver (receive fixed) swap
+                return targetSwapFixedLegNPV - tryToMatchNPV;
+            };
+            QuantLib::Brent solver;
+            solver.setMaxEvaluations(solverMaxIterations());
+            QuantLib::Rate targetSwapFairRate = solver.solve(f, solverAccuracy(), targetSwapFairRateGuess, solverRateStep());
+            return targetSwapFairRate;
+        }
+        pRateHelper rateHelper(
+            const YieldTermStructureHandle& discountingTermStructure = {} 
+        ) const override {
+            quotedSpreadImpliedTargetSwapFairRate_ = calculateQuotedSpreadImpliedTargetSwapFairRate(discountingTermStructure);
+            auto helper = targetSwapTraits_.makeRateHelper(
+                quotedSpreadImpliedTargetSwapFairRate_,
+                targetSwapStartDate(),
+                targetSwapMaturityDate(),
+                discountingTermStructure
+            );
+            return helper;
+        }
+        QuantLib::Spread impliedBasisSpread(
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure
+        ) const {
+            QL_REQUIRE(estimatingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "estimating term structure is required to calculate the implied basis spread");
+            QL_REQUIRE(discountingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "discounting term structure is required to calculate the implied basis spread");
+            QL_ASSERT(estimatingTermStructure.currentLink() != discountingTermStructure.currentLink(), "estimating and discounting term structures must be different");
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
+            const auto& me = *this;
+            auto f = [
+                &me,
+                &estimatingTermStructure,
+                &discountingTermStructure,
+                &swapPricingEngine
+            ](const QuantLib::Spread& spread) -> QuantLib::Real {
+                // setup base swap
+                ////////////////////////////////////////////////////////////////////////
+                auto baseSwapIndexEstimatingTermStructure = discountingTermStructure;   // for OIS swap, the index estimating term structure is the same as the discounting term structure
+                auto baseSwapOvernightLegSpread = (me.spreadOnBaseLeg() ? spread : 0.);
+                auto baseSwap = me.makeBaseSwap(
+                    me.baseSwapStartDate(),
+                    QuantLib::Swap::Type::Payer,    // a payer swap will give the overnight leg a positive npv
+                    0., // fixedRate - don't care the fixed rate
+                    baseSwapOvernightLegSpread,
+                    baseSwapIndexEstimatingTermStructure
+                );
+                baseSwap->setPricingEngine(swapPricingEngine);
+                auto npv_1 = baseSwap->overnightLegNPV();   // should be positive since it's a payer (receive overnight) swap
+                ////////////////////////////////////////////////////////////////////////
+                // setup target swap
+                ////////////////////////////////////////////////////////////////////////
+                auto targetSwapIndexEstimatingTermStructure = estimatingTermStructure;
+                auto targetSwapFloatingLegSpread = (me.spreadOnBaseLeg() ? 0. : spread);
+                auto targetSwap = me.makeTargetSwap(
+                    me.targetSwapStartDate(),
+                    QuantLib::Swap::Type::Payer,    // a payer swap will give the floating leg a positive npv
+                    0., // fixedRate - don't care the fixed rate
+                    targetSwapFloatingLegSpread,    // floatSpread
+                    targetSwapIndexEstimatingTermStructure
+                );
+                targetSwap->setPricingEngine(swapPricingEngine);
+                auto npv_2 = targetSwap->floatingLegNPV(); // should be positive since it's a payer (receive floatiing) swap
+                ////////////////////////////////////////////////////////////////////////
+                return npv_2 - npv_1;
+            };
+            QuantLib::Real guessBasisSpread = 0.;
+            QuantLib::Brent solver;
+            solver.setMaxEvaluations(solverMaxIterations());
+            QuantLib::Spread impliedSpread = solver.solve(f, solverAccuracy(), guessBasisSpread, solverRateStep());
+            return impliedSpread;
+        }
+        QuantLib::Real impliedQuote(
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {
+            return impliedBasisSpread(estimatingTermStructure, discountingTermStructure);
         }
     };
 
@@ -933,10 +1229,10 @@ namespace QLUtils {
                 0.,
                 forward,
                 baseReferenceDate,
-                QuantLib::Period(TENOR_MONTHS, QuantLib::Months),	// tenor
-                QuantLib::Thirty360(THIRTY_360_DC_CONVENTION),	// day counter
-                COMPOUNDING,	// compounding
-                FREQUENCY	// frequency
+                QuantLib::Period(TENOR_MONTHS, QuantLib::Months),    // tenor
+                QuantLib::Thirty360(THIRTY_360_DC_CONVENTION),    // day counter
+                COMPOUNDING,    // compounding
+                FREQUENCY   // frequency
             )
         {
             this->datedDate() = helperInternal_.startDate();

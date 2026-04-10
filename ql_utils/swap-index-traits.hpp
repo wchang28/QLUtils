@@ -16,6 +16,7 @@ namespace QLUtils {
             QuantLib::Date fixingDate;  // swap fixing date
             QuantLib::Date startDate;   // swap start date
         };
+        typedef QuantLib::Handle<QuantLib::YieldTermStructure> YieldTermStructureHandle;
         typedef QuantLib::ext::shared_ptr<QuantLib::RateHelper> pRateHelper;
     public:
         SwapIndexTraitsBase(
@@ -159,7 +160,7 @@ namespace QLUtils {
         }
         // create overnight leg's overnight index given an optional index estimating term structure
         pOvernightIndex makeOvernightIndex(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}	// index estimating term structure
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             pOvernightIndex pIndex(new OvernightIndex(h));
 #ifdef _DEBUG
@@ -180,7 +181,7 @@ namespace QLUtils {
             QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // type of the swap
             QuantLib::Rate fixedRate = 0.,  // fixed rate
             QuantLib::Spread overnightSpread = 0.,  // spread on the overnight leg
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}	// index estimating term structure
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             auto overnightIndex = makeOvernightIndex(h);
             pOvernightIndexedSwap swap = QuantLib::MakeOIS(this->tenor(), overnightIndex, fixedRate)
@@ -204,7 +205,7 @@ namespace QLUtils {
             QuantLib::Rate quotedFixedRate,
             const QuantLib::Date& startDate,
             const QuantLib::Date& endDate,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const override {
             auto overnightIndex = makeOvernightIndex();
             QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
@@ -329,7 +330,7 @@ namespace QLUtils {
         }
         // create floating leg's ibor index given an optional index estimating term structure
         pIborIndex makeIborIndex(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}	// index estimating term structure
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             BaseSwapIndex swapIndex(this->tenor(), h);
             auto pIndex = swapIndex.iborIndex();
@@ -351,7 +352,7 @@ namespace QLUtils {
             QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // type of the swap
             QuantLib::Rate fixedRate = 0.,  // fixed rate
             QuantLib::Spread floatSpread = 0.,  // spread on the floating leg
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& h = {}	// index estimating term structure
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             auto iborIndex = makeIborIndex(h);
             pVanillaSwap swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, fixedRate)
@@ -374,7 +375,7 @@ namespace QLUtils {
             QuantLib::Rate quotedFixedRate,
             const QuantLib::Date& startDate,
             const QuantLib::Date& endDate,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const override {
             auto iborIndex = makeIborIndex();
             QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(

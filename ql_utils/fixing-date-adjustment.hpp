@@ -31,14 +31,14 @@ namespace QuantLib {
             }
             // adjust a candidate fixing date to a correct fixing date base on the number of days of fixing
             Date adjust(
-                const Date& d	// candidate fixing date
+                const Date& d   // candidate fixing date
             ) const {
                 QL_REQUIRE(d != Date(), "date cannot be null");
                 auto convention = adjConvention(fixingDays_);
                 return fixingCalendar_.adjust(d, convention);
             }
             std::pair<FixingDate, ValueDate> calculate(
-                const Date& d	// candidate fixing date
+                const Date& d   // candidate fixing date
             ) const {
                 auto fixingDate = adjust(d);
                 auto valueDate = fixingCalendar_.advance(fixingDate, fixingDays_ * Days, Following, false);
