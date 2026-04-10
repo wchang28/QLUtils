@@ -736,15 +736,23 @@ namespace QLUtils {
             QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
             return helper;
         }
-        QuantLib::Real impliedQuote(
+        QuantLib::Rate impliedSwapRate(
             const YieldTermStructureHandle& estimatingTermStructure,
-            const YieldTermStructureHandle& discountingTermStructure = {}
-        ) const override {
+            const YieldTermStructureHandle& discountingTermStructure
+        ) const {
+            QL_REQUIRE(estimatingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "estimating term structure is required to calculate the implied swap rate");
+            QL_REQUIRE(discountingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "discounting term structure is required to calculate the implied swap rate");
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
             auto swap = makeSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
             return swapRate;
+        }
+        QuantLib::Real impliedQuote(
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {
+            return impliedSwapRate(estimatingTermStructure, discountingTermStructure);
         }
     };
 
@@ -868,15 +876,23 @@ namespace QLUtils {
             QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
             return helper;
         }
-        QuantLib::Real impliedQuote(
+        QuantLib::Rate impliedSwapRate(
             const YieldTermStructureHandle& estimatingTermStructure,
-            const YieldTermStructureHandle& discountingTermStructure = {}
-        ) const override {
+            const YieldTermStructureHandle& discountingTermStructure
+        ) const {
+            QL_REQUIRE(estimatingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "estimating term structure is required to calculate the implied swap rate");
+            QL_REQUIRE(discountingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "discounting term structure is required to calculate the implied swap rate");
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
             auto swap = makeSwap(estimatingTermStructure);
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
             return swapRate;
+        }
+        QuantLib::Real impliedQuote(
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {
+            return impliedSwapRate(estimatingTermStructure, discountingTermStructure);
         }
     };
 
