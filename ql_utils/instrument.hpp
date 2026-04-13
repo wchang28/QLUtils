@@ -900,6 +900,7 @@ namespace QLUtils {
         QuantLib::Rate calculateQuotedSpreadImpliedTargetSwapFairRate(
             const YieldTermStructureHandle& discountTermStructure // discount term structure
         ) const {
+            QL_REQUIRE(discountTermStructure != YieldTermStructureHandle(), "discounting term structure is required");
             this->ensureValueIsSet();
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountTermStructure));
             auto quotedBasisSpread = this->spread();
