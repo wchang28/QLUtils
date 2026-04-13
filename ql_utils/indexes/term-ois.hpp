@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <string>
+#include <ql_utils/utilities/time.hpp>
 
 namespace QuantLib {
     // forward-looking term index similar to the xLibor but in the risk-free OIS space
@@ -28,6 +29,10 @@ namespace QuantLib {
                 dayCounter,
                 h
             )
-        {}
+        {
+            QL_REQUIRE(tenor() <= Period(1, Years), "Term OIS index tenor (" << tenor() << ") cannot be longer than one year");
+            auto [multipile, n] = Utils::isMultiple(Period(1, Years), tenor());
+            QL_REQUIRE(multipile, "Invalid term OIS index tenor (" << tenor() << "). One year must be the multiple of it");
+        }
     };
 }
