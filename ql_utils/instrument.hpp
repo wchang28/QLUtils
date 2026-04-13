@@ -896,7 +896,23 @@ namespace QLUtils {
         }
         /////////////////////////////////////////////////////////////////
     public:
-        // calculate the fair rate for the target vanilla swap implied by the quoted basis spread
+        // calculate the fair rate for the base OIS swap implied by the discount term structure
+        QuantLib::Rate calculateImpliedBaseSwapFairRate(
+            const YieldTermStructureHandle& discountTermStructure // discount term structure
+        ) const {
+            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountTermStructure));
+            auto estimatingTermStructure = discountTermStructure;    // for OIS swap, the index estimating term structure is the same as the discounting term structure
+            auto swap = makeBaseSwap(
+                QuantLib::Swap::Type::Payer, // type
+                0., // fixedRate
+                0., // overnightSpread
+                estimatingTermStructure // h
+            );
+            swap->setPricingEngine(swapPricingEngine);
+            auto swapRate = swap->fairRate();
+            return swapRate;
+        }
+        // calculate the fair rate for the target vanilla swap implied by the quoted basis spread and discount term structure
         QuantLib::Rate calculateQuotedSpreadImpliedTargetSwapFairRate(
             const YieldTermStructureHandle& discountTermStructure // discount term structure
         ) const {
