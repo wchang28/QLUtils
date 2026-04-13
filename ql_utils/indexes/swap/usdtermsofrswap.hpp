@@ -18,7 +18,7 @@ namespace QuantLib {
             return oss.str();
         }
     public:
-		typedef TermSofr<FREQ> IBOR_INDEX;
+		typedef TermSofr<FREQ> IborIndexType;
     public:
         UsdTermSofrSwapIsdaFix(
             const Period& tenor,	// swap tenor
@@ -32,8 +32,8 @@ namespace QuantLib {
                 UnitedStates(UnitedStates::GovernmentBond),	// fixingCalendar for both legs
                 Period(FREQ), // fixedLegTenor
                 ModifiedFollowing,	// fixedLegConvention
-                IBOR_INDEX{}.dayCounter(),	// fixedLegDayCounter, same as index's day counter
-                ext::shared_ptr<IborIndex>(new IBOR_INDEX(h)),	// iborIndex
+                IborIndexType{}.dayCounter(),	// fixedLegDayCounter, same as index's day counter
+                ext::shared_ptr<IborIndex>(new IborIndexType(h)),	// iborIndex
                 true    // endOfMonth, term sofr swap has endOfMonth=true for both legs
             )
         {}
@@ -50,8 +50,8 @@ namespace QuantLib {
                 UnitedStates(UnitedStates::GovernmentBond),	// fixingCalendar for both legs
                 Period(FREQ), // fixedLegTenor
                 ModifiedFollowing,	// fixedLegConvention
-                IBOR_INDEX{}.dayCounter(),	// fixedLegDayCounter, same as index's day counter
-                ext::shared_ptr<IborIndex>(new IBOR_INDEX(forwarding)),	// iborIndex
+                IborIndexType{}.dayCounter(),	// fixedLegDayCounter, same as index's day counter
+                ext::shared_ptr<IborIndex>(new IborIndexType(forwarding)),	// iborIndex
                 discounting, // discountingTermStructure
                 true    // endOfMonth, term sofr swap has endOfMonth=true for both legs
             )
