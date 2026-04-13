@@ -780,7 +780,7 @@ namespace QLUtils {
     private:
         TargetTraitsType targetSwapTraits_;
         BaseTraitsType baseSwapTraits_;
-        bool spreadOnBaseLeg_;
+        bool spreadIsOnBaseLeg_;
         typename TargetTraitsType::FixingResult targetFixingResult_;
         typename BaseTraitsType::FixingResult baseFixingResult_;
         QuantLib::Date baseSwapMaturityDate_;   // maturity date for the base ois swap
@@ -821,7 +821,7 @@ namespace QLUtils {
     public:
         VanillaOISBasisSwapIndex(
             const QuantLib::Period& tenor,  // tenor of the basis swap
-            bool spreadOnBaseLeg,   // a flag indicating whether the spread is applying on base swap's overnight leg or targe swap's floating leg
+            bool spreadIsOnBaseLeg,   // a flag indicating whether the spread is applying on base swap's overnight leg or targe swap's floating leg
             QuantLib::Date refDate = QuantLib::Date()
         ):
             SwapCurveInstrument(
@@ -832,7 +832,7 @@ namespace QLUtils {
             ),
             targetSwapTraits_(tenor),
             baseSwapTraits_(tenor),
-            spreadOnBaseLeg_(spreadOnBaseLeg),
+            spreadIsOnBaseLeg_(spreadIsOnBaseLeg),
             targetFixingResult_(targetSwapTraits_.calculateFixing(refDate)),
             baseFixingResult_(baseSwapTraits_.calculateFixing(refDate))
         {
@@ -842,11 +842,12 @@ namespace QLUtils {
             };
             QL_REQUIRE(baseSwapTraits_.bothLegsCouponsAligned(true), "for Vanilla-OIS basis swap, the base OIS swap's fixed leg and overnight leg coupons must be aligned");
             QL_REQUIRE(targetSwapTraits_.bothLegsCouponsAligned(true), "for Vanilla-OIS basis swap, the target vanilla swap's fixed leg and floating leg coupons must be aligned");
+            QL_REQUIRE(baseSwapFixingDate() == targetSwapFixingDate(), "for Vanilla-OIS basis swap, the base OIS swap's fixing date (" << baseSwapFixingDate() << ") must match the target vanilla swap's fixing date (" << targetSwapFixingDate() << ")");
             baseSwapMaturityDate_ = makeBaseSwap()->maturityDate();  // calculate the base swap maturity date
             this->datedDate() = makeTargetSwap()->maturityDate();  // calculate the target swap maturity date
         }
-        bool spreadOnBaseLeg() const {
-            return spreadOnBaseLeg_;
+        bool spreadIsOnBaseLeg() const {
+            return spreadIsOnBaseLeg_;
         }
         std::string instrumentTypeAlias() const override {
             return "basis swap";
@@ -902,10 +903,9 @@ namespace QLUtils {
             this->ensureValueIsSet();
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountTermStructure));
             auto quotedBasisSpread = this->spread();
-            auto baseSwapOvernightLegSpread = (spreadOnBaseLeg() ? quotedBasisSpread : 0.);
+            auto baseSwapOvernightLegSpread = (spreadIsOnBaseLeg() ? quotedBasisSpread : 0.);
             auto baseSwapIndexEstimatingTermStructure = discountTermStructure;    // for OIS swap, the index estimating term structure is the same as the discounting term structure
             auto baseSwap = makeBaseSwap(
-                baseSwapStartDate(),
                 QuantLib::Swap::Type::Payer,    // a payer swap will give the overnight leg a positive npv
                 0., // fixedRate - don't care the fixed rate
                 baseSwapOvernightLegSpread,
@@ -914,7 +914,7 @@ namespace QLUtils {
             baseSwap->setPricingEngine(swapPricingEngine);
             auto tryToMatchNPV = baseSwap->overnightLegNPV();   // should be positive since it's a payer (receive overnight) swap
             auto baseSwapFairRate = baseSwap->fairRate() - baseSwapOvernightLegSpread;    // fair rate of the base swap without adding the overnight spread
-            auto targetSwapFairRateGuess = baseSwapFairRate + (spreadOnBaseLeg() ? quotedBasisSpread : -quotedBasisSpread);
+            auto targetSwapFairRateGuess = baseSwapFairRate + (spreadIsOnBaseLeg() ? quotedBasisSpread : -quotedBasisSpread);
             const auto& me = *this;
             auto f = [
                 &me,
@@ -923,10 +923,9 @@ namespace QLUtils {
                 &tryToMatchNPV,
                 &swapPricingEngine
             ](const QuantLib::Rate& targetSwapFairRate) -> QuantLib::Real {
-                auto fixedRate = targetSwapFairRate + (me.spreadOnBaseLeg() ? 0. : quotedBasisSpread);
+                auto fixedRate = targetSwapFairRate + (me.spreadIsOnBaseLeg() ? 0. : quotedBasisSpread);
                 auto targetSwapIndexEstimatingTermStructure = discountTermStructure;    // since target vanilla swap's floating leg does not matter, just use an arbitrary term structure for index estimating
                 auto targetSwap = me.makeTargetSwap(
-                    me.targetSwapStartDate(),
                     QuantLib::Swap::Type::Receiver, // a receiver swap will give the fixed leg a positive npv
                     fixedRate,  // fixedRate
                     0., // floatSpread - don't care the floating spread
@@ -970,7 +969,7 @@ namespace QLUtils {
                 // setup a base payer OIS swap
                 ////////////////////////////////////////////////////////////////////////
                 auto baseSwapIndexEstimatingTermStructure = discountingTermStructure;   // for OIS swap, the index estimating term structure is the same as the discounting term structure
-                auto baseSwapOvernightLegSpread = (me.spreadOnBaseLeg() ? spread : 0.);
+                auto baseSwapOvernightLegSpread = (me.spreadIsOnBaseLeg() ? spread : 0.);
                 auto baseSwap = me.makeBaseSwap(
                     QuantLib::Swap::Type::Payer,    // a payer OIS swap will give the overnight leg a positive npv
                     0., // fixedRate - don't care the fixed rate since we only want the npv of the overnight leg
@@ -983,7 +982,7 @@ namespace QLUtils {
                 // setup a target payer vanilla swap
                 ////////////////////////////////////////////////////////////////////////
                 auto targetSwapIndexEstimatingTermStructure = estimatingTermStructure;
-                auto targetSwapFloatingLegSpread = (me.spreadOnBaseLeg() ? 0. : spread);
+                auto targetSwapFloatingLegSpread = (me.spreadIsOnBaseLeg() ? 0. : spread);
                 auto targetSwap = me.makeTargetSwap(
                     QuantLib::Swap::Type::Payer,    // a payer vanilla swap will give the floating leg a positive npv
                     0., // fixedRate - don't care the fixed rate since we only want the npv of the floating leg
