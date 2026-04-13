@@ -4,16 +4,15 @@
 #include <ql_utils/indexes/term-ois.hpp>
 
 namespace QuantLib {
-    // Term Sofr, tenorMonths = 1, 3, 6, 12
     class USDTermSofr : public TermOISIndex {
     public:
         USDTermSofr(
-            Natural tenorMonths,    // tenor in months
+            Frequency frequency,    // Annual (12M), Semiannual (6M), Quarterly (3M), Monthly (1M)
             const Handle<YieldTermStructure>& h = {}       // index estimating term structure
         )
         :TermOISIndex(
             "USDTermSofr",  // familyName
-            tenorMonths,
+            frequency,
             2,  // T+2 settlement on the fixing calendar
             USDCurrency(),  // currency
             UnitedStates(UnitedStates::GovernmentBond), // fixingCalendar
@@ -23,17 +22,17 @@ namespace QuantLib {
         {}
     };
 	template <
-        Natural TenorMonths
+        Frequency FREQ
     >
     class TermSofr : public USDTermSofr {
     public:
         TermSofr(
             const Handle<YieldTermStructure>& h = {}    // index estimating term structure
-        ) : USDTermSofr(TenorMonths, h)
+        ) : USDTermSofr(FREQ, h)
         {}
     };
-    using TermSofr1M = TermSofr<1>;
-    using TermSofr3M = TermSofr<3>;
-    using TermSofr6M = TermSofr<6>;
-    using TermSofr12M = TermSofr<12>;
+    using TermSofr1M = TermSofr<Monthly>;
+    using TermSofr3M = TermSofr<Quarterly>;
+    using TermSofr6M = TermSofr<Semiannual>;
+    using TermSofr12M = TermSofr<Annual>;
 }

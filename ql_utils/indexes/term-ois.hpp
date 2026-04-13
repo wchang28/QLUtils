@@ -9,7 +9,7 @@ namespace QuantLib {
     public:
         TermOISIndex(
             const std::string& familyName,
-            Natural tenorMonths,    // term OIS can only have tenor in the multiple of months
+            Frequency frequency,    // Annual (12M), Semiannual (6M), Quarterly (3M), Monthly (1M)
             Natural settlementDays,
             const Currency& currency,
             const Calendar& fixingCalendar,
@@ -19,7 +19,7 @@ namespace QuantLib {
             IborIndex
             (
                 familyName,
-                Period(tenorMonths, Months),    // tenor
+                Period(frequency),    // tenor
                 settlementDays,
                 currency,
                 fixingCalendar,
