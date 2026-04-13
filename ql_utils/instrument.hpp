@@ -432,7 +432,7 @@ namespace QLUtils {
     };
 
     template <
-        typename IborIndexType // can be Sofr, FedFunds, Sonia, Estr, Eonia, TermSofr<1>, TermSofr<3>, TermSofr<6>, TermSofr<12>
+        typename IborIndexType // can be Sofr, FedFunds, Sonia, Estr, Eonia, TermSofr<Monthly>, TermSofr<Quarterly>, TermSofr<Semiannual>, TermSofr<Annual>, UsdOvernightCompoundedAverageIndex<Sofr, Annual>
     >
     class IborIndexCashDeposit : public CashDepositIndex {
     public:
@@ -731,7 +731,7 @@ namespace QLUtils {
     };
 
     template<
-        typename BASE_SWAP_INDEX
+        typename BASE_SWAP_INDEX    // can be UsdTermSofrSwapIsdaFix<Monthly>, UsdFwdOISVanillaSwapIndex<Sofr, Annual>
     >
     class VanillaSwapIndex : public SwapIndexBase<VanillaSwapIndexTraits<BASE_SWAP_INDEX>> {
     public:
@@ -747,7 +747,7 @@ namespace QLUtils {
     };
 
     template<
-        typename BASE_SWAP_INDEX
+        typename BASE_SWAP_INDEX    // can be UsdOvernightIndexedSwapIsdaFix<Sofr, Annual>, GbpOvernightIndexedSwapIsdaFix<Sonia, Annual>, EurOvernightIndexedSwapIsdaFix<Estr, Annual>
     >
     class OISSwapIndex : public SwapIndexBase<OISSwapIndexTraits<BASE_SWAP_INDEX>> {
     public:

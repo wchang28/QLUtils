@@ -68,6 +68,8 @@ namespace QuantLib {
     >
     class UsdFwdOISVanillaSwapIndex : public FwdOISVanillaSwapIndex<OVERNIGHTINDEX, FREQ> {
     public:
+		typedef UsdOvernightCompoundedAverageIndex<OVERNIGHTINDEX, FREQ> IborIndexType;
+    public:
         UsdFwdOISVanillaSwapIndex(
             const Period& tenor,
             const Handle<YieldTermStructure>& h = {} // index estimating term structure
