@@ -8,17 +8,17 @@
 
 namespace QuantLib {
     template <
-        Frequency FREQ    // Annual (12M), Semiannual (6M), Quarterly (3M), Monthly (1M)
+        Frequency COUPON_FREQ    // Annual (12M), Semiannual (6M), Quarterly (3M), Monthly (1M)
     >
     class UsdTermSofrSwapIsdaFix : public SwapIndexEx {
     private:
         static std::string makeFamilyName() {
             std::ostringstream oss;
-            oss << "UsdTermSofrSwapIsdaFix<<" << Period(FREQ) << ">>";
+            oss << "UsdTermSofrSwapIsdaFix<<" << Period(COUPON_FREQ) << ">>";
             return oss.str();
         }
     public:
-		typedef TermSofr<FREQ> IborIndexType;
+		typedef TermSofr<COUPON_FREQ> IborIndexType;
     public:
         UsdTermSofrSwapIsdaFix(
             const Period& tenor,	// swap tenor
@@ -30,7 +30,7 @@ namespace QuantLib {
                 2, // settlementDays
                 USDCurrency(),	// curency
                 UnitedStates(UnitedStates::GovernmentBond),	// fixingCalendar for both legs
-                Period(FREQ), // fixedLegTenor
+                Period(COUPON_FREQ), // fixedLegTenor
                 ModifiedFollowing,	// fixedLegConvention
                 IborIndexType{}.dayCounter(),	// fixedLegDayCounter, same as index's day counter
                 ext::shared_ptr<IborIndex>(new IborIndexType(h)),	// iborIndex
@@ -48,7 +48,7 @@ namespace QuantLib {
                 2, // settlementDays
                 USDCurrency(),	// curency
                 UnitedStates(UnitedStates::GovernmentBond),	// fixingCalendar for both legs
-                Period(FREQ), // fixedLegTenor
+                Period(COUPON_FREQ), // fixedLegTenor
                 ModifiedFollowing,	// fixedLegConvention
                 IborIndexType{}.dayCounter(),	// fixedLegDayCounter, same as index's day counter
                 ext::shared_ptr<IborIndex>(new IborIndexType(forwarding)),	// iborIndex
