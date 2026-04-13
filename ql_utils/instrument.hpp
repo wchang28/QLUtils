@@ -638,48 +638,44 @@ namespace QLUtils {
         }
     };
 
+	// swap index base template class for both vanilla swap and OIS swap, the specific swap type is determined by the template parameter SwapTraits which provides the necessary traits and factory methods to create the swap and the ibor index for the swap floating leg
     template<
-        typename BASE_SWAP_INDEX
+        typename SWAP_TRAITS
     >
-    class VanillaSwapIndex : public SwapCurveInstrument {
-    private:
-        typedef VanillaSwapIndexTraits<BASE_SWAP_INDEX> TraitsType;
+    class SwapIndexBase : public SwapCurveInstrument {
     public:
-        typedef BASE_SWAP_INDEX BaseSwapIndex;
+        typedef SWAP_TRAITS TraitsType;
+		typedef typename TraitsType::BaseSwapIndex BaseSwapIndex;
+        typedef typename TraitsType::SwapPtr SwapPtr;
     private:
         TraitsType swapTraits_;
         typename TraitsType::FixingResult fixingResult_;
-        bool endOfMonth_;   // end of month flag for both legs
-    public:
-        typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
     private:
-        // create a vanilla swap with the given swap spec/traits
-        pVanillaSwap makeSwap(
+        // create a swap with the given swap spec/traits
+        SwapPtr makeSwap(
             const YieldTermStructureHandle& h = {}    // index estimating term structure
         ) const {
-            auto iborIndex = this->makeIborIndex(h);
-            pVanillaSwap swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, 0.0)
-                .withEffectiveDate(startDate())
-                .withFixedLegCalendar(fixingCalendar())
-                .withFixedLegDayCount(swapTraits_.fixedLegDayCount())
-                .withFixedLegTenor(swapTraits_.fixedLegTenor())
-                .withFixedLegConvention(swapTraits_.fixedLegConvention())
-                .withFixedLegTerminationDateConvention(swapTraits_.fixedLegConvention())
-                .withFixedLegEndOfMonth(endOfMonth())
-                .withFloatingLegCalendar(fixingCalendar())
-                .withFloatingLegEndOfMonth(endOfMonth())
-                ;
-            return swap;
+            return swapTraits_.makeSwap(
+                startDate(),    // startDate
+                QuantLib::Swap::Type::Payer,    // type
+                0., // fixedRate
+                0., // floatSpread or overnightSpread
+                h   // h - index estimating term structure
+            );
         }
     public:
-        VanillaSwapIndex(
+        SwapIndexBase(
             const QuantLib::Period& tenor,
             QuantLib::Date refDate = QuantLib::Date()
         ) :
-            SwapCurveInstrument(nullptr, BootstrapInstrument::vtRate, SwapCurveInstrument::Swap, tenor),
+            SwapCurveInstrument(
+                nullptr,
+                BootstrapInstrument::vtRate,
+                SwapCurveInstrument::Swap,
+                tenor
+            ),
             swapTraits_(tenor),
-            fixingResult_(swapTraits_.calculateFixing(refDate)),
-            endOfMonth_(swapTraits_.endOfMonth())
+            fixingResult_(swapTraits_.calculateFixing(refDate))
         {
             const auto& swapTraits = this->swapTraits_;
             this->iborIndexFactory_ = [&swapTraits](const YieldTermStructureHandle& h) {
@@ -693,9 +689,6 @@ namespace QLUtils {
         QuantLib::Date fixingDate() const {
             return fixingResult_.fixingDate;
         }
-        std::string instrumentTypeAlias() const override {
-            return "vanilla swap";
-        }
         std::string valueTypeAlias() const override {
             return "swap rate";
         }
@@ -705,45 +698,25 @@ namespace QLUtils {
         QuantLib::Date maturityDate() const override {
             return this->datedDate();
         }
-        bool endOfMonth() const {
-            return endOfMonth_;
-        }
         pRateHelper rateHelper(
             const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const override {
-            auto startDate = this->startDate();
-            auto endDate = this->maturityDate();
-            auto iborIndex = this->makeIborIndex();
-            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
-                new QuantLib::SwapRateHelper(
-                    quote(),    // rate
-                    startDate,    // startDate
-                    endDate,    // endDate
-                    fixingCalendar(),   // calendar
-                    swapTraits_.fixedLegFrequency(), // fixedFrequency
-                    swapTraits_.fixedLegConvention(),    // fixedConvention
-                    swapTraits_.fixedLegDayCount(),  // fixedDayCount
-                    iborIndex,  // iborIndex
-                    {},    // spread
-                    discountingTermStructure,   // discountingCurve - exogenous discounting curve
-                    QuantLib::Pillar::MaturityDate, // pillar
-                    QuantLib::Date(),   // customPillarDate
-                    endOfMonth()  // endOfMonth
-                )
+            return swapTraits_.makeRateHelper(
+                this->rate(),   // quotedFixedRate
+                startDate(),    // startDate
+                maturityDate(),  // endDate
+                discountingTermStructure    // discountingTermStructure - exogenous discounting curve
             );
-            auto swap = helper->swap();
-            QL_ASSERT(swap->startDate() == startDate, "swap start date (" << swap->startDate() << ") is not what's expected (" << startDate << ")");
-            QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
-            return helper;
         }
+		// given both estimating and discounting term structures, calculate the swap's implied fair fixed rate
         QuantLib::Rate impliedSwapRate(
             const YieldTermStructureHandle& estimatingTermStructure,
             const YieldTermStructureHandle& discountingTermStructure
         ) const {
-            QL_REQUIRE(estimatingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "estimating term structure is required to calculate the implied swap rate");
-            QL_REQUIRE(discountingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "discounting term structure is required to calculate the implied swap rate");
+            QL_REQUIRE(estimatingTermStructure != YieldTermStructureHandle(), "estimating term structure is required to calculate the implied swap rate");
+            QL_REQUIRE(discountingTermStructure != YieldTermStructureHandle(), "discounting term structure is required to calculate the implied swap rate");
             QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
-            auto swap = makeSwap(estimatingTermStructure);
+			auto swap = makeSwap(estimatingTermStructure);  // make a swap with the estimating term structure for the index forecasting
             swap->setPricingEngine(swapPricingEngine);
             auto swapRate = swap->fairRate();
             return swapRate;
@@ -756,143 +729,35 @@ namespace QLUtils {
         }
     };
 
-    template <
+    template<
         typename BASE_SWAP_INDEX
     >
-    class OISSwapIndex :
-        public SwapCurveInstrument {
-    private:
-        typedef OISSwapIndexTraits<BASE_SWAP_INDEX> TraitsType;
+    class VanillaSwapIndex : public SwapIndexBase<VanillaSwapIndexTraits<BASE_SWAP_INDEX>> {
     public:
-        typedef BASE_SWAP_INDEX BaseSwapIndex;
-        typedef typename TraitsType::OvernightIndex OvernightIndexType;
-        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> pOvernightIndex;
-        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
-    private:
-        TraitsType swapTraits_;
-        typename TraitsType::FixingResult fixingResult_;
-        QuantLib::DateGeneration::Rule rule_;   // cashflow generation rule for both legs
-    private:
-        pOvernightIndex makeOvernightIndex(
-            const YieldTermStructureHandle& h = {}    // index estimating term structure
-        ) const {
-            auto iborIndex = this->makeIborIndex(h);
-            auto pIndex = QuantLib::ext::dynamic_pointer_cast<QuantLib::OvernightIndex>(iborIndex);
-            QL_REQUIRE(pIndex != nullptr, "ibor index created by factory is not an overnight index");
-            return pIndex;
+        VanillaSwapIndex(
+            const QuantLib::Period& tenor,
+            QuantLib::Date refDate = QuantLib::Date()
+        ) :
+            SwapIndexBase<VanillaSwapIndexTraits<BASE_SWAP_INDEX>>(tenor, refDate)
+        {}
+        std::string instrumentTypeAlias() const override {
+            return "vanilla swap";
         }
-        // create a overnight index swap with the given swap spec/traits
-        pOvernightIndexedSwap makeSwap(
-            const YieldTermStructureHandle& h = {}    // index estimating term structure
-        ) const {
-            auto overnightIndex = makeOvernightIndex(h);
-            pOvernightIndexedSwap swap = QuantLib::MakeOIS(tenor(), overnightIndex, 0.0)
-                .withEffectiveDate(startDate())
-                .withTelescopicValueDates(swapTraits_.telescopicValueDates())
-                .withAveragingMethod(swapTraits_.averagingMethod())
-                .withPaymentLag(swapTraits_.paymentLag())
-                .withPaymentAdjustment(swapTraits_.paymentConvention())
-                .withPaymentFrequency(swapTraits_.paymentFrequency())
-                .withPaymentCalendar(swapTraits_.paymentCalendar())
-                .withFixedLegCalendar(fixingCalendar())
-                .withOvernightLegCalendar(fixingCalendar())
-                .withRule(rule())
-                ;
-            return swap;
-        }
+    };
+
+    template<
+        typename BASE_SWAP_INDEX
+    >
+    class OISSwapIndex : public SwapIndexBase<OISSwapIndexTraits<BASE_SWAP_INDEX>> {
     public:
         OISSwapIndex(
             const QuantLib::Period& tenor,
             QuantLib::Date refDate = QuantLib::Date()
-        ) : 
-            SwapCurveInstrument(
-                [](const YieldTermStructureHandle& h) {return pIborIndex(new OvernightIndexType(h));},
-                BootstrapInstrument::vtRate,
-                SwapCurveInstrument::Swap,
-                tenor
-            ),
-            swapTraits_(tenor),
-            fixingResult_(swapTraits_.calculateFixing(refDate)),
-            rule_(swapTraits_.rule())
-        {
-            this->datedDate() = makeSwap()->maturityDate(); // calculate the swap maturity date
-        }
-        const QuantLib::Calendar& fixingCalendar() const {
-            return fixingResult_.fixingCalendar;
-        }
-        QuantLib::Date fixingDate() const {
-            return fixingResult_.fixingDate;
-        }
+        ) :
+            SwapIndexBase<OISSwapIndexTraits<BASE_SWAP_INDEX>>(tenor, refDate)
+        {}
         std::string instrumentTypeAlias() const override {
-            return "ois swap";
-        }
-        std::string valueTypeAlias() const override {
-            return "swap rate";
-        }
-        QuantLib::Date startDate() const override {
-            return fixingResult_.startDate;
-        }
-        QuantLib::Date maturityDate() const override {
-            return this->datedDate();
-        }
-        QuantLib::DateGeneration::Rule rule() const {
-            return rule_;
-        }
-        pRateHelper rateHelper(
-            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
-        ) const override {
-            auto startDate = this->startDate();
-            auto endDate = this->maturityDate();
-            auto overnightIndex = makeOvernightIndex();
-            QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
-                new QuantLib::OISRateHelper(
-                    startDate,    // startDate
-                    endDate,  // endDate
-                    quote(),    // fixedRate
-                    overnightIndex, // overnightIndex
-                    discountingTermStructure,   // discountingCurve - exogenous discounting curve
-                    swapTraits_.telescopicValueDates(),  // telescopicValueDates
-                    swapTraits_.paymentLag(),    // paymentLag
-                    swapTraits_.paymentConvention(), // paymentConvention
-                    swapTraits_.paymentFrequency(),   // paymentFrequency
-                    swapTraits_.paymentCalendar(),   // paymentCalendar
-                    QuantLib::Spread(0.),    // overnightSpread
-                    QuantLib::Pillar::MaturityDate, // pillar
-                    QuantLib::Date(),   // customPillarDate
-                    swapTraits_.averagingMethod(),    // averagingMethod
-                    QuantLib::ext::nullopt,   // endOfMonth
-                    QuantLib::ext::nullopt,   // fixedPaymentFrequency
-                    fixingCalendar(), // fixedCalendar
-                    QuantLib::Null<QuantLib::Natural>(),    // lookbackDays
-                    0,  // lockoutDays
-                    false,  // applyObservationShift
-                    {}, // pricer
-                    rule(),   // rule
-                    fixingCalendar()  // overnightCalendar
-                )
-            );
-            auto swap = helper->swap();
-            QL_ASSERT(swap->startDate() == startDate, "swap start date (" << swap->startDate() << ") is not what's expected (" << startDate << ")");
-            QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
-            return helper;
-        }
-        QuantLib::Rate impliedSwapRate(
-            const YieldTermStructureHandle& estimatingTermStructure,
-            const YieldTermStructureHandle& discountingTermStructure
-        ) const {
-            QL_REQUIRE(estimatingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "estimating term structure is required to calculate the implied swap rate");
-            QL_REQUIRE(discountingTermStructure != QuantLib::Handle<QuantLib::YieldTermStructure>(), "discounting term structure is required to calculate the implied swap rate");
-            QuantLib::ext::shared_ptr<QuantLib::PricingEngine> swapPricingEngine(new QuantLib::DiscountingSwapEngine(discountingTermStructure));
-            auto swap = makeSwap(estimatingTermStructure);
-            swap->setPricingEngine(swapPricingEngine);
-            auto swapRate = swap->fairRate();
-            return swapRate;
-        }
-        QuantLib::Real impliedQuote(
-            const YieldTermStructureHandle& estimatingTermStructure,
-            const YieldTermStructureHandle& discountingTermStructure = {}
-        ) const override {
-            return impliedSwapRate(estimatingTermStructure, discountingTermStructure);
+            return "OIS swap";
         }
     };
 

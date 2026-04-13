@@ -18,6 +18,7 @@ namespace QLUtils {
         };
         typedef QuantLib::Handle<QuantLib::YieldTermStructure> YieldTermStructureHandle;
         typedef QuantLib::ext::shared_ptr<QuantLib::RateHelper> pRateHelper;
+        typedef QuantLib::ext::shared_ptr<QuantLib::IborIndex> pIborIndex;
     public:
         SwapIndexTraitsBase(
             const QuantLib::Period& tenor   // swap index's tenor
@@ -47,12 +48,16 @@ namespace QLUtils {
         virtual bool bothLegsCouponsAligned(
             bool includeDayCounter = true
         ) const = 0;
+        // iborIndex factory
+        virtual pIborIndex makeIborIndex(
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
+        ) const = 0;
         // rate helper factory
         virtual pRateHelper makeRateHelper(
             QuantLib::Rate quotedFixedRate,
             const QuantLib::Date& startDate,
             const QuantLib::Date& endDate,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = {}   // exogenous discounting curve
+            const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const = 0;
 
         // calculate the fixing date and effective date for a given reference date (default to evaluation date if not provided)
@@ -93,6 +98,7 @@ namespace QLUtils {
         typedef typename BaseSwapIndex::OvernightIndex OvernightIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> pOvernightIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
+        typedef pOvernightIndexedSwap SwapPtr;
     private:
         std::shared_ptr<BaseSwapIndex> pSwapIndex_;
     public:
@@ -176,6 +182,11 @@ namespace QLUtils {
 #endif
             return pIndex;
         }
+        pIborIndex makeIborIndex(
+            const YieldTermStructureHandle& h = {}  // index estimating term structure
+        ) const override {
+            return makeOvernightIndex(h);
+        }
         pOvernightIndexedSwap makeSwap(
             const QuantLib::Date& startDate, // start date of the swap
             QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // type of the swap
@@ -258,8 +269,8 @@ namespace QLUtils {
     class VanillaSwapIndexTraits: public SwapIndexTraitsBase {
     public:
         typedef BASE_SWAP_INDEX BaseSwapIndex;
-        typedef QuantLib::ext::shared_ptr<QuantLib::IborIndex> pIborIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
+        typedef pVanillaSwap SwapPtr;
     private:
         std::shared_ptr<BaseSwapIndex> pSwapIndex_;
     public:
@@ -331,7 +342,7 @@ namespace QLUtils {
         // create floating leg's ibor index given an optional index estimating term structure
         pIborIndex makeIborIndex(
             const YieldTermStructureHandle& h = {}  // index estimating term structure
-        ) const {
+        ) const override {
             BaseSwapIndex swapIndex(this->tenor(), h);
             auto pIndex = swapIndex.iborIndex();
 #ifdef _DEBUG
