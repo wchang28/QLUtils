@@ -638,11 +638,11 @@ namespace QLUtils {
         }
     };
 
-    // swap index base template class for both vanilla swap and OIS swap, the specific swap type is determined by the template parameter SwapTraits which provides the necessary traits and factory methods to create the swap and the ibor index for the swap floating leg
+    // swap traits-based swap index
     template<
         typename SWAP_TRAITS
     >
-    class SwapIndexBase : public SwapCurveInstrument {
+    class TraitsBasedSwapIndex : public SwapCurveInstrument {
     public:
         typedef SWAP_TRAITS TraitsType;
         typedef typename TraitsType::BaseSwapIndex BaseSwapIndex;
@@ -664,7 +664,7 @@ namespace QLUtils {
             );
         }
     public:
-        SwapIndexBase(
+        TraitsBasedSwapIndex(
             const QuantLib::Period& tenor,
             QuantLib::Date refDate = QuantLib::Date()
         ) :
@@ -692,6 +692,9 @@ namespace QLUtils {
         std::string valueTypeAlias() const override {
             return "swap rate";
         }
+        std::string instrumentTypeAlias() const override {
+            return swapTraits_.typeAlias();
+        }
         QuantLib::Date startDate() const override {
             return fixingResult_.startDate;
         }
@@ -705,7 +708,6 @@ namespace QLUtils {
             return swapTraits_.makeRateHelper(
                 this->rate(),   // quotedFixedRate
                 startDate(),    // startDate
-                maturityDate(),  // endDate
                 discountingTermStructure    // discountingTermStructure - exogenous discounting curve
             );
         }
@@ -733,34 +735,12 @@ namespace QLUtils {
     template<
         typename BASE_SWAP_INDEX    // can be UsdTermSofrSwapIsdaFix<Monthly>, UsdFwdOISVanillaSwapIndex<Sofr, Annual>
     >
-    class VanillaSwapIndex : public SwapIndexBase<VanillaSwapIndexTraits<BASE_SWAP_INDEX>> {
-    public:
-        VanillaSwapIndex(
-            const QuantLib::Period& tenor,
-            QuantLib::Date refDate = QuantLib::Date()
-        ) :
-            SwapIndexBase<VanillaSwapIndexTraits<BASE_SWAP_INDEX>>(tenor, refDate)
-        {}
-        std::string instrumentTypeAlias() const override {
-            return "vanilla swap";
-        }
-    };
+    using VanillaSwapIndex = TraitsBasedSwapIndex<VanillaSwapIndexTraits<BASE_SWAP_INDEX>>;
 
     template<
         typename BASE_SWAP_INDEX    // can be UsdOvernightIndexedSwapIsdaFix<Sofr, Annual>, GbpOvernightIndexedSwapIsdaFix<Sonia, Annual>, EurOvernightIndexedSwapIsdaFix<Estr, Annual>
     >
-    class OISSwapIndex : public SwapIndexBase<OISSwapIndexTraits<BASE_SWAP_INDEX>> {
-    public:
-        OISSwapIndex(
-            const QuantLib::Period& tenor,
-            QuantLib::Date refDate = QuantLib::Date()
-        ) :
-            SwapIndexBase<OISSwapIndexTraits<BASE_SWAP_INDEX>>(tenor, refDate)
-        {}
-        std::string instrumentTypeAlias() const override {
-            return "OIS swap";
-        }
-    };
+    using OISSwapIndex = TraitsBasedSwapIndex<OISSwapIndexTraits<BASE_SWAP_INDEX>>;
 
     // basis swap between a base ois swap's overnight leg and a target vanilla swap's floating leg
     // the reason ois swap being the base swap is because ois rates are now considered risk free
@@ -964,7 +944,6 @@ namespace QLUtils {
             auto helper = targetSwapTraits_.makeRateHelper(
                 quotedSpreadImpliedTargetSwapFairRate_,
                 targetSwapStartDate(),
-                targetSwapMaturityDate(),
                 discountingTermStructure
             );
             return helper;

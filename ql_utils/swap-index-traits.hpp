@@ -4,6 +4,25 @@
 #include <memory>
 #include <ql_utils/indexes/ois-swap-index.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
+#include <ql_utils/utilities/time.hpp>
+
+#define VERIFY_SWAP_RATE_HELPER(helper) \
+{   \
+    auto swap_rh = helper->swap();  \
+    auto swap_expected = makeSwap(startDate);   \
+    QL_ASSERT(swap_rh->startDate() == startDate, "swap start/effective date (" << swap_rh->startDate() << ") is not what's expected (" << startDate << ") for tenor " << this->tenor());    \
+    QL_ASSERT(swap_rh->maturityDate() == swap_expected->maturityDate(), "swap maturity date (" << swap_rh->maturityDate() << ") is not what's expected (" << swap_expected->maturityDate() << ") for tenor " << this->tenor()); \
+    auto dates_rh_fixed = swap_rh->fixedSchedule().dates(); \
+    auto dates_expected_fixed = swap_expected->fixedSchedule().dates(); \
+    if (dates_rh_fixed != dates_expected_fixed) {   \
+        QL_FAIL("rate helper's swap fixed leg schedule is not what's expected for tenor " << this->tenor());    \
+    }   \
+    auto dates_rh_float = swap_rh->floatingSchedule().dates();  \
+    auto dates_expected_float = swap_expected->floatingSchedule().dates();  \
+    if (dates_rh_float != dates_expected_float) {   \
+        QL_FAIL("rate helper's swap floating leg schedule is not what's expected for tenor " << this->tenor()); \
+    }   \
+}
 
 namespace QLUtils {
     // base class for swap index traits, which defines the common interface for swap index traits
@@ -27,7 +46,8 @@ namespace QLUtils {
         const QuantLib::Period& tenor() const {
             return tenor_;
         }
-
+        // returns a meaningful type name for the swap
+        virtual std::string typeAlias() const = 0;
         // number of days to settle for the swap
         virtual QuantLib::Natural settlementDays() const = 0;
         // fixing calendar for both legs
@@ -59,7 +79,6 @@ namespace QLUtils {
             const QuantLib::Date& endDate,
             const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const = 0;
-
         // calculate the fixing date and effective date for a given reference date (default to evaluation date if not provided)
         FixingResult calculateFixing(
             QuantLib::Date refDate = QuantLib::Date()
@@ -78,6 +97,36 @@ namespace QLUtils {
                 fixingDate,
                 startDate
             };
+        }
+        // from the valuation/reference date set by QuantLib::Settings::instance().evaluationDate(),
+        // find the number of settlement days that would yield the expected swap start/effective date
+        QuantLib::Natural getMatchingSettlementDays(
+            const QuantLib::Date& startDate // target start/effective date for the swap
+        ) const {
+            auto fixingCalendar = this->fixingCalendar();
+            QL_REQUIRE(fixingCalendar.isBusinessDay(startDate), "swap start/effective date (" << startDate << ") is not a business day of the swap fixing calendar");
+            auto refDate = QuantLib::Settings::instance().evaluationDate();
+            QL_REQUIRE(refDate != QuantLib::Date(), "evaluation/reference date is not set");
+            refDate = fixingCalendar.adjust(refDate);   // refDate is now a business day on the fixing calendar
+            QL_REQUIRE(refDate <= startDate, "evaluation/reference date (" << refDate << ") is after the target swap start/effective date (" << startDate << ")");
+            auto n = this->settlementDays();
+            auto d = fixingCalendar.advance(refDate, n, QuantLib::Days);
+            if (d < startDate) {
+                while (d < startDate) {
+                    n++;
+                    d = fixingCalendar.advance(refDate, n, QuantLib::Days);
+                }
+            }
+            else if (d > startDate) {
+                while (d > startDate) {
+                    n--;
+                    d = fixingCalendar.advance(refDate, n, QuantLib::Days);
+                }
+            }
+            QL_ASSERT(d == startDate, "fixing calendar advancing logic did not yield the expected swap start/effective date (" << startDate << ")");
+            QL_ASSERT(n > 0, "n (" << n << ") is not positive");
+            QL_ASSERT(fixingCalendar.advance(refDate, n, QuantLib::Days) == startDate, "fixing calendar advancing logic did not yield the expected swap start/effective date (" << startDate << ")");
+            return n;
         }
     };
 
@@ -100,7 +149,7 @@ namespace QLUtils {
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
         typedef pOvernightIndexedSwap SwapPtr;
     private:
-        std::shared_ptr<BaseSwapIndex> pSwapIndex_;
+        QuantLib::ext::shared_ptr<BaseSwapIndex> pSwapIndex_;
     public:
         OISSwapIndexTraits(
             const QuantLib::Period& tenor
@@ -108,6 +157,9 @@ namespace QLUtils {
             SwapIndexTraitsBase(tenor),
             pSwapIndex_(new BaseSwapIndex(tenor))
         {}
+        std::string typeAlias() const override {
+            return "OIS swap";
+        }
         // number of days to settle for the swap
         QuantLib::Natural settlementDays() const override {
             return pSwapIndex_->fixingDays();
@@ -209,20 +261,23 @@ namespace QLUtils {
                 .withOvernightLegCalendar(fixingCalendar())
                 .withRule(rule())
                 ;
+#ifdef _DEBUG
+            QL_ASSERT(swap->startDate() == startDate, "swap start/effective date (" << swap->startDate() << ") is not what's expected (" << startDate << ") for tenor " << this->tenor());
+#endif
             return swap;
         }
         // rate helper factory
         virtual pRateHelper makeRateHelper(
             QuantLib::Rate quotedFixedRate,
             const QuantLib::Date& startDate,
-            const QuantLib::Date& endDate,
             const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const override {
+            auto settlementDays = getMatchingSettlementDays(startDate);
             auto overnightIndex = makeOvernightIndex();
             QuantLib::ext::shared_ptr<QuantLib::OISRateHelper> helper(
                 new QuantLib::OISRateHelper(
-                    startDate,    // startDate
-                    endDate,  // endDate
+                    settlementDays, // settlementDays
+                    this->tenor(),  // tenor
                     quotedFixedRate,    // fixedRate
                     overnightIndex, // overnightIndex
                     discountingTermStructure,   // discountingCurve - exogenous discounting curve
@@ -231,6 +286,7 @@ namespace QLUtils {
                     paymentConvention(), // paymentConvention
                     paymentFrequency(),   // paymentFrequency
                     paymentCalendar(),   // paymentCalendar
+                    0 * QuantLib::Days,     // forwardStart
                     QuantLib::Spread(0.),    // overnightSpread
                     QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
@@ -247,9 +303,7 @@ namespace QLUtils {
                 )
             );
 #ifdef _DEBUG
-            auto swap = helper->swap();
-            QL_ASSERT(swap->startDate() == startDate, "swap start date (" << swap->startDate() << ") is not what's expected (" << startDate << ")");
-            QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
+            VERIFY_SWAP_RATE_HELPER(helper);
 #endif
             return helper;
         }
@@ -272,14 +326,26 @@ namespace QLUtils {
         typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
         typedef pVanillaSwap SwapPtr;
     private:
-        std::shared_ptr<BaseSwapIndex> pSwapIndex_;
+        QuantLib::ext::shared_ptr<BaseSwapIndex> pSwapIndex_;
+		QuantLib::Natural expectedFixedCoupons_;
+        QuantLib::Natural expectedFloatingCoupons_;
     public:
         VanillaSwapIndexTraits(
             const QuantLib::Period& tenor
         ) :
             SwapIndexTraitsBase(tenor),
             pSwapIndex_(new BaseSwapIndex(tenor))
-        {}
+        {
+            const auto& [multiple_fixed, n_fixed] = QuantLib::Utils::isMultiple(this->tenor(), this->fixedLegTenor());
+            const auto& [multiple_floating, n_floating] = QuantLib::Utils::isMultiple(this->tenor(), this->floatingLegTenor());
+			QL_REQUIRE(multiple_fixed, "the vanilla swap index tenor (" << this->tenor() << ") is not an integer multiple of the fixed leg cashflow tenor (" << this->fixedLegTenor() << ")");
+			QL_REQUIRE(multiple_floating, "the vanilla swap index tenor (" << this->tenor() << ") is not an integer multiple of the floating leg cashflow tenor (" << this->floatingLegTenor() << ")");
+            expectedFixedCoupons_ = n_fixed;
+            expectedFloatingCoupons_ = n_floating;
+        }
+        std::string typeAlias() const override {
+            return "vanilla swap";
+        }
         // number of days to settle for the swap
         QuantLib::Natural settlementDays() const override {
             return pSwapIndex_->fixingDays();
@@ -290,7 +356,7 @@ namespace QLUtils {
         }
         // end of month flag for both legs
         bool endOfMonth() const override {
-            auto pIndexEx = std::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex_);
+            auto pIndexEx = QuantLib::ext::dynamic_pointer_cast<QuantLib::SwapIndexEx>(pSwapIndex_);
             return (pIndexEx != nullptr ? pIndexEx->endOfMonth() : false);
         }
         // whether cashflow/coupon for both legs aligned
@@ -379,39 +445,47 @@ namespace QLUtils {
                 .withFloatingLegCalendar(fixingCalendar())
                 .withFloatingLegEndOfMonth(endOfMonth())
                 ;
+#ifdef _DEBUG
+            QL_ASSERT(swap->startDate() == startDate, "swap start/effective date (" << swap->startDate() << ") is not what's expected (" << startDate << ") for tenor " << this->tenor());
+            auto fixedCoupons = swap->fixedSchedule().dates().size() - 1;
+            auto floatingCoupons = swap->floatingSchedule().dates().size() - 1;
+			QL_ASSERT(fixedCoupons == expectedFixedCoupons_, "the number of fixed coupons (" << fixedCoupons << ") is not what's expected (" << expectedFixedCoupons_ << ") for tenor " << this->tenor());
+			QL_ASSERT(floatingCoupons == expectedFloatingCoupons_, "the number of floating coupons (" << floatingCoupons << ") is not what's expected (" << expectedFloatingCoupons_ << ") for tenor " << this->tenor());
+#endif
             return swap;
         }
         // rate helper factory
         virtual pRateHelper makeRateHelper(
             QuantLib::Rate quotedFixedRate,
             const QuantLib::Date& startDate,
-            const QuantLib::Date& endDate,
             const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const override {
+            auto settlementDays = getMatchingSettlementDays(startDate);
             auto iborIndex = makeIborIndex();
             QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
                 new QuantLib::SwapRateHelper(
                     quotedFixedRate,    // rate
-                    startDate,    // startDate
-                    endDate,    // endDate
-                    fixingCalendar(),   // calendar
+                    this->tenor(), // tenor
+                    this->fixingCalendar(), //calendar
                     fixedLegFrequency(), // fixedFrequency
-                    fixedLegConvention(),    // fixedConvention
-                    fixedLegDayCount(),  // fixedDayCount
-                    iborIndex,  // iborIndex
+                    fixedLegConvention(), // fixedConvention
+                    fixedLegDayCount(), // fixedDayCount
+                    iborIndex, // iborIndex
                     {},    // spread
+                    0 * QuantLib::Days,   // fwdStart
                     discountingTermStructure,   // discountingCurve - exogenous discounting curve
+                    settlementDays, // settlementDays
                     QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
                     endOfMonth()  // endOfMonth
                 )
             );
 #ifdef _DEBUG
-            auto swap = helper->swap();
-            QL_ASSERT(swap->startDate() == startDate, "swap start date (" << swap->startDate() << ") is not what's expected (" << startDate << ")");
-            QL_ASSERT(swap->maturityDate() == endDate, "swap maturity date (" << swap->maturityDate() << ") is not what's expected (" << endDate << ")");
+            VERIFY_SWAP_RATE_HELPER(helper);
 #endif
             return helper;
         }
     };
 }
+
+#undef VERIFY_SWAP_RATE_HELPER
