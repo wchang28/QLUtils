@@ -76,7 +76,6 @@ namespace QLUtils {
         virtual pRateHelper makeRateHelper(
             QuantLib::Rate quotedFixedRate,
             const QuantLib::Date& startDate,
-            const QuantLib::Date& endDate,
             const YieldTermStructureHandle& discountingTermStructure = {}   // exogenous discounting curve
         ) const = 0;
         // calculate the fixing date and effective date for a given reference date (default to evaluation date if not provided)
