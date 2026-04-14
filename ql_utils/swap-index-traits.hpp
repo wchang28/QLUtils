@@ -123,7 +123,7 @@ namespace QLUtils {
                 }
             }
             QL_ASSERT(d == startDate, "fixing calendar advancing logic did not yield the expected swap start/effective date (" << startDate << ")");
-            QL_ASSERT(n > 0, "n (" << n << ") is not positive");
+            QL_ASSERT(n >= 0, "n (" << n << ") is not positive");
             QL_ASSERT(fixingCalendar.advance(refDate, n, QuantLib::Days) == startDate, "fixing calendar advancing logic did not yield the expected swap start/effective date (" << startDate << ")");
             return n;
         }
