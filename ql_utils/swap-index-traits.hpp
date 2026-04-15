@@ -145,8 +145,7 @@ namespace QLUtils {
         typedef BASE_SWAP_INDEX BaseSwapIndex;
         typedef typename BaseSwapIndex::OvernightIndex OvernightIndex;
         typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndex> pOvernightIndex;
-        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> pOvernightIndexedSwap;
-        typedef pOvernightIndexedSwap SwapPtr;
+        typedef QuantLib::ext::shared_ptr<QuantLib::OvernightIndexedSwap> SwapPtr;
     private:
         QuantLib::ext::shared_ptr<BaseSwapIndex> pSwapIndex_;
     public:
@@ -238,7 +237,7 @@ namespace QLUtils {
         ) const override {
             return makeOvernightIndex(h);
         }
-        pOvernightIndexedSwap makeSwap(
+        SwapPtr makeSwap(
             const QuantLib::Date& startDate, // start date of the swap
             QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // type of the swap
             QuantLib::Rate fixedRate = 0.,  // fixed rate
@@ -246,7 +245,7 @@ namespace QLUtils {
             const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             auto overnightIndex = makeOvernightIndex(h);
-            pOvernightIndexedSwap swap = QuantLib::MakeOIS(this->tenor(), overnightIndex, fixedRate)
+            SwapPtr swap = QuantLib::MakeOIS(this->tenor(), overnightIndex, fixedRate)
                 .withType(type)
                 .withOvernightLegSpread(overnightSpread)
                 .withEffectiveDate(startDate)
@@ -322,8 +321,7 @@ namespace QLUtils {
     class VanillaSwapIndexTraits: public SwapIndexTraitsBase {
     public:
         typedef BASE_SWAP_INDEX BaseSwapIndex;
-        typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> pVanillaSwap;
-        typedef pVanillaSwap SwapPtr;
+        typedef QuantLib::ext::shared_ptr<QuantLib::VanillaSwap> SwapPtr;
     private:
         QuantLib::ext::shared_ptr<BaseSwapIndex> pSwapIndex_;
 		QuantLib::Natural expectedFixedCoupons_;
@@ -423,7 +421,7 @@ namespace QLUtils {
 #endif
             return pIndex;
         }
-        pVanillaSwap makeSwap(
+        SwapPtr makeSwap(
             const QuantLib::Date& startDate, // start date of the swap
             QuantLib::Swap::Type type = QuantLib::Swap::Type::Payer,    // type of the swap
             QuantLib::Rate fixedRate = 0.,  // fixed rate
@@ -431,7 +429,7 @@ namespace QLUtils {
             const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             auto iborIndex = makeIborIndex(h);
-            pVanillaSwap swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, fixedRate)
+            SwapPtr swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, fixedRate)
                 .withType(type)
                 .withFloatingLegSpread(floatSpread)
                 .withEffectiveDate(startDate)
