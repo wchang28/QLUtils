@@ -5,6 +5,7 @@
 #include <ql_utils/indexes/ois-swap-index.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
 #include <ql_utils/utilities/time.hpp>
+#include <ql_utils/ratehelpers/swap-rate-helper-ex.hpp>
 
 #define VERIFY_SWAP_RATE_HELPER(helper) \
 {   \
@@ -68,6 +69,8 @@ namespace QLUtils {
         virtual bool bothLegsCouponsAligned(
             bool includeDayCounter = true
         ) const = 0;
+        // cashflow generation rule for both legs
+        virtual QuantLib::DateGeneration::Rule rule() const = 0;
         // iborIndex factory
         virtual pIborIndex makeIborIndex(
             const YieldTermStructureHandle& h = {}  // index estimating term structure
@@ -175,7 +178,7 @@ namespace QLUtils {
             return true;
         }
         // cashflow generation rule for both legs
-        QuantLib::DateGeneration::Rule rule() const {
+        QuantLib::DateGeneration::Rule rule() const override {
             return pSwapIndex_->rule();
         }
         // whether the swap has telescopic value dates
@@ -369,6 +372,10 @@ namespace QLUtils {
             }
             return ret;
         }
+        // cashflow generation rule for both legs
+        QuantLib::DateGeneration::Rule rule() const override {
+            return pSwapIndex_->rule();
+        }
         // fixed leg's cashflow tenor
         QuantLib::Period fixedLegTenor() const {
             return pSwapIndex_->fixedLegTenor();
@@ -441,6 +448,7 @@ namespace QLUtils {
                 .withFixedLegEndOfMonth(endOfMonth())
                 .withFloatingLegCalendar(fixingCalendar())
                 .withFloatingLegEndOfMonth(endOfMonth())
+                .withRule(rule())
                 ;
 #ifdef _DEBUG
             QL_ASSERT(swap->startDate() == startDate, "swap start/effective date (" << swap->startDate() << ") is not what's expected (" << startDate << ") for tenor " << this->tenor());
@@ -459,8 +467,8 @@ namespace QLUtils {
         ) const override {
             auto settlementDays = getMatchingSettlementDays(startDate);
             auto iborIndex = makeIborIndex();
-            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelper> helper(
-                new QuantLib::SwapRateHelper(
+            QuantLib::ext::shared_ptr<QuantLib::SwapRateHelperEx> helper(
+                new QuantLib::SwapRateHelperEx(
                     quotedFixedRate,    // rate
                     this->tenor(), // tenor
                     this->fixingCalendar(), //calendar
@@ -474,7 +482,8 @@ namespace QLUtils {
                     settlementDays, // settlementDays
                     QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
-                    endOfMonth()  // endOfMonth
+                    endOfMonth(),   // endOfMonth
+                    rule()  // rule
                 )
             );
 #ifdef _DEBUG

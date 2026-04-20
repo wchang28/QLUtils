@@ -305,6 +305,9 @@ namespace QuantLib {
         bool endOfMonth() const {
             return endOfMonth_;
         }
+        DateGeneration::Rule rule() const {
+           return DateGeneration::Rule::Forward; 
+        }
         ext::shared_ptr<VanillaSwap> makeSwap(
             const Date& fixingDate,
             Swap::Type type = Swap::Type::Payer,
@@ -325,6 +328,7 @@ namespace QuantLib {
                 .withFixedLegEndOfMonth(endOfMonth())
                 .withFloatingLegCalendar(fixingCalendar())
                 .withFloatingLegEndOfMonth(endOfMonth())
+                .withRule(rule())
                 .withDiscountingTermStructure(discountingTermStructure())
                 ;
             else
@@ -339,6 +343,7 @@ namespace QuantLib {
                 .withFixedLegEndOfMonth(endOfMonth())
                 .withFloatingLegCalendar(fixingCalendar())
                 .withFloatingLegEndOfMonth(endOfMonth())
+                .withRule(rule())
                 ;
             return swap;
         }
