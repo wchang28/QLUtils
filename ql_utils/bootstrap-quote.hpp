@@ -20,29 +20,27 @@ namespace QuantLib {
             gstBond = 1,	// coupon-bearing government security
         };
         
+        enum BondQuoteValueType {
+            bqvtCleanPrice = 0, // $100 notional clean price
+            bqvtDirtyPrice = 1, // $100 notional dirty price
+            bqvtPrice = 2,	// $100 notional generic price. for bill (zero coupon), clean price=dirty price. for bond, it is the same as clean price.
+            bqvtYTM = 3,    // yield to maturity (% unit)
+            bqvtMarketConventionYield = 4,  // market convention yield (% unit)
+            bqvtDiscountRate = 5, // discount rate for bill (% unit)
+        };
+        
         struct GovernmentSecurityQuote: public BootstrapQuote {
             GovernmentSecurityType type;
             Period tenor;
             Rate coupon;
             Date settleDate;
             Date maturityDate;
-            std::string valueType;
+            BondQuoteValueType valueType;
             GovernmentSecurityQuote() :
                 type(GovernmentSecurityType::gstBill),
-                coupon(0.0)
-            {}   
-        };
-        
-        enum BondQuoteValueType {
-            bqvtCleanPrice = 0,
-            bqvtDirtyPrice = 1,
-            bqvtYTM = 2,
-        };
-        enum BillQuoteValueType {
-            bqvtDiscountRate = 0,
-            bqvtPrice = 1,	// dirty/clean price, since clean price=dirty price for bill
-            bqvtYield = 2,
-            bqvtDiscountFactor = 3
+                coupon(0.0),
+                valueType(BondQuoteValueType::bqvtCleanPrice)
+            {}
         };
     }
 }

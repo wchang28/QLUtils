@@ -526,6 +526,11 @@ namespace QuantLib {
                 checkCleanPriceIsSet();
                 return cleanPrice() + accruedAmount();
             }
+			// given bond's quoted clean price, what is it's market convention yield
+            // overridable derived class
+            virtual Rate marketConventionYield() const {
+                return ytm();
+            }
         public:
             // withXXX methods
             ////////////////////////////////////////////////////////
@@ -543,6 +548,11 @@ namespace QuantLib {
                 auto cleanPrice = bondPrice(*bond, ytm, Bond::Price::Type::Clean);
                 this->cleanPrice() = cleanPrice;
                 return *this;
+            }
+            FixedCoupondBond& withMarketConventionYield(
+                Rate yield
+            ) {
+                return withYTM(yield);
             }
             ////////////////////////////////////////////////////////
         public:
@@ -589,6 +599,12 @@ namespace QuantLib {
                 auto ytm = bondYield(*bond, price);
                 auto dv01 = bondDV01(*bond, ytm);
                 return dv01;
+            }
+            // overridable derived class
+            virtual Rate impliedMarketConventionYield(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const {
+                return impliedYTM(discountingTermStructure);
             }
             // given a discount term structure, what coupon would give the bond a clean price of 100
             // !!! this can be used to calculate CMT par coupon rate !!!
@@ -831,7 +847,7 @@ namespace QuantLib {
                 auto df = discountFactor();
                 return discountRateFromDiscountFactor(df);
             }
-            Rate marketConventionYield() const {
+            Rate marketConventionYield() const override {
                 auto df = discountFactor();
                 return marketConventionYieldFromDiscountFactor(df);
             }
@@ -880,7 +896,7 @@ namespace QuantLib {
             }
             Rate impliedMarketConventionYield(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 auto df = impliedDiscountFactor(discountingTermStructure);
                 return marketConventionYieldFromDiscountFactor(df);
             }
