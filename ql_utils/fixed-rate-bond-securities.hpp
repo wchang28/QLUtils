@@ -527,6 +527,25 @@ namespace QuantLib {
                 return cleanPrice() + accruedAmount();
             }
         public:
+            // withXXX methods
+            ////////////////////////////////////////////////////////
+            FixedCoupondBond& withCleanPrice(Real cleanPrice) {
+                this->cleanPrice() = cleanPrice;
+                return *this;
+            }
+            FixedCoupondBond& withDirtyPrice(Real dirtyPrice) {
+                auto cleanPrice = dirtyPrice - accruedAmount();
+                this->cleanPrice() = cleanPrice;
+                return *this;
+            }
+            FixedCoupondBond& withYTM(Rate ytm) {
+                auto bond = makeFixedRateBond();
+                auto cleanPrice = bondPrice(*bond, ytm, Bond::Price::Type::Clean);
+                this->cleanPrice() = cleanPrice;
+                return *this;
+            }
+            ////////////////////////////////////////////////////////
+        public:
             // implied by discount term structure functions (impliedXXX())
             /////////////////////////////////////////////////////////////////////////////////////////////
             Real impliedPrice(
@@ -819,8 +838,8 @@ namespace QuantLib {
             ////////////////////////////////////////////////////////////////////////////////////////////////
             // withXXX() methods to set the clean price of the bill based on different inputs (discount factor, discount rate, market convention yield)
             ////////////////////////////////////////////////////////////////////////////////////////////////
-            ZeroCouponBill& withBondPrice(
-                Real price
+            ZeroCouponBill& withPrice(
+                Real price  // clean/dirty price, since clean price=dirty price for bill
             ) {
                 this->cleanPrice() = price;
                 return *this;

@@ -10,6 +10,7 @@
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/fixed-rate-bond-securities.hpp>
 #include <ql_utils/bootstrap.hpp>
+#include <ql_utils/bootstrap-quote.hpp>
 #include <ql_utils/yield-termstructure-shocker.hpp>
 #include <ql_utils/paryieldsplinebootstrap.hpp>
 #include <ql_utils/swap-fixing.hpp>
