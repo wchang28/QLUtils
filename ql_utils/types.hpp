@@ -12,65 +12,65 @@ namespace QLUtils {
     template<typename _Elem> using string_t = std::basic_string<_Elem>;
     template<typename _Elem> using ostringstream_t = std::basic_ostringstream<_Elem>;
 
-	enum RateUnit {
-		Decimal = 0,
-		Percent = 1,
-		BasisPoint = 2,
-	};
+    enum RateUnit {
+        Decimal = 0,
+        Percent = 1,
+        BasisPoint = 2,
+    };
 
-	template <
-		typename MATURITY_TYPE,
-		typename RATE_TYPE
-	>
-	struct YieldTSNodes {
-		typedef MATURITY_TYPE MaturityType;
-		typedef RATE_TYPE RateType;
-		typedef std::vector<MaturityType> MaturityVector;
-		typedef std::vector<RateType> RateVector;
-		MaturityVector maturities;
-		RateVector rates;
-		YieldTSNodes(size_t n = 0): maturities(n), rates(n) {}
-		YieldTSNodes(
-			const MaturityVector& maturities,
-			const RateVector& rates
-		):maturities(maturities), rates(rates) {
-			assertValid();
-		}
-		void resize(size_t n) {
-			maturities.resize(n);
-			rates.resize(n);
-		}
-		size_t size() const {
-			return maturities.size();
-		}
-		bool empty() const {
-			return maturities.empty();
-		}
-		void clear() {
-			maturities.clear();
-			rates.clear();
-		}
-		void assertValid() const {
-			QL_ASSERT(maturities.size() == rates.size(), "the length of maturities (" << maturities.size() << " is different from the length of rates (" << rates.size() << ")");
-			QL_ASSERT(!empty(), "term structure is empty");
-		}
-	};
+    template <
+        typename MATURITY_TYPE,
+        typename RATE_TYPE
+    >
+    struct YieldTSNodes {
+        typedef MATURITY_TYPE MaturityType;
+        typedef RATE_TYPE RateType;
+        typedef std::vector<MaturityType> MaturityVector;
+        typedef std::vector<RateType> RateVector;
+        MaturityVector maturities;
+        RateVector rates;
+        YieldTSNodes(size_t n = 0): maturities(n), rates(n) {}
+        YieldTSNodes(
+            const MaturityVector& maturities,
+            const RateVector& rates
+        ):maturities(maturities), rates(rates) {
+            assertValid();
+        }
+        void resize(size_t n) {
+            maturities.resize(n);
+            rates.resize(n);
+        }
+        size_t size() const {
+            return maturities.size();
+        }
+        bool empty() const {
+            return maturities.empty();
+        }
+        void clear() {
+            maturities.clear();
+            rates.clear();
+        }
+        void assertValid() const {
+            QL_ASSERT(maturities.size() == rates.size(), "the length of maturities (" << maturities.size() << " is different from the length of rates (" << rates.size() << ")");
+            QL_ASSERT(!empty(), "term structure is empty");
+        }
+    };
 
-	template <
-		typename TERM_TYPE = QuantLib::Time,
-		typename RATE_TYPE = QuantLib::Rate
-	>
-	struct TermStructureNode {
-		typedef TERM_TYPE TermType;
-		typedef RATE_TYPE RateType;
-		TermType term;
-		RateType rate;
-		TermStructureNode(
-			TermType term = 0,
-			RateType rate = 0
-		) :term(term), rate(rate)
-		{}
-	};
+    template <
+        typename TERM_TYPE = QuantLib::Time,
+        typename RATE_TYPE = QuantLib::Rate
+    >
+    struct TermStructureNode {
+        typedef TERM_TYPE TermType;
+        typedef RATE_TYPE RateType;
+        TermType term;
+        RateType rate;
+        TermStructureNode(
+            TermType term = 0,
+            RateType rate = 0
+        ) :term(term), rate(rate)
+        {}
+    };
 
     template <
         typename TERM_TYPE = QuantLib::Time,
@@ -246,15 +246,15 @@ namespace QLUtils {
     >
     using pTermStructureNodes = std::shared_ptr<TermStructureNodes<TERM_TYPE, RATE_TYPE>>;
 
-	typedef std::vector<QuantLib::Real> MonthlyZeroRates;
-	typedef std::vector<QuantLib::Real> MonthlyForwardCurve;
-	typedef std::vector<QuantLib::Real> MonthlyRates;
-	typedef MonthlyRates HistoricalMonthlyRates;
+    typedef std::vector<QuantLib::Real> MonthlyZeroRates;
+    typedef std::vector<QuantLib::Real> MonthlyForwardCurve;
+    typedef std::vector<QuantLib::Real> MonthlyRates;
+    typedef MonthlyRates HistoricalMonthlyRates;
 
-	struct IParYieldSplineNode {
-		virtual QuantLib::Time parTerm() const = 0;
-		virtual QuantLib::Rate parYield() const = 0;
-	};
+    struct IParYieldSplineNode {
+        virtual QuantLib::Time parTerm() const = 0;
+        virtual QuantLib::Rate parYield() const = 0;
+    };
 
     struct IParRateInstrument {
         virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
@@ -265,4 +265,80 @@ namespace QLUtils {
     };
 
     using IborIndexFactory = std::function<QuantLib::ext::shared_ptr<QuantLib::IborIndex>(const QuantLib::Handle<QuantLib::YieldTermStructure>&)>;
+}
+
+namespace QuantLib {
+    namespace Utils {
+        enum TermStructureDayCountConv {
+            tsdccActual365Fixed = 0,
+            tsdccActual360 = 1,
+            tsdccActual36525 = 2,
+            tsdccActual364 = 3,
+            tsdccActual366 = 4,
+        };
+        inline TermStructureDayCountConv ts_from_daycounter(
+            const DayCounter& dc
+        ) {
+            if (dc == Actual365Fixed()) {
+                return TermStructureDayCountConv::tsdccActual365Fixed;
+            }
+            else if (dc == Actual360()) {
+                return TermStructureDayCountConv::tsdccActual360;
+            }
+            else if (dc == Actual36525()) {
+                return TermStructureDayCountConv::tsdccActual36525;
+            }
+            else if (dc == Actual364()) {
+                return TermStructureDayCountConv::tsdccActual364;
+            }
+            else if (dc == Actual366()) {
+                return TermStructureDayCountConv::tsdccActual366;
+            }
+            else {
+                QL_FAIL("unsupported day counter for the term structure: " << dc.name());
+            }
+        }
+        inline DayCounter ts_to_daycounter(
+            TermStructureDayCountConv dayCountConv
+        ) {
+            switch (dayCountConv) {
+                case TermStructureDayCountConv::tsdccActual365Fixed:
+                    return Actual365Fixed();
+                case TermStructureDayCountConv::tsdccActual360:
+                    return Actual360();
+                case TermStructureDayCountConv::tsdccActual36525:
+                    return Actual36525();
+                case TermStructureDayCountConv::tsdccActual364:
+                    return Actual364();
+                case TermStructureDayCountConv::tsdccActual366:
+                    return Actual366();
+                default:
+                    QL_FAIL("unsupported term structure day count convention: " << dayCountConv);
+            }
+        }
+        inline Real ts_daycounter_days_pr_year(
+            TermStructureDayCountConv dayCountConv
+        ) {
+            switch (dayCountConv) {
+                case TermStructureDayCountConv::tsdccActual365Fixed:
+                    return 365.0;
+                case TermStructureDayCountConv::tsdccActual360:
+                    return 360.0;
+                case TermStructureDayCountConv::tsdccActual36525:
+                    return 365.25;
+                case TermStructureDayCountConv::tsdccActual364:
+                    return 364.0;
+                case TermStructureDayCountConv::tsdccActual366:
+                    return 366.0;
+                default:
+                    QL_FAIL("unsupported term structure day count convention: " << dayCountConv);
+            }
+        }
+        enum YieldTermStructureInterpolation {
+            ytsiPiecewiseLinearCont = 0,
+            ytsiPiecewiseLinearSimple = 1,
+            ytsiStepForwardCont = 2,
+            ytsiSmoothForwardCont = 3,
+        };
+    }
 }

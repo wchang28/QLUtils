@@ -12,6 +12,7 @@
 #include <ql_utils/bootstrap.hpp>
 #include <ql_utils/bootstrap-quote.hpp>
 #include <ql_utils/yield-termstructure-shocker.hpp>
+#include <ql_utils/interpolated-yield-ts-serialization.hpp>
 #include <ql_utils/paryieldsplinebootstrap.hpp>
 #include <ql_utils/swap-fixing.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
