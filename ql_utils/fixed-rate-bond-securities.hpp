@@ -30,6 +30,7 @@ namespace QuantLib {
             Date currentAccrualStartDate_;          // start date of the current accrual period (used for accrued interest calculation)
             Date currentAccrualEndDate_;            // end date of the current accrual period (used for accrued interest calculation)
             Time accrualYearFraction_;              // year fraction of the current accrual period (used for accrued interest calculation)
+            Time shortCouponYearFraction_;          // year fraction of the short coupon period
             DayCounter parYieldSplineDayCounter_;
         protected:
             // set the maturity date
@@ -272,7 +273,9 @@ namespace QuantLib {
                 settlementDate_(settlementDate),
                 settlementCalendar_(bondTraits_.settlementCalendar(tenor)),
                 accrualScheduleCalendar_(bondTraits_.accrualScheduleCalendar(tenor)),
-                paymentCalendar_(bondTraits_.paymentCalendar(tenor))
+                paymentCalendar_(bondTraits_.paymentCalendar(tenor)),
+                accrualYearFraction_(0.),
+                shortCouponYearFraction_(0.)
             {
                 QL_REQUIRE(tenor.length() > 0, "The length of the bond tenor (" << tenor.length() << ") must be greater than 0");
                 if (settlementDate_ == Date()) {    // bond settlement date is not given => calculate the settlement date based on the evaluation date and settlement days
@@ -319,6 +322,7 @@ namespace QuantLib {
                 QL_ASSERT(this->maturityDate() == accrualSchedule_.dates().back(), "The end date of the last coupon accrual period (" << accrualSchedule_.dates().back() << ") is not what's expected (" << this->maturityDate() << ")");
                 accrualDayCounter_ = bondTraits_.accrualDayCounter(tenor, accrualSchedule_);
                 accrualYearFraction_ = accrualDayCounter_.yearFraction(currentAccrualStartDate_, settleDate);
+                shortCouponYearFraction_ = accrualDayCounter_.yearFraction(settleDate, currentAccrualEndDate_);
                 yieldCalcSchedule_ = makeYieldCalcSchedule();
                 yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, yieldCalcSchedule_);
                 parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
@@ -402,6 +406,9 @@ namespace QuantLib {
             }
             Time accrualYearFraction() const {
                 return accrualYearFraction_;
+            }
+            Time shortCouponYearFraction() const {
+                return shortCouponYearFraction_;
             }
             void checkCleanPriceIsSet() const {
                 this->ensureValueIsSet();
