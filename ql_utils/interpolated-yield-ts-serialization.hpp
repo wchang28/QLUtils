@@ -91,7 +91,7 @@ namespace QuantLib {
             ) :
                 marketDate_(marketDate == Date() ? Settings::instance().evaluationDate() : marketDate),
                 referenceDate_(curve->referenceDate()),
-                dayCountConv_(ts_from_daycounter(curve->dayCounter())),
+                dayCountConv_(TermStructureDayCountConverter::from_daycounter(curve->dayCounter())),
                 interpolation_(YieldTermStructureInterpolation::ytsiPiecewiseLinearCont)
             {
                 auto [interp, rows] = from_termstructure(curve);
@@ -99,6 +99,7 @@ namespace QuantLib {
                 termStructure_ = rows;
             }
             const Date& marketDate() const { return marketDate_; }
+            Date& marketDate() { return marketDate_; }
             const Date& referenceDate() const { return referenceDate_; }
             TermStructureDayCountConv dayCountConv() const { return dayCountConv_; }
             YieldTermStructureInterpolation interpolation() const { return interpolation_; }
@@ -137,7 +138,7 @@ namespace QuantLib {
             std::vector<value_type>& values() { return values_; }
             const std::vector<value_type>& values() const { return values_; }
             operator ext::shared_ptr<YieldTermStructure>() const {
-                DayCounter dayCounter = ts_to_daycounter(dayCountConv_);
+                DayCounter dayCounter = TermStructureDayCountConverter::to_daycounter(dayCountConv_);
                 switch (interpolation_) {
                 case YieldTermStructureInterpolation::ytsiPiecewiseLinearCont:
                     return ext::make_shared<InterpolatedZeroCurve<Linear>>(dates_, values_, dayCounter);

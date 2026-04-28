@@ -4,6 +4,7 @@
 #include <ql_utils/PiecewiseCurveBuilder.hpp>
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/dateformat.hpp>
+#include <ql_utils/types.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -207,4 +208,24 @@ namespace QLUtils {
 
     template <typename Interpolator>
     using SimpleZeroCurvesBootstrap = YieldCurvesBootstrap<QuantLib::SimpleZeroYield, Interpolator>;
+}
+
+namespace QuantLib {
+    namespace Utils {
+        using YieldCurvesBootstrapPtr = std::shared_ptr<QLUtils::IYieldCurvesBootstrap>;
+        inline YieldCurvesBootstrapPtr make_yield_curve_bootstrapper(YieldTermStructureInterpolation interpolation) {
+            switch(interpolation) {
+            case YieldTermStructureInterpolation::ytsiPiecewiseLinearCont:
+                return YieldCurvesBootstrapPtr(new QLUtils::YieldCurvesBootstrap<QuantLib::ZeroYield, QuantLib::Linear>());
+            case YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple:
+                return YieldCurvesBootstrapPtr(new QLUtils::YieldCurvesBootstrap<QuantLib::SimpleZeroYield, QuantLib::Linear>());
+            case YieldTermStructureInterpolation::ytsiStepForwardCont:
+                return YieldCurvesBootstrapPtr(new QLUtils::YieldCurvesBootstrap<QuantLib::ForwardRate, QuantLib::BackwardFlat>());
+            case YieldTermStructureInterpolation::ytsiSmoothForwardCont:
+                return YieldCurvesBootstrapPtr(new QLUtils::YieldCurvesBootstrap<QuantLib::ForwardRate, QuantLib::ConvexMonotone>());
+            default:
+                QL_FAIL("unsupported term structure interpolation: " << interpolation);
+            }
+        }
+    }
 }
