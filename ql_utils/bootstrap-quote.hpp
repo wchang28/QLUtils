@@ -2,6 +2,7 @@
 
 #include <string>
 #include <ql/quantlib.hpp>
+#include <vector>
 
 namespace QuantLib {
     namespace Utils {
@@ -13,6 +14,17 @@ namespace QuantLib {
                 use(true),
                 value(0.0)
             {}
+            template <typename Q>
+            static bool hasUse(
+                const std::vector<Q>& quotes
+            ) {
+                for (const auto& quote : quotes) {
+                    if (quote.use) {
+                        return true;
+                    }
+                }
+                return false;
+            }
         };
         
         enum GovernmentSecurityType {
@@ -41,6 +53,24 @@ namespace QuantLib {
                 coupon(0.0),
                 valueType(BondQuoteValueType::bqvtCleanPrice)
             {}
+            static bool hasUse(
+                const std::vector<GovernmentSecurityQuote>& quotes
+            ) {
+                return BootstrapQuote::hasUse<GovernmentSecurityQuote>(quotes);
+            }
+            static Date minSettleDate(
+                const std::vector<GovernmentSecurityQuote>& quotes
+            ) {
+                Date minSettleDate = Date();
+                for (const auto& quote : quotes) {
+                    if (quote.use) {
+                        if (minSettleDate == Date() || quote.settleDate < minSettleDate) {
+                            minSettleDate = quote.settleDate;
+                        }
+                    }
+                }
+                return minSettleDate;
+            }
         };
     }
 }
