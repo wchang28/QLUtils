@@ -72,5 +72,22 @@ namespace QuantLib {
                 return minSettleDate;
             }
         };
+
+        struct OISSwapQuote : public BootstrapQuote {
+            enum InstType {
+                osqtDeposit = 0,
+                osqtSwap = 1
+			};
+            InstType instType;
+            Period tenor;
+            OISSwapQuote() :
+                instType(InstType::osqtSwap)
+            {}
+            static bool hasUse(
+                const std::vector<OISSwapQuote>& quotes
+            ) {
+                return BootstrapQuote::hasUse<OISSwapQuote>(quotes);
+            }
+        };
     }
 }
