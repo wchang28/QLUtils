@@ -74,14 +74,14 @@ namespace QuantLib {
         };
 
         struct OISSwapQuote : public BootstrapQuote {
-            enum InstType {
+            enum QuoteType {
                 osqtDeposit = 0,
                 osqtSwap = 1
 			};
-            InstType instType;
+            QuoteType quoteType;
             Period tenor;
             OISSwapQuote() :
-                instType(InstType::osqtSwap)
+                quoteType(QuoteType::osqtSwap)
             {}
             static bool hasUse(
                 const std::vector<OISSwapQuote>& quotes
