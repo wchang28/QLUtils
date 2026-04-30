@@ -12,8 +12,11 @@ namespace QuantLib {
             Real value;   // quoted value
             BootstrapQuote() :
                 use(true),
-                value(0.0)
+                value(Null<Real>())
             {}
+            bool valueSet() const {
+                return (value != Null<Real>());
+            }
             template <typename Q>
             static bool hasUse(
                 const std::vector<Q>& quotes
