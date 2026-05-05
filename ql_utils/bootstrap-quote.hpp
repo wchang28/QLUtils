@@ -83,8 +83,10 @@ namespace QuantLib {
 			};
             QuoteType quoteType;
             Period tenor;
+            Frequency couponFreq;
             OISSwapQuote() :
-                quoteType(QuoteType::osqtSwap)
+                quoteType(QuoteType::osqtSwap),
+                couponFreq(Frequency::NoFrequency)
             {}
             static bool hasUse(
                 const std::vector<OISSwapQuote>& quotes
