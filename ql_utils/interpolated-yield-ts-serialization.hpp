@@ -19,6 +19,7 @@ namespace QuantLib {
                 Rate zeroRate;
                 Rate forwardRate;
                 Rate simpleRate;
+                Rate semiannualZeroRate;
                 DiscountFactor discountFactor;
                 Row(
                     Date date = Date(),
@@ -27,8 +28,17 @@ namespace QuantLib {
                     Rate zeroRate = 0.0,
                     Rate forwardRate = 0.0,
                     Rate simpleRate = 0.0,
+                    Rate semiannualZeroRate = 0.0,
                     DiscountFactor discountFactor = 1.0
-                ) : date(date), term(term), value(value), zeroRate(zeroRate), forwardRate(forwardRate), simpleRate(simpleRate), discountFactor(discountFactor)
+                ) :
+                date(date),
+                term(term),
+                value(value),
+                zeroRate(zeroRate),
+                forwardRate(forwardRate),
+                simpleRate(simpleRate),
+                semiannualZeroRate(semiannualZeroRate),
+                discountFactor(discountFactor)
                 {}
             };
         private:
@@ -55,8 +65,9 @@ namespace QuantLib {
                     auto zeroRate = curve->zeroRate(date, dc, Continuous, NoFrequency, true).rate();
                     auto forwardRate = curve->forwardRate(date, date, dc, Continuous, NoFrequency, true).rate();
                     auto simpleRate = curve->zeroRate(date, dc, Simple, NoFrequency, true).rate();
+                    auto semiannualZeroRate = curve->zeroRate(date, dc, Compounded, Semiannual, true).rate();
                     auto discountFactor = curve->discount(date);
-                    ret.push_back(Row{ date, term, value, zeroRate, forwardRate, simpleRate, discountFactor });
+                    ret.push_back(Row{ date, term, value, zeroRate, forwardRate, simpleRate, semiannualZeroRate, discountFactor });
                 }
                 return ret;
             }
