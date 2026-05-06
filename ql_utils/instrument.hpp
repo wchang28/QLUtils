@@ -166,6 +166,36 @@ namespace QLUtils {
             QuantLib::Handle<QuantLib::Quote> q(QuantLib::ext::shared_ptr<QuantLib::Quote>(new QuantLib::SimpleQuote(value())));
             return q;
         }
+        // returns the minimum of all start dates of the instruments
+        static QuantLib::Date minimumStartDate(
+            const std::vector<std::shared_ptr<BootstrapInstrument>>& instruments
+        ) {
+            auto minDate = QuantLib::Date();
+            for (const auto& pInst : instruments) {
+                if (pInst->use()) {
+                    auto d = pInst->startDate();
+                    if (minDate == QuantLib::Date() || d < minDate) {
+                        minDate = d;
+                    }
+                }
+            }
+            return minDate;            
+        }
+        // returns the maximum of all maturity dates of the instruments
+        static QuantLib::Date maximumMaturityDate(
+            const std::vector<std::shared_ptr<BootstrapInstrument>>& instruments
+        ) {
+            auto maxDate = QuantLib::Date();
+            for (const auto& pInst : instruments) {
+                if (pInst->use()) {
+                    auto d = pInst->maturityDate();
+                    if (maxDate == QuantLib::Date() || d > maxDate) {
+                        maxDate = d;
+                    }
+                }
+            }
+            return maxDate;            
+        }
         // calculate the simple forward rate between start and end date using the discount factors from the given yield term structure
         static QuantLib::Rate simpleForwardRate(
             const QuantLib::Date& start,
