@@ -6,3 +6,4 @@
 #include <ql_utils/utilities/ois-moving-avg-rate-calculator.hpp>
 #include <ql_utils/utilities/time.hpp>
 #include <ql_utils/utilities/iso-date-conv.hpp>
+#include <ql_utils/utilities/ramp.hpp>
