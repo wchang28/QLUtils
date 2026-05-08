@@ -499,6 +499,10 @@ namespace QuantLib {
                 }
                 return len;
             }
+            Real xWidth() const {
+                auto len = ramp_length();
+                return segment::get_x(len);
+            }
             const Real& left_value() const {
                 assertNotEmpty();
                 return segments_.front().value_start;
