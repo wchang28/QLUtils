@@ -115,6 +115,27 @@ namespace QuantLib {
             TermStructureDayCountConv dayCountConv() const { return dayCountConv_; }
             YieldTermStructureInterpolation interpolation() const { return interpolation_; }
             const std::vector<Row>& termStructure() const { return termStructure_; }
+            std::vector<Date> dates() const {
+                std::vector<Date> ret;
+                for (const auto& row : termStructure_) {
+                    ret.push_back(row.date);
+                }
+                return ret;
+			}
+            std::vector<Real> data() const {
+                std::vector<Real> ret;
+                for (const auto& row : termStructure_) {
+                    ret.push_back(row.value);
+                }
+                return ret;
+            }
+            std::vector<Time> terms() const {
+                std::vector<Time> ret;
+                for (const auto& row : termStructure_) {
+                    ret.push_back(row.term);
+                }
+                return ret;
+			}
         };
         
         template<

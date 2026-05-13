@@ -257,11 +257,14 @@ namespace QLUtils {
         virtual QuantLib::Rate parYield() const = 0;
     };
 
+    // par coupon fixed rate bond instrument interface
     struct IParRateInstrument {
-        virtual QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const = 0;
+        typedef QuantLib::ext::shared_ptr<QuantLib::FixedRateBond> FixedRateBondPtr;
+        typedef QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> FixedRateBondHelperPtr;
+        virtual FixedRateBondHelperPtr fixedRateBondHelper() const = 0; // fixed rate bond helper factory
         virtual QuantLib::Rate impliedParRate(
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
-        ) const = 0;
+        ) const = 0;    // implied par coupon rate for the fixed rate bond given the discount yield term structure
         virtual QuantLib::DayCounter parYieldSplineDayCounter() const = 0;
     };
 

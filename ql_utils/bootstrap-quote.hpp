@@ -8,11 +8,16 @@ namespace QuantLib {
     namespace Utils {
         struct BootstrapQuote {
             std::string ticker;
-            bool use;   // include for bootstrapping flag
             Real value;   // quoted value
-            BootstrapQuote() :
-                use(true),
-                value(Null<Real>())
+            bool use;   // include for bootstrapping flag
+            BootstrapQuote(
+                const std::string& ticker = "",
+                Real value = Null<Real>(),
+                bool use = true
+            ) :
+                ticker(ticker),
+                use(use),
+                value(value)
             {}
             bool valueSet() const {
                 return (value != Null<Real>());
@@ -81,12 +86,21 @@ namespace QuantLib {
                 osqtDeposit = 0,
                 osqtSwap = 1
 			};
-            QuoteType quoteType;
             Period tenor;
+            QuoteType quoteType;
             Frequency couponFreq;
-            OISSwapQuote() :
-                quoteType(QuoteType::osqtSwap),
-                couponFreq(Frequency::NoFrequency)
+            OISSwapQuote(
+                const std::string& ticker = "",
+                const Period& tenor = Period(),
+                QuoteType quoteType = QuoteType::osqtDeposit,
+                Real value = Null<Real>(),
+                Frequency couponFreq = Frequency::NoFrequency,
+                bool use = true
+            ) :
+                BootstrapQuote(ticker, value, use),
+                tenor(tenor),
+                quoteType(quoteType),
+                couponFreq(couponFreq)
             {}
             static bool hasUse(
                 const std::vector<OISSwapQuote>& quotes

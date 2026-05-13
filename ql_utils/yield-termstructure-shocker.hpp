@@ -139,7 +139,7 @@ namespace QLUtils {
         typedef std::shared_ptr<BootstrapInstrument> pInstrument;
         void shockImpl(
             const MonthlyRateShocker& monthlyRateShocker
-        ) {
+        ) override {
             auto curveReferenceDate = this->yieldTermStructure->referenceDate();
             auto maxDate = this->yieldTermStructure->maxDate();
             QuantLib::Natural tenorMonth = 1;
@@ -166,7 +166,7 @@ namespace QLUtils {
         QuantLib::Rate impliedRate(
             const pInstrument& pInst,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
-        ) const {
+        ) const override {
             auto pParInstrument = std::dynamic_pointer_cast<ParRateInstrument>(pInst);
             return pParInstrument->impliedParRate(discountingTermStructure);
         }
@@ -189,7 +189,7 @@ namespace QLUtils {
         typedef std::shared_ptr<BootstrapInstrument> pInstrument;
         void shockImpl(
             const MonthlyRateShocker& monthlyRateShocker
-        ) {
+        ) override {
             auto curveReferenceDate = this->yieldTermStructure->referenceDate();
             QuantLib::Date today = QuantLib::Settings::instance().evaluationDate();
             QL_REQUIRE(curveReferenceDate == today, "curve's reference date (" << curveReferenceDate << ") is not equal to today's date (" << today << ")");
@@ -218,7 +218,7 @@ namespace QLUtils {
         QuantLib::Rate impliedRate(
             const pInstrument& pInst,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure
-        ) const {
+        ) const override {
             auto pFRA = std::dynamic_pointer_cast<FRA>(pInst);
             return pFRA->impliedRate(estimatingTermStructure.currentLink());
         }
@@ -238,7 +238,7 @@ namespace QLUtils {
         typedef std::shared_ptr<BootstrapInstrument> pInstrument;
         void shockImpl(
             const MonthlyRateShocker& monthlyRateShocker
-        ) {
+        ) override {
             auto curveReferenceDate = this->yieldTermStructure->referenceDate();
             auto maxDate = this->yieldTermStructure->maxDate();
             auto tenor = QuantLib::Period(TENOR_MONTHS, QuantLib::Months);
@@ -273,7 +273,7 @@ namespace QLUtils {
         QuantLib::Rate impliedRate(
             const pInstrument& pInst,
             const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
-        ) const {
+        ) const override {
             auto pInstrument = std::dynamic_pointer_cast<InstrumentUsed>(pInst);
             return pInstrument->impliedRate(discountingTermStructure);
         }

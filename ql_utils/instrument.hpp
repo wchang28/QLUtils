@@ -223,8 +223,8 @@ namespace QLUtils {
         ////////////////////////////////////////////////////////////////////////////////
     };
 
-    // base class for all par rate instruments
-    // par rate instrument is a for rate/yield-based (not price-based) bootstrap bacause the price is anchored at 100 (par)
+    // base class for all par coupon fixed rate bond instruments
+    // it is a for rate/yield-based (not price-based) bootstrap bacause the price is anchored at 100 (par)
     class ParRateInstrument :
         public BootstrapInstrument,
         public IParYieldSplineNode,
@@ -236,8 +236,15 @@ namespace QLUtils {
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) : BootstrapInstrument(BootstrapInstrument::vtRate, tenor, datedDate) {}
     protected:
-        QuantLib::ext::shared_ptr<QuantLib::Bond> parBond() const {
-            return this->fixedRateBondHelper()->bond();
+        // fixed rate bond factory
+        // the output bod will have a fixed rate of par coupon rate
+        FixedRateBondPtr fixedRateBond() const {
+            auto helper = this->fixedRateBondHelper();
+            QL_ASSERT(helper != nullptr, "Fixed rate bond helper is null");
+            auto bond = helper->bond(); // bond behind the helper
+            auto fixedRateBond = QuantLib::ext::dynamic_pointer_cast<QuantLib::FixedRateBond>(bond);
+            QL_ASSERT(fixedRateBond != nullptr, "The bond is not a fixed rate bond");
+            return fixedRateBond;
         }
     public:
         const QuantLib::Rate& parRate() const {
@@ -246,32 +253,37 @@ namespace QLUtils {
         QuantLib::Rate& parRate() {
             return rate();
         }
-        QuantLib::Date startDate() const {
-            return parBond()->settlementDate();
+        QuantLib::Date startDate() const override { // BootstrapInstrument
+            return fixedRateBond()->settlementDate();
         }
-        QuantLib::Date maturityDate() const {
-            return parBond()->maturityDate();
+        QuantLib::Date maturityDate() const override {  // BootstrapInstrument
+            return fixedRateBond()->maturityDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const {
-            return this->fixedRateBondHelper();
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {  // BootstrapInstrument
+            auto helper = this->fixedRateBondHelper();
+            QL_ASSERT(helper != nullptr, "Fixed rate bond helper is null");
+            return helper;
         };
         QuantLib::Real impliedQuote(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& estimatingTermStructure,
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure = QuantLib::Handle<QuantLib::YieldTermStructure>()
-        ) const {
+            const YieldTermStructureHandle& estimatingTermStructure,
+            const YieldTermStructureHandle& discountingTermStructure = {}
+        ) const override {  // BootstrapInstrument
             return this->impliedParRate(discountingTermStructure);
         }
-        QuantLib::Rate parYield() const {
+        QuantLib::Rate parYield() const override {   // IParYieldSplineNode
+            ensureValueIsSet();
             return parRate();
         }
-        QuantLib::Time parTerm() const {
-            return this->parYieldSplineDayCounter().yearFraction(parBond()->settlementDate(), parBond()->maturityDate());
+        QuantLib::Time parTerm() const override {    // IParYieldSplineNode
+            auto dc = this->parYieldSplineDayCounter();
+            auto bond = fixedRateBond();
+            return dc.yearFraction(bond->settlementDate(), bond->maturityDate());
         }
     };
 
-    // for converting spot or fwd par rates back to zero curve (par-to-zero bootstrapping)
+    // for converting spot or fwd par rates back to yield curve (par-to-yield curve bootstrapping)
     // rate/yield-based par instrument
     // used during par-shock
     template <
@@ -305,19 +317,24 @@ namespace QLUtils {
         const QuantLib::Period& forwardStart() const {
             return forwardStart_;
         }
-        QuantLib::DayCounter parYieldSplineDayCounter() const {
+        std::string instrumentTypeAlias() const override {  // BootstrapInstrument
+            return "par rate";
+        }
+        QuantLib::DayCounter parYieldSplineDayCounter() const override { // IParRateInstrument
             return ParYieldHelperType::parBondDayCounter();
         }
-        QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> fixedRateBondHelper() const {
-            QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> helper = ParYieldHelperType(tenor())
+        FixedRateBondHelperPtr fixedRateBondHelper() const override {  // IParRateInstrument
+            ensureValueIsSet();
+            FixedRateBondHelperPtr helper = ParYieldHelperType(tenor())
                 .withParYield(parRate())
                 .withBaseReferenceDate(baseReferenceDate())
                 .withForwardStart(forwardStart());
             return helper;
         }
-        QuantLib::Rate impliedParRate(
-            const QuantLib::Handle<QuantLib::YieldTermStructure>& discountingTermStructure
-        ) const {
+        QuantLib::Rate impliedParRate(  // IParRateInstrument
+            const YieldTermStructureHandle& discountingTermStructure
+        ) const override {
+            QL_ASSERT(!discountingTermStructure.empty(), "discount yield term structure is empty");
             QL_ASSERT(discountingTermStructure->referenceDate() == baseReferenceDate(), "discount curve base reference date (" << discountingTermStructure->referenceDate() << ") is not what's expected (" << baseReferenceDate() << ")");
             return ParYieldHelperType::parYield(
                 discountingTermStructure.currentLink(),
