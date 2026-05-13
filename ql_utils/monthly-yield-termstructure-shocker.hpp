@@ -124,7 +124,7 @@ namespace QLUtils {
         ) const {
             this->verifyOutputs();
             QuantLib::Handle<QuantLib::YieldTermStructure> shockedTS(this->shockedCurve);
-            auto const& me = *this;
+            const auto& me = *this;
             return verifyImpl(
                 shockedQuotes,
                 [&shockedTS, &me](const pInstrument& pInst) -> QuantLib::Rate {
