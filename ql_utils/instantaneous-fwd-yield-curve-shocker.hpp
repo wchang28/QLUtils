@@ -5,19 +5,12 @@
 #include <cmath>
 #include <vector>
 #include <sstream>
+#include <ql_utils/yield-termstructure-shocker.hpp>
 #include <ql_utils/utilities/iso-date-conv.hpp>
 #include <ql_utils/types.hpp>
 
 namespace QuantLib {
     namespace Utils {
-        class YieldTermStructureShocker {
-        public:
-            typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
-        public:
-            // input
-            YieldTermStructurePtr yieldTermStructure;    // input yield term structure to be shocked
-        };
-
 		// "Actual/Actual" like day counter types for the shock primitive calculation for the instantaneous forward rate shock
         // i.e. instantaneous forward ramp shock is applied in the "Actual/Actual" like space
         enum InstFwdShockPrimitiveActActDayCounterType {
@@ -38,9 +31,10 @@ namespace QuantLib {
             return s;
         }
 
-        class InstantaneousFwdYieldTermStructureShocker: public YieldTermStructureShocker {
-        public:
-            typedef InterpolatedForwardCurve<BackwardFlat> OutputCurveType;
+        class InstantaneousFwdYieldTermStructureShocker:
+            public YieldCurveShocker<InterpolatedForwardCurve<BackwardFlat>> {
+        private:
+            typedef YieldCurveShocker<InterpolatedForwardCurve<BackwardFlat>> BaseClass;
         public:
             // input
             InstFwdShockPrimitiveActActDayCounterType shockPrimitiveDayCounterType;
@@ -52,7 +46,6 @@ namespace QuantLib {
             Real totalArea;
             Real totalRampArea;
             Real totalShockedArea;
-            ext::shared_ptr<OutputCurveType> shockedCurve;    // shocked output curve
         public:
             InstantaneousFwdYieldTermStructureShocker(
 				InstFwdShockPrimitiveActActDayCounterType shockPrimitiveDayCounterType = InstFwdShockPrimitiveActActDayCounterType::ifspaadct_ActualActual_ISDA
@@ -64,10 +57,8 @@ namespace QuantLib {
                 totalShockedArea(Null<Real>())
             {}
         protected:
-            void verifyInputs() const {
-                QL_REQUIRE(yieldTermStructure != nullptr, "input yield term structure cannot be null");
-            }
-            void resetOutputs() {
+            void resetOutputs() override {
+                BaseClass::resetOutputs();
                 maxDate = Date();
                 dates.clear();
                 fwdRates.clear();
@@ -75,10 +66,11 @@ namespace QuantLib {
                 totalArea = Null<Real>();
                 totalRampArea = Null<Real>();
                 totalShockedArea = Null<Real>();
-                shockedCurve = nullptr;
             }
-            void verifyOutputs() const {
+            void verifyOutputs() const override {
+                BaseClass::verifyOutputs();
                 QL_ASSERT(maxDate != Date(), "max. date is null");
+                QL_ASSERT(shockedCurve->maxDate() == maxDate, "shocked curve's max. date (" << ISODateConv::to_str(shockedCurve->maxDate()) << ") does not match the expected max. date (" << ISODateConv::to_str(maxDate) << ")");
                 auto n = dates.size();
                 QL_ASSERT(n > 0, "dates array cannot be empty");
                 QL_ASSERT(dates.back() == maxDate, "last date in dates array (" << ISODateConv::to_str(dates.back()) << ") does not match the max. date (" << ISODateConv::to_str(maxDate) << ")");
@@ -87,9 +79,6 @@ namespace QuantLib {
 				QL_ASSERT(totalArea != Null<Real>(), "total area is not set");
                 QL_ASSERT(totalRampArea != Null<Real>(), "total ramp area is not set");
                 QL_ASSERT(totalShockedArea != Null<Real>(), "total shocked area is not set");
-                QL_ASSERT(shockedCurve != nullptr, "output shocked curve cannot be null");
-                QL_ASSERT(shockedCurve->referenceDate() == yieldTermStructure->referenceDate(), "shocked curve's reference date (" << ISODateConv::to_str(shockedCurve->referenceDate()) << ") does not match the input yield term structure's reference date (" << ISODateConv::to_str(yieldTermStructure->referenceDate()) << ")");
-                QL_ASSERT(shockedCurve->maxDate() == maxDate, "shocked curve's max. date (" << ISODateConv::to_str(shockedCurve->maxDate()) << ") does not match the expected max. date (" << ISODateConv::to_str(maxDate) << ")");
             }
         protected:
             DayCounter makeShockPrimitiveDayCounter(
@@ -114,7 +103,7 @@ namespace QuantLib {
                 const PrimitiveCalculator& shockPrimitive,
                 const DayCounter& curveDayCounter
             ) {
-                auto curveRefDate = yieldTermStructure->referenceDate();
+                auto curveRefDate = this->curveRefDate();
                 maxDate = yieldTermStructure->maxDate();
                 QL_REQUIRE(maxDate > curveRefDate, "curve max. date (" << ISODateConv::to_str(maxDate) << ") must be greater than the curve ref. date (" << ISODateConv::to_str(curveRefDate) << ")");
                 DayCounter shockPrimitiveDayCounter = makeShockPrimitiveDayCounter(curveDayCounter);
@@ -156,7 +145,7 @@ namespace QuantLib {
                 fwdRates.insert(fwdRates.begin(), f);
                 f = shockedFwdRates[0];
                 shockedFwdRates.insert(shockedFwdRates.begin(), f);
-                shockedCurve.reset(new OutputCurveType(dates, shockedFwdRates, curveDayCounter));
+                this->shockedCurve.reset(new OutputCurveType(dates, shockedFwdRates, curveDayCounter));
             };
         public:
             template <
@@ -169,8 +158,8 @@ namespace QuantLib {
                 auto primitiveCalculator = [&shocker](Time t) {
                     return (Real)shocker.primitive(t);
                 };
-                verifyInputs();
-                resetOutputs();
+                this->verifyInputs();
+                this->resetOutputs();
                 shockImpl(primitiveCalculator, curveDayCounter);
             }
             Real compoundingAtMaxDate() const {
@@ -185,11 +174,17 @@ namespace QuantLib {
 				QL_ASSERT(totalShockedArea != Null<Real>(), "total shocked area is not set");
                 return std::exp(totalShockedArea);
             }
-            Rate verify(
+            void monthlyRampShock(
+                const monthly_ramp& monthlyRamp,
+                const DayCounter& curveDayCounter
+            ) override {
+                shock(monthlyRamp, curveDayCounter);
+            }
+            Rate verifyShock(
                 std::ostream& os,
-                std::streamsize precision = 16
-            ) const {
-                verifyOutputs();
+                std::streamsize precision
+            ) const override {
+                this->verifyOutputs();
                 auto curveRefDate = shockedCurve->referenceDate();
                 auto curveDayCounter = shockedCurve->dayCounter();
 				auto T = curveDayCounter.yearFraction(curveRefDate, maxDate);   // time in the unit of curve day counter between the curve reference date and the max. date
