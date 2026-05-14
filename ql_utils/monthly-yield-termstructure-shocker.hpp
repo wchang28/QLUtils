@@ -16,14 +16,22 @@
 
 namespace QLUtils {
     template <
+        typename Traits = QuantLib::ZeroYield,   // QuantLib::ZeroYield, QuantLib::Discount, QuantLib::ForwardRate, or QuantLib::SimpleZeroYield
+        typename Interpolator = QuantLib::Linear
+    >
+    struct MonthlyYieldCurveShockerTraits {
+    public:
+        typedef typename Traits::template curve<Interpolator>::type BaseCurveType;	// InterpolatedZeroCurve<Interpolator>, InterpolatedDiscountCurve<Interpolator>, InterpolatedForwardCurve<Interpolator>, or InterpolatedSimpleZeroCurve<Interpolator>
+    };
+    template <
         typename I = QuantLib::Linear
     >
     class MonthlyYieldTermStructureShocker:
-        public QuantLib::Utils::YieldCurveShocker<QuantLib::InterpolatedZeroCurve<I>>,
+        public QuantLib::Utils::YieldCurveShocker<typename MonthlyYieldCurveShockerTraits<QuantLib::ZeroYield, I>::BaseCurveType>,
         public Bootstrapper {
     public:
         typedef I Interp;
-        typedef QuantLib::InterpolatedZeroCurve<I> OutputCurveType;
+        typedef typename MonthlyYieldCurveShockerTraits<QuantLib::ZeroYield, I>::BaseCurveType OutputCurveType;
         typedef QuantLib::Natural MonthNumber;
         typedef QuantLib::Utils::Ramp<QuantLib::Frequency::Monthly> monthly_ramp;
     protected:
