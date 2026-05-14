@@ -15,10 +15,6 @@ namespace QuantLib {
         public:
             // input
             YieldTermStructurePtr yieldTermStructure;    // input yield term structure to be shocked
-        protected:
-            virtual void verifyInputs() const {
-                QL_REQUIRE(yieldTermStructure != nullptr, "input yield term structure not set");
-            }
         public:
             // reference date of the output shocked curve
             // !!! must be matching with the input curve !!!
@@ -26,6 +22,10 @@ namespace QuantLib {
                 QL_ASSERT(yieldTermStructure != nullptr, "input yield term structure not set");
                 return yieldTermStructure->referenceDate();
             }
+        public:
+            // pure virtaul interface
+            ///////////////////////////////////////////////////////////////////////////////
+            virtual YieldTermStructurePtr outputShockedTermStructure() const = 0;
             virtual void monthlyRampShock(
                 const monthly_ramp& monthlyRamp,
                 const DayCounter& curveDayCounter = Actual365Fixed()
@@ -34,6 +34,19 @@ namespace QuantLib {
                 std::ostream& os,
                 std::streamsize precision = 16
             ) const = 0;
+            ///////////////////////////////////////////////////////////////////////////////
+        protected:
+            // protected overridable interface
+            virtual void verifyInputs() const {
+                QL_REQUIRE(yieldTermStructure != nullptr, "input yield term structure not set");
+            }
+            virtual void resetOutputs() {}
+            virtual void verifyOutputs() const {
+                auto shockedTS = outputShockedTermStructure();
+                QL_ASSERT(shockedTS != nullptr, "output shocked yield term structure is null");
+                auto curveRefDate = this->curveRefDate();
+                QL_ASSERT(shockedTS->referenceDate() == curveRefDate, "shocked curve's reference date (" << ISODateConv::to_str(shockedTS->referenceDate()) << ") is not what's expected (" << ISODateConv::to_str(curveRefDate) << ")");
+            }
         };
         template <
             typename OUTPUT_CURVE_TYPE
@@ -42,17 +55,18 @@ namespace QuantLib {
         public:
             typedef OUTPUT_CURVE_TYPE OutputCurveType;
             typedef ext::shared_ptr<OutputCurveType> OutputCurvePtr;
+            typedef typename YieldTermStructureShocker::YieldTermStructurePtr YieldTermStructurePtr;
         public:
             // output
             OutputCurvePtr shockedCurve;    // output shocked curve
         protected:
-            virtual void resetOutputs() {
+            void resetOutputs() override {
+                YieldTermStructureShocker::resetOutputs();
                 shockedCurve = nullptr;
             }
-            virtual void verifyOutputs() const {
-                QL_ASSERT(shockedCurve != nullptr, "output shocked curve is null");
-                auto curveRefDate = this->curveRefDate();
-                QL_ASSERT(shockedCurve->referenceDate() == curveRefDate, "shocked curve's reference date (" << ISODateConv::to_str(shockedCurve->referenceDate()) << ") is not what's expected (" << ISODateConv::to_str(curveRefDate) << ")");
+        public:
+            YieldTermStructurePtr outputShockedTermStructure() const override {
+                return shockedCurve;
             }
         };
     }
