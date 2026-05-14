@@ -25,15 +25,16 @@ namespace QuantLib {
             typedef typename Traits::template curve<Interpolator>::type BaseCurveType;	// InterpolatedZeroCurve<Interpolator>, InterpolatedDiscountCurve<Interpolator>, InterpolatedForwardCurve<Interpolator>, or InterpolatedSimpleZeroCurve<Interpolator>
         };
         template <
+            typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
             typename I = Linear
         >
         class MonthlyYieldTermStructureShocker:
-            public YieldCurveShocker<typename MonthlyYieldCurveShockerTraits<ZeroYield, I>::BaseCurveType>,
+            public YieldCurveShocker<typename MonthlyYieldCurveShockerTraits<Traits, I>::BaseCurveType>,
             public Bootstrapper {
         public:
             typedef I Interp;
-            typedef typename MonthlyYieldCurveShockerTraits<ZeroYield, I>::BaseCurveType OutputCurveType;
-            typedef YieldCurvesBootstrap<ZeroYield, I> BootstrapperType;
+            typedef typename MonthlyYieldCurveShockerTraits<Traits, I>::BaseCurveType OutputCurveType;
+            typedef YieldCurvesBootstrap<Traits, I> BootstrapperType;
             typedef Natural MonthNumber;
             typedef Ramp<Frequency::Monthly> monthly_ramp;
         protected:
@@ -161,13 +162,14 @@ namespace QuantLib {
 
         // spot par yield shocker
         template <
+            typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
             typename I = Linear,
             Frequency PAR_YIELD_COUPON_FREQ = Frequency::Semiannual,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis
         >
-        class ParShockYieldTermStructure: public MonthlyYieldTermStructureShocker<I> {
+        class ParShockYieldTermStructure: public MonthlyYieldTermStructureShocker<Traits, I> {
         private:
-            typedef MonthlyYieldTermStructureShocker<I> BaseClass;
+            typedef MonthlyYieldTermStructureShocker<Traits, I> BaseClass;
         protected:
             typedef typename BaseClass::MonthlyRateShocker MonthlyRateShocker;
             typedef typename BaseClass::MonthNumber MonthNumber;
@@ -212,11 +214,12 @@ namespace QuantLib {
         };
 
         template <
+            typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
             typename I = Linear
         >
-        class SimpleForwardTermStructureShocker: public MonthlyYieldTermStructureShocker<I> {
+        class SimpleForwardTermStructureShocker: public MonthlyYieldTermStructureShocker<Traits, I> {
         private:
-            typedef MonthlyYieldTermStructureShocker<I> BaseClass;
+            typedef MonthlyYieldTermStructureShocker<Traits, I> BaseClass;
         protected:
             typedef typename BaseClass::MonthlyRateShocker MonthlyRateShocker;
             typedef typename BaseClass::MonthNumber MonthNumber;
@@ -269,15 +272,16 @@ namespace QuantLib {
         };
 
         template <
+            typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
             typename I = Linear,
             Integer TENOR_MONTHS = 1,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis,
             Compounding COMPOUNDING = Compounding::Continuous,
             Frequency FREQUENCY = Frequency::NoFrequency
         >
-        class NominalForwardShockYieldTermStructure : public MonthlyYieldTermStructureShocker<I> {
+        class NominalForwardShockYieldTermStructure : public MonthlyYieldTermStructureShocker<Traits, I> {
         private:
-            typedef MonthlyYieldTermStructureShocker<I> BaseClass;
+            typedef MonthlyYieldTermStructureShocker<Traits, I> BaseClass;
         protected:
             typedef typename BaseClass::MonthlyRateShocker MonthlyRateShocker;
             typedef typename BaseClass::MonthNumber MonthNumber;
