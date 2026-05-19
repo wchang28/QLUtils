@@ -367,6 +367,7 @@ namespace QuantLib {
             ytsiPiecewiseLinearSimple = 1,
             ytsiStepForwardCont = 2,
             ytsiSmoothForwardCont = 3,
+            ytsiPiecewiseLinearForwardCont = 4,
         };
         template <>
         inline const std::set<YieldTermStructureInterpolation>& possible_enum_values<YieldTermStructureInterpolation>::get() {
@@ -375,6 +376,7 @@ namespace QuantLib {
                 YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple,
                 YieldTermStructureInterpolation::ytsiStepForwardCont,
                 YieldTermStructureInterpolation::ytsiSmoothForwardCont,
+                YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont
             };
             return s;
         }

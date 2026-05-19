@@ -38,6 +38,10 @@ namespace QuantLib {
                 bool is_trapezoidal() const {
                     return !is_flat();
                 }
+                // returns true if the segment represents a flat zero, false otherwise
+                bool is_flat_zero() const {
+                    return (value_start == 0.0 && (value_end == Null<Real>() || value_end == 0.0));
+                }
                 void assertValid() const {
                     QL_ASSERT(value_start != Null<Real>(), "Invalid segment: value_start is null");
                     if (length == Null<Size>()) {
@@ -463,6 +467,15 @@ namespace QuantLib {
                     QL_ASSERT(flat_value != Null<Real>(), "Invalid state: flat_value is null");
                     return true;
                 }
+            }
+            // returns true if the ramp is empty or flat zeros for all it's segments, false otherwise
+            bool empty_or_zero() const {
+                for (const auto& segment : segments_) {
+                    if (!segment.is_flat_zero()) {
+                        return false;
+                    }
+                }
+                return true;
             }
             Ramp& operator = (
                 const std::string& rhs

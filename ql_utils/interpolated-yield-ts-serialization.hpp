@@ -74,11 +74,12 @@ namespace QuantLib {
             static std::pair<YieldTermStructureInterpolation, std::vector<Row>> from_termstructure(
                 const ext::shared_ptr<YieldTermStructure>& curve
             ) {
-                QL_REQUIRE(curve != nullptr, "curve cannot be nullptr");
+                QL_REQUIRE(curve != nullptr, "yield term structure cannot be null");
                 auto pLinearContZeroCurve = ext::dynamic_pointer_cast<InterpolatedZeroCurve<Linear>>(curve);
                 auto pLinearSimpleZeroCurve = ext::dynamic_pointer_cast<InterpolatedSimpleZeroCurve<Linear>>(curve);
                 auto pBackwardFlatContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<BackwardFlat>>(curve);
                 auto pSmoothContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<ConvexMonotone>>(curve);
+                auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(curve);
                 if (pLinearContZeroCurve != nullptr) {
                     return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearCont, getCurveTermStructRows(pLinearContZeroCurve->dates(), pLinearContZeroCurve->data(), curve));
                 }
@@ -91,8 +92,11 @@ namespace QuantLib {
                 else if (pSmoothContForwardCurve != nullptr) {
                     return std::make_pair(YieldTermStructureInterpolation::ytsiSmoothForwardCont, getCurveTermStructRows(pSmoothContForwardCurve->dates(), pSmoothContForwardCurve->data(), curve));
                 }
+                else if (pLinearContForwardCurve != nullptr) {
+                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont, getCurveTermStructRows(pLinearContForwardCurve->dates(), pLinearContForwardCurve->data(), curve));
+				}
                 else {
-                    QL_FAIL("unsupported term structure type for output");
+                    QL_FAIL("unsupported yield term structure traits/interpolation type");
                 }
             }    
         public:
@@ -180,8 +184,10 @@ namespace QuantLib {
                     return ext::make_shared<InterpolatedForwardCurve<BackwardFlat>>(dates_, values_, dayCounter);
                 case YieldTermStructureInterpolation::ytsiSmoothForwardCont:
                     return ext::make_shared<InterpolatedForwardCurve<ConvexMonotone>>(dates_, values_, dayCounter);
+                case YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont:
+					return ext::make_shared<InterpolatedForwardCurve<Linear>>(dates_, values_, dayCounter);
                 default:
-                    QL_FAIL("unsupported interpolation type: " << interpolation_);
+                    QL_FAIL("unsupported yield term structure traits/interpolation type: " << interpolation_);
                 }
             }
             InterpolatedYieldTermStructSerializer<value_type> get_serializer(
