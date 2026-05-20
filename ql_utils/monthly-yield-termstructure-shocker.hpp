@@ -42,28 +42,6 @@ namespace QuantLib {
         private:
             typedef YieldCurveShocker<OutputCurveType> BaseClass;
         public:
-            struct DefaultActualVsImpliedComparison {
-                Rate operator() (
-                    std::ostream& os,
-                    const pInstrument& inst,
-                    const Real& actual,
-                    const Real& implied
-                ) const {
-                    using DtFormat = QLUtils::DateFormat<char>;
-                    auto startDate = inst->startDate();
-                    auto endDate = inst->maturityDate();
-                    auto diff = implied - actual;
-                    os << inst->tenor();
-                    os << "," << inst->ticker();
-                    os << "," << "[" << DtFormat::to_yyyymmdd(startDate, true) << "," << DtFormat::to_yyyymmdd(endDate, true) << ")";
-                    os << "," << "actual=" << actual * inst->valueMultiplier();
-                    os << "," << "implied=" << implied * inst->valueMultiplier();
-                    os << "," << "diff=" << diff * inst->basisPointDiffMultiplier() << " bp";
-                    os << std::endl;
-                    return diff * inst->absoluteDiffMultiplier();
-                }
-            };
-        public:
             // output
             std::vector<Period> monthlyMaturities;   // monthly maturities (can be tenors or forwards periods)
             std::vector<Rate> monthlyBaseRates;  // original monthly rates
@@ -137,7 +115,7 @@ namespace QuantLib {
                 YieldTermStructureHandle shockedTS(this->shockedCurve);
                 const auto& me = *this;
                 return verifyImpl(
-                    shockedQuotes,
+                    *shockedQuotes,
                     [&shockedTS, &me](const pInstrument& pInst) -> Rate {
                         return me.impliedRate(pInst, shockedTS);
                     },

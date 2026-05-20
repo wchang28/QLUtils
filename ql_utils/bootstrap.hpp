@@ -15,18 +15,40 @@ namespace QuantLib {
     namespace Utils {
         class Bootstrapper {
         public:
-            typedef std::shared_ptr<QLUtils::BootstrapInstrument> pInstrument;
+            typedef QLUtils::BootstrapInstrument Instrument;
+            typedef std::shared_ptr<Instrument> pInstrument;
             typedef std::vector<pInstrument> Instruments;
             typedef std::shared_ptr<Instruments> pInstruments;
             typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
             typedef Handle<YieldTermStructure> YieldTermStructureHandle;
+            struct DefaultActualVsImpliedComparison {
+                Rate operator() (
+                    std::ostream& os,
+                    const Instrument& inst,
+                    const Real& actual,
+                    const Real& implied
+                ) const {
+                    using DtFormat = QLUtils::DateFormat<char>;
+                    auto startDate = inst.startDate();
+                    auto endDate = inst.maturityDate();
+                    auto diff = implied - actual;
+                    os << inst.tenor();
+                    os << "," << inst.ticker();
+                    os << "," << "[" << DtFormat::to_yyyymmdd(startDate, true) << "," << DtFormat::to_yyyymmdd(endDate, true) << ")";
+                    os << "," << "actual=" << actual * inst.valueMultiplier();
+                    os << "," << "implied=" << implied * inst.valueMultiplier();
+                    os << "," << "diff=" << diff * inst.basisPointDiffMultiplier() << " bp";
+                    os << std::endl;
+                    return diff * inst.absoluteDiffMultiplier();
+                }
+            };
         protected:
             template <
                 typename ImpliedValueCalculator,
                 typename ActualVsImpliedComparison
             >
             static Rate verifyImpl(
-                const pInstruments& instruments,
+                const Instruments& instruments,
                 const ImpliedValueCalculator& impliedValueCalculator,
                 std::ostream& os,
                 std::streamsize precision,
@@ -35,11 +57,11 @@ namespace QuantLib {
                 os << std::fixed;
                 os << std::setprecision(precision);
                 Rate err = 0.0;
-                for (const auto& inst : *instruments) { // for each instrument
-                    if (inst->use()) {
-                        const auto& actual = inst->value();
-                        auto implied = impliedValueCalculator(inst);
-                        auto diff = compare(os, inst, actual, implied);
+                for (const auto& pInst : instruments) { // for each instrument
+                    if (pInst != nullptr && pInst->use()) {
+                        const auto& actual = pInst->value();
+                        auto implied = impliedValueCalculator(pInst);
+                        auto diff = compare(os, *pInst, actual, implied);
                         err += std::pow(diff, 2.0);
                     }
                 }
@@ -60,6 +82,11 @@ namespace QuantLib {
         public:
             BootstrapMode bootstrapMode() const {
                 return (exogenousDiscountTermStructure != nullptr ? EstimatingCurveOnly : BothCurvesConcurrently);
+            }
+        protected:
+            void checkInstruments() const {
+                QL_REQUIRE(instruments != nullptr, "instruments is not set");
+                QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
             }
         public:
             virtual void piecewiseBootstrap(
@@ -98,10 +125,6 @@ namespace QuantLib {
                 return estimatingCurve; 
             }
         protected:
-            void checkInstruments() const {
-                QL_REQUIRE(instruments != nullptr, "instruments is not set");
-                QL_REQUIRE(!instruments->empty(), "instruments cannot be empty");
-            }
             std::shared_ptr<PiecewiseCurveBuilderType>& curveBuilder() {
                 return curveBuilder_;
             }
@@ -114,27 +137,6 @@ namespace QuantLib {
                 discountCurve = nullptr;
                 estimatingCurve = nullptr;
             }
-            struct DefaultActualVsImpliedComparison {
-                Rate operator() (
-                    std::ostream& os,
-                    const pInstrument& inst,
-                    const Real& actual,
-                    const Real& implied
-                ) const {
-                    using DtFormat = QLUtils::DateFormat<char>;
-                    auto startDate = inst->startDate();
-                    auto endDate = inst->maturityDate();
-                    auto diff = implied - actual;
-                    os << inst->tenor();
-                    os << "," << inst->ticker();
-                    os << "," << "[" << DtFormat::to_yyyymmdd(startDate, true) << "," << DtFormat::to_yyyymmdd(endDate, true) << ")";
-                    os << "," << "actual=" << actual * inst->valueMultiplier();
-                    os << "," << "implied=" << implied * inst->valueMultiplier();
-                    os << "," << "diff=" << diff * inst->basisPointDiffMultiplier() << " bp";
-                    os << std::endl;
-                    return diff * inst->absoluteDiffMultiplier();
-                }
-            };
             void bootstrap(
                 const Date& curveReferenceDate,
                 const DayCounter& dayCounter = Actual365Fixed(),
@@ -173,9 +175,9 @@ namespace QuantLib {
                 YieldTermStructureHandle hDiscountTS(discountTS);
                 YieldTermStructureHandle hEstimatingTS(estimatingTS);
                 return verifyImpl(
-                    instruments,
-                    [&hDiscountTS, &hEstimatingTS](const pInstrument& inst) -> Real {
-                        return inst->impliedQuote(hEstimatingTS, hDiscountTS);
+                    *instruments,
+                    [&hDiscountTS, &hEstimatingTS](const pInstrument& pInst) -> Real {
+                        return pInst->impliedQuote(hEstimatingTS, hDiscountTS);
                     },
                     os,
                     precision,
