@@ -380,5 +380,18 @@ namespace QuantLib {
             };
             return s;
         }
+
+        enum ForwardSpreadInterpolation {
+            fsiStep = 0,
+			fsiLinear = 1,
+        };
+        template <>
+        inline const std::set<ForwardSpreadInterpolation>& possible_enum_values<ForwardSpreadInterpolation>::get() {
+            static std::set<ForwardSpreadInterpolation> s{
+                ForwardSpreadInterpolation::fsiStep,
+                ForwardSpreadInterpolation::fsiLinear
+            };
+            return s;
+        }
     }
 }
