@@ -17,6 +17,7 @@ namespace QuantLib {
                 Date date;
                 Time term;
                 value_type value;
+                QLUtils::RateUnit valueUnit;
                 Rate zeroRate;
                 Rate forwardRate;
                 Rate simpleRate;
@@ -26,6 +27,7 @@ namespace QuantLib {
                     Date date = Date(),
                     Time term = 0.0,
                     value_type value = 0.0,
+                    QLUtils::RateUnit valueUnit = QLUtils::RateUnit::Percent,
                     Rate zeroRate = 0.0,
                     Rate forwardRate = 0.0,
                     Rate simpleRate = 0.0,
@@ -35,6 +37,7 @@ namespace QuantLib {
                 date(date),
                 term(term),
                 value(value),
+                valueUnit(valueUnit),
                 zeroRate(zeroRate),
                 forwardRate(forwardRate),
                 simpleRate(simpleRate),
@@ -52,13 +55,14 @@ namespace QuantLib {
             static std::vector<Row> getCurveTermStructRows(
                 const std::vector<Date>& dates,
                 const std::vector<value_type>& data,
-                const ext::shared_ptr<YieldTermStructure>& curve
+                const ext::shared_ptr<YieldTermStructure>& curve,
+                QLUtils::RateUnit valueUnit
             ) {
                 QL_REQUIRE(dates.size() == data.size(), "dates and data size mismatch");
                 QL_ASSERT(curve != nullptr, "curve cannot be nullptr");
                 auto dc = curve->dayCounter();
                 auto n = dates.size();
-                std::vector<Row> ret;
+                std::vector<Row> rows;
                 for (size_t i = 0; i < n; ++i) {
                     const auto& date = dates[i];
                     const auto& value = data[i];
@@ -68,9 +72,9 @@ namespace QuantLib {
                     auto simpleRate = curve->zeroRate(date, dc, Simple, NoFrequency, true).rate();
                     auto semiannualZeroRate = curve->zeroRate(date, dc, Compounded, Semiannual, true).rate();
                     auto discountFactor = curve->discount(date);
-                    ret.push_back(Row{ date, term, value, zeroRate, forwardRate, simpleRate, semiannualZeroRate, discountFactor });
+                    rows.push_back(Row{ date, term, value, valueUnit, zeroRate, forwardRate, simpleRate, semiannualZeroRate, discountFactor });
                 }
-                return ret;
+                return rows;
             }
             static std::pair<YieldTermStructureInterpolation, std::vector<Row>> from_termstructure(
                 const ext::shared_ptr<YieldTermStructure>& curve
@@ -82,19 +86,19 @@ namespace QuantLib {
                 auto pSmoothContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<ConvexMonotone>>(curve);
                 auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(curve);
                 if (pLinearContZeroCurve != nullptr) {
-                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearCont, getCurveTermStructRows(pLinearContZeroCurve->dates(), pLinearContZeroCurve->data(), curve));
+                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearCont, getCurveTermStructRows(pLinearContZeroCurve->dates(), pLinearContZeroCurve->data(), curve, QLUtils::RateUnit::Percent));
                 }
                 else if (pLinearSimpleZeroCurve != nullptr) {
-                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple, getCurveTermStructRows(pLinearSimpleZeroCurve->dates(), pLinearSimpleZeroCurve->data(), curve));
+                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple, getCurveTermStructRows(pLinearSimpleZeroCurve->dates(), pLinearSimpleZeroCurve->data(), curve, QLUtils::RateUnit::Percent));
                 }
                 else if (pBackwardFlatContForwardCurve != nullptr) {
-                    return std::make_pair(YieldTermStructureInterpolation::ytsiStepForwardCont, getCurveTermStructRows(pBackwardFlatContForwardCurve->dates(), pBackwardFlatContForwardCurve->data(), curve));
+                    return std::make_pair(YieldTermStructureInterpolation::ytsiStepForwardCont, getCurveTermStructRows(pBackwardFlatContForwardCurve->dates(), pBackwardFlatContForwardCurve->data(), curve, QLUtils::RateUnit::Percent));
                 }
                 else if (pSmoothContForwardCurve != nullptr) {
-                    return std::make_pair(YieldTermStructureInterpolation::ytsiSmoothForwardCont, getCurveTermStructRows(pSmoothContForwardCurve->dates(), pSmoothContForwardCurve->data(), curve));
+                    return std::make_pair(YieldTermStructureInterpolation::ytsiSmoothForwardCont, getCurveTermStructRows(pSmoothContForwardCurve->dates(), pSmoothContForwardCurve->data(), curve, QLUtils::RateUnit::Percent));
                 }
                 else if (pLinearContForwardCurve != nullptr) {
-                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont, getCurveTermStructRows(pLinearContForwardCurve->dates(), pLinearContForwardCurve->data(), curve));
+                    return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont, getCurveTermStructRows(pLinearContForwardCurve->dates(), pLinearContForwardCurve->data(), curve, QLUtils::RateUnit::Percent));
 				}
                 else {
                     QL_FAIL("unsupported yield term structure traits/interpolation type");
@@ -152,6 +156,16 @@ namespace QuantLib {
             struct Row {
                 Date date;
                 value_type value;
+                QLUtils::RateUnit valueUnit;
+                Row(
+                    Date date = Date(),
+                    value_type value = 0.0,
+                    QLUtils::RateUnit valueUnit = QLUtils::RateUnit::Percent
+                ):
+                date(date),
+                value(value),
+                valueUnit(valueUnit)
+                {}
             };
         private:
             Date referenceDate_;
