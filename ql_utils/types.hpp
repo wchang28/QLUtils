@@ -283,84 +283,28 @@ namespace QuantLib {
                 return s;
             }
         };
-        enum TermStructureDayCountConv {
-            tsdccActual365Fixed = 0,
-            tsdccActual360 = 1,
-            tsdccActual36525 = 2,
-            tsdccActual364 = 3,
-            tsdccActual366 = 4,
+        // monotonic day counter types which are nice for term structure curve building
+        // monotonic means given a year fraction, it will correspond to a unique future/past date from a base reference date 
+        enum MonotonicDayCountConv {
+            mdccActual365Fixed = 0,
+            mdccActual360 = 1,
+            mdccActual36525 = 2,
+            mdccActual364 = 3,
+            mdccActual366 = 4,
+            mdccActualActualISDA = 5,
         };
         template <>
-        inline const std::set<TermStructureDayCountConv>& possible_enum_values<TermStructureDayCountConv>::get() {
-            static std::set<TermStructureDayCountConv> s {
-                TermStructureDayCountConv::tsdccActual365Fixed,
-                TermStructureDayCountConv::tsdccActual360,
-                TermStructureDayCountConv::tsdccActual36525,
-                TermStructureDayCountConv::tsdccActual364,
-                TermStructureDayCountConv::tsdccActual366
+        inline const std::set<MonotonicDayCountConv>& possible_enum_values<MonotonicDayCountConv>::get() {
+            static std::set<MonotonicDayCountConv> s {
+                MonotonicDayCountConv::mdccActual365Fixed,
+                MonotonicDayCountConv::mdccActual360,
+                MonotonicDayCountConv::mdccActual36525,
+                MonotonicDayCountConv::mdccActual364,
+                MonotonicDayCountConv::mdccActual366,
+                MonotonicDayCountConv::mdccActualActualISDA
             };
             return s;
         }
-        struct TermStructureDayCountConverter {
-            static DayCounter to_daycounter(
-                TermStructureDayCountConv dayCountConv
-            ) {
-                switch (dayCountConv) {
-                case TermStructureDayCountConv::tsdccActual365Fixed:
-                    return Actual365Fixed();
-                case TermStructureDayCountConv::tsdccActual360:
-                    return Actual360();
-                case TermStructureDayCountConv::tsdccActual36525:
-                    return Actual36525();
-                case TermStructureDayCountConv::tsdccActual364:
-                    return Actual364();
-                case TermStructureDayCountConv::tsdccActual366:
-                    return Actual366();
-                default:
-                    QL_FAIL("unsupported term structure day count convention: " << dayCountConv);
-                }
-			}
-            static TermStructureDayCountConv from_daycounter(
-                const DayCounter& dc
-            ) {
-                if (dc == Actual365Fixed()) {
-                    return TermStructureDayCountConv::tsdccActual365Fixed;
-                }
-                else if (dc == Actual360()) {
-                    return TermStructureDayCountConv::tsdccActual360;
-                }
-                else if (dc == Actual36525()) {
-                    return TermStructureDayCountConv::tsdccActual36525;
-                }
-                else if (dc == Actual364()) {
-                    return TermStructureDayCountConv::tsdccActual364;
-                }
-                else if (dc == Actual366()) {
-                    return TermStructureDayCountConv::tsdccActual366;
-                }
-                else {
-                    QL_FAIL("unsupported day counter for the term structure: " << dc.name());
-                }
-			}
-            static Real days_per_year(
-                TermStructureDayCountConv dayCountConv
-            ) {
-                switch (dayCountConv) {
-                case TermStructureDayCountConv::tsdccActual365Fixed:
-                    return 365.0;
-                case TermStructureDayCountConv::tsdccActual360:
-                    return 360.0;
-                case TermStructureDayCountConv::tsdccActual36525:
-                    return 365.25;
-                case TermStructureDayCountConv::tsdccActual364:
-                    return 364.0;
-                case TermStructureDayCountConv::tsdccActual366:
-                    return 366.0;
-                default:
-                    QL_FAIL("unsupported term structure day count convention: " << dayCountConv);
-                }
-			}
-		};
 
         enum YieldTermStructureInterpolation {
             ytsiPiecewiseLinearCont = 0,
@@ -383,7 +327,7 @@ namespace QuantLib {
 
         enum ForwardSpreadInterpolation {
             fsiStep = 0,
-			fsiLinear = 1,
+            fsiLinear = 1,
         };
         template <>
         inline const std::set<ForwardSpreadInterpolation>& possible_enum_values<ForwardSpreadInterpolation>::get() {

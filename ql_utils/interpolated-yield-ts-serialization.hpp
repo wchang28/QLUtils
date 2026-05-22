@@ -3,6 +3,7 @@
 #include <ql/quantlib.hpp>
 #include <vector>
 #include <ql_utils/types.hpp>
+#include <ql_utils/daycounters/monotonic-day-count-helper.hpp>
 
 namespace QuantLib {
     namespace Utils {
@@ -44,7 +45,7 @@ namespace QuantLib {
         private:
             Date marketDate_;
             Date referenceDate_;
-            TermStructureDayCountConv dayCountConv_;
+            MonotonicDayCountConv dayCountConv_;
             YieldTermStructureInterpolation interpolation_;
             std::vector<Row> termStructure_;
         public:
@@ -106,7 +107,7 @@ namespace QuantLib {
             ) :
                 marketDate_(marketDate == Date() ? Settings::instance().evaluationDate() : marketDate),
                 referenceDate_(curve->referenceDate()),
-                dayCountConv_(TermStructureDayCountConverter::from_daycounter(curve->dayCounter())),
+                dayCountConv_(MonotonicDayCountHelper::from_daycounter(curve->dayCounter())),
                 interpolation_(YieldTermStructureInterpolation::ytsiPiecewiseLinearCont)
             {
                 auto [interp, rows] = from_termstructure(curve);
@@ -116,7 +117,7 @@ namespace QuantLib {
             const Date& marketDate() const { return marketDate_; }
             Date& marketDate() { return marketDate_; }
             const Date& referenceDate() const { return referenceDate_; }
-            TermStructureDayCountConv dayCountConv() const { return dayCountConv_; }
+            MonotonicDayCountConv dayCountConv() const { return dayCountConv_; }
             YieldTermStructureInterpolation interpolation() const { return interpolation_; }
             const std::vector<Row>& termStructure() const { return termStructure_; }
             std::vector<Date> dates() const {
@@ -154,19 +155,19 @@ namespace QuantLib {
             };
         private:
             Date referenceDate_;
-            TermStructureDayCountConv dayCountConv_;
+            MonotonicDayCountConv dayCountConv_;
             YieldTermStructureInterpolation interpolation_;
             std::vector<Date> dates_;
             std::vector<value_type> values_;
         public:
             InterpolatedYieldTermStructDeserializer() :
-                dayCountConv_(TermStructureDayCountConv::tsdccActual365Fixed),
+                dayCountConv_(MonotonicDayCountConv::mdccActual365Fixed),
                 interpolation_(YieldTermStructureInterpolation::ytsiPiecewiseLinearCont)
             {}
             Date& referenceDate() { return referenceDate_; }
             const Date& referenceDate() const { return referenceDate_; }
-            TermStructureDayCountConv& dayCountConv() { return dayCountConv_; }
-            const TermStructureDayCountConv& dayCountConv() const { return dayCountConv_; }
+            MonotonicDayCountConv& dayCountConv() { return dayCountConv_; }
+            const MonotonicDayCountConv& dayCountConv() const { return dayCountConv_; }
             YieldTermStructureInterpolation& interpolation() { return interpolation_; }
             const YieldTermStructureInterpolation& interpolation() const { return interpolation_; }
             std::vector<Date>& dates() { return dates_; }
@@ -174,7 +175,7 @@ namespace QuantLib {
             std::vector<value_type>& values() { return values_; }
             const std::vector<value_type>& values() const { return values_; }
             operator ext::shared_ptr<YieldTermStructure>() const {
-                DayCounter dayCounter = TermStructureDayCountConverter::to_daycounter(dayCountConv_);
+                DayCounter dayCounter = MonotonicDayCountHelper::to_daycounter(dayCountConv_);
                 switch (interpolation_) {
                 case YieldTermStructureInterpolation::ytsiPiecewiseLinearCont:
                     return ext::make_shared<InterpolatedZeroCurve<Linear>>(dates_, values_, dayCounter);
