@@ -5,6 +5,7 @@
 #include <ql_utils/math/strip-interval-end-value-calculator.hpp>
 #include <ql_utils/math/interpolations/both-ends-flat-extrapolate-interpolation.hpp>
 #include <ql_utils/utilities/iso-date-conv.hpp>
+#include <ql_utils/types.hpp>
 #include <vector>
 #include <set>
 #include <algorithm>
@@ -13,13 +14,11 @@
 
 namespace QuantLib {
     namespace Utils {
-        template <
-            typename Interpolator    // can be BackwardFlat or Linear
-        >
-        class CurvesForwardSpreadCalculator {
+        class ICurvesForwardSpreadCalculator {
         public:
             typedef Bootstrapper::pInstruments pInstruments;
-        private:
+            typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
+        protected:
             class YieldCurveBootstrapVerifier : public IYieldCurvesBootstrap {
             public:
                 void piecewiseBootstrap(
@@ -58,15 +57,11 @@ namespace QuantLib {
             pInstruments baseInstruments;
             pInstruments targetInstruments;
             // output
-            ext::shared_ptr<InterpolatedForwardCurve<Interpolator>> baseForwardCurve;
-            ext::shared_ptr<InterpolatedForwardCurve<Interpolator>> targetForwardCurve;
             std::vector<Date> spreadDates;
             std::vector<Time> spreadTimes;
             std::vector<Real> spreadAreas;
             std::vector<Spread> spreads;    // forward spreads between the target forward curve and the base forward curve at the spread times
             std::shared_ptr<Interpolation> interp_Spreads;
-            ext::shared_ptr<InterpolatedForwardCurve<Interpolator>> spreadsOnlyForwardCurve;
-            ext::shared_ptr<InterpolatedPiecewiseForwardSpreadedTermStructure<Interpolator>> fwdSpreadTermStructure;
         protected:
             static std::vector<Date> joinDates(
                 const std::vector<Date>& dates_1,
@@ -83,45 +78,99 @@ namespace QuantLib {
                 std::sort(allDates.begin(), allDates.end(), std::less<Date>());
                 return allDates;
             }
-            void verifyInputs() const {
+        protected:
+            // protected interface
+            virtual void verifyInputs() const {
                 QL_REQUIRE(baseInstruments != nullptr && !baseInstruments->empty(), "base bootstrap instruments cannot be null or empty");
                 QL_REQUIRE(targetInstruments != nullptr && !targetInstruments->empty(), "target bootstrap instruments cannot be null or empty");
             }
-            void clearOutputs() {
-                baseForwardCurve = nullptr;
-                targetForwardCurve = nullptr;
+            virtual void clearOutputs() {
                 spreadDates.clear();
                 spreadTimes.clear();
                 spreadAreas.clear();
                 spreads.clear();
                 interp_Spreads = nullptr;
-                spreadsOnlyForwardCurve = nullptr;
-                fwdSpreadTermStructure = nullptr;
             }
-            void verifyOutputs() const {
+            virtual void verifyOutputs() const {
+                QL_ASSERT(!spreadDates.empty(), "spread dates are not calculated");
+                QL_ASSERT(!spreadTimes.empty(), "spread times are not calculated");
+                QL_ASSERT(!spreadAreas.empty(), "spread areas are not calculated");
+                QL_ASSERT(!spreads.empty(), "spreads are not calculated");
+                QL_ASSERT(interp_Spreads != nullptr, "spread interpolation is not calculated");
+            }
+        public:
+            // public interface
+            virtual YieldTermStructurePtr baseForwardTermStructure() const = 0;
+            virtual YieldTermStructurePtr targetForwardTermStructure() const = 0;
+            virtual YieldTermStructurePtr spreadsOnlyForwardTermStructure() const = 0;
+            virtual YieldTermStructurePtr forwardSpreadedTermStructure() const = 0;
+            virtual void calculate(
+                const Date& curveRefDate,
+                const DayCounter& curveDayCounter = Actual365Fixed()
+            ) = 0;
+            virtual Spread verify(
+                std::ostream& os,
+                std::streamsize precision = 16
+            ) const = 0;
+        };
+
+        template <
+            typename Interpolator    // can be BackwardFlat or Linear
+        >
+        class CurvesForwardSpreadCalculator: public ICurvesForwardSpreadCalculator {
+        public:
+            typedef InterpolatedForwardCurve<Interpolator> InterpolatedForwardCurve;
+            typedef InterpolatedPiecewiseForwardSpreadedTermStructure<Interpolator> InterpolatedForwardSpreadedCurve;
+            typedef ext::shared_ptr<InterpolatedForwardCurve> InterpolatedForwardCurvePtr;
+            typedef ext::shared_ptr<InterpolatedForwardSpreadedCurve> InterpolatedForwardSpreadedCurvePtr;
+        public:
+            // output
+            InterpolatedForwardCurvePtr baseForwardCurve;
+            InterpolatedForwardCurvePtr targetForwardCurve;
+            InterpolatedForwardCurvePtr spreadsOnlyForwardCurve;
+            InterpolatedForwardSpreadedCurvePtr fwdSpreadedCurve;
+        protected:
+            // protected interface
+            void clearOutputs() override {
+                ICurvesForwardSpreadCalculator::clearOutputs();
+                baseForwardCurve = nullptr;
+                targetForwardCurve = nullptr;
+                spreadsOnlyForwardCurve = nullptr;
+                fwdSpreadedCurve = nullptr;
+            }
+            void verifyOutputs() const override {
+                ICurvesForwardSpreadCalculator::verifyOutputs();
                 QL_ASSERT(baseForwardCurve != nullptr, "base forward curve is not calculated");
                 Date curveRefDate = baseForwardCurve->referenceDate();
 				DayCounter curveDayCounter = baseForwardCurve->dayCounter();
                 QL_ASSERT(targetForwardCurve != nullptr, "target forward curve is not calculated");
 				QL_ASSERT(targetForwardCurve->referenceDate() == curveRefDate, "target forward curve reference date (" << ISODateConv::to_str(targetForwardCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
 				QL_ASSERT(targetForwardCurve->dayCounter().name() == curveDayCounter.name(), "target forward curve day counter (" << targetForwardCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
-                QL_ASSERT(!spreadDates.empty(), "spread dates are not calculated");
-                QL_ASSERT(!spreadTimes.empty(), "spread times are not calculated");
-                QL_ASSERT(!spreadAreas.empty(), "spread areas are not calculated");
-                QL_ASSERT(!spreads.empty(), "spreads are not calculated");
-                QL_ASSERT(interp_Spreads != nullptr, "spread interpolation is not calculated");
                 QL_ASSERT(spreadsOnlyForwardCurve != nullptr, "spread-only forward curve is not calculated");
 				QL_ASSERT(spreadsOnlyForwardCurve->referenceDate() == curveRefDate, "spread-only forward curve reference date (" << ISODateConv::to_str(spreadsOnlyForwardCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
                 QL_ASSERT(spreadsOnlyForwardCurve->dayCounter().name() == curveDayCounter.name(), "spread-only forward curve day counter (" << spreadsOnlyForwardCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
-                QL_ASSERT(fwdSpreadTermStructure != nullptr, "forward spread term structure is not calculated");
-				QL_ASSERT(fwdSpreadTermStructure->referenceDate() == curveRefDate, "forward spread term structure reference date (" << ISODateConv::to_str(fwdSpreadTermStructure->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
-				QL_ASSERT(fwdSpreadTermStructure->dayCounter().name() == curveDayCounter.name(), "forward spread term structure day counter (" << fwdSpreadTermStructure->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
+                QL_ASSERT(fwdSpreadedCurve != nullptr, "forward spreaded curve is not calculated");
+				QL_ASSERT(fwdSpreadedCurve->referenceDate() == curveRefDate, "forward spreaded curve reference date (" << ISODateConv::to_str(fwdSpreadedCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
+				QL_ASSERT(fwdSpreadedCurve->dayCounter().name() == curveDayCounter.name(), "forward spreaded curve day counter (" << fwdSpreadedCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
             }
         public:
+            // public interface
+            YieldTermStructurePtr baseForwardTermStructure() const override {
+                return baseForwardCurve;
+            }
+            YieldTermStructurePtr targetForwardTermStructure() const override {
+                return targetForwardCurve;
+            }
+            YieldTermStructurePtr spreadsOnlyForwardTermStructure() const override {
+                return spreadsOnlyForwardCurve;
+            }
+            YieldTermStructurePtr forwardSpreadedTermStructure() const override {
+                return fwdSpreadedCurve;
+            }
             void calculate(
                 const Date& curveRefDate,
-                const DayCounter& curveDayCounter = Actual365Fixed()
-            ) {
+                const DayCounter& curveDayCounter
+            ) override {
                 verifyInputs();
                 clearOutputs();
                 ForwardCurvesBootstrap<Interpolator> bootstrapper;
@@ -197,7 +246,7 @@ namespace QuantLib {
                 // create a spread-only interpolated forward curve
 				// this curve can be used to serialize/deserialize the calculated spreads
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
-                spreadsOnlyForwardCurve = ext::make_shared<InterpolatedForwardCurve<Interpolator>>(spreadDates, spreads, curveDayCounter);
+                spreadsOnlyForwardCurve = ext::make_shared<InterpolatedForwardCurve>(spreadDates, spreads, curveDayCounter);
                 spreadsOnlyForwardCurve->enableExtrapolation(true);
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef _DEBUG
@@ -240,18 +289,18 @@ namespace QuantLib {
                     const auto& spread = spreads[i];
                     spreadQuotes.push_back(Handle<Quote>(ext::make_shared<SimpleQuote>(spread)));
                 }
-                fwdSpreadTermStructure = ext::make_shared<InterpolatedPiecewiseForwardSpreadedTermStructure<Interpolator>>(
+                fwdSpreadedCurve = ext::make_shared<InterpolatedForwardSpreadedCurve>(
                     baseCurve,
                     spreadQuotes,
                     spreadDates
                 );
-                fwdSpreadTermStructure->enableExtrapolation(true);
+                fwdSpreadedCurve->enableExtrapolation(true);
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             }
             Spread verify(
                 std::ostream& os,
                 std::streamsize precision = 16
-            ) const {
+            ) const override {
                 verifyInputs();
                 verifyOutputs();
                 Spread error = 0.0;
@@ -272,9 +321,9 @@ namespace QuantLib {
                 oss << "err=" << err * 10000.0 << " bp" << std::endl;
                 error += err;
                 oss << std::endl;
-                oss << "Verifying forward spread term structure..." << std::endl;
+                oss << "Verifying forward spreaded curve..." << std::endl;
                 verifier.instruments = targetInstruments;
-                verifier.exogenousDiscountTermStructure = fwdSpreadTermStructure;
+                verifier.exogenousDiscountTermStructure = fwdSpreadedCurve;
                 err = verifier.verifyBootstrap(oss, precision);
                 oss << "err=" << err * 10000.0 << " bp" << std::endl;
                 error += err;
@@ -282,5 +331,17 @@ namespace QuantLib {
                 return error;
             }
         };
+        
+        using CurvesForwardSpreadCalculatorPtr = std::shared_ptr<ICurvesForwardSpreadCalculator>;
+        inline CurvesForwardSpreadCalculatorPtr make_curves_forward_spreads_calculator(ForwardSpreadInterpolation interpolation) {
+            switch(interpolation) {
+            case ForwardSpreadInterpolation::fsiStep:
+                return CurvesForwardSpreadCalculatorPtr(new CurvesForwardSpreadCalculator<BackwardFlat>());
+            case ForwardSpreadInterpolation::fsiLinear:
+                return CurvesForwardSpreadCalculatorPtr(new CurvesForwardSpreadCalculator<Linear>());
+            default:
+                QL_FAIL("unsupported forward spread interpolation: " << interpolation);
+            }
+        }
     }
 }
