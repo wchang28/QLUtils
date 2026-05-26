@@ -226,7 +226,7 @@ namespace QuantLib {
             case YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont:
                 return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<ForwardRate, Linear>());
             default:
-                QL_FAIL("unsupported yield term structure interpolation: " << interpolation);
+                QL_FAIL("unsupported yield term structure interpolation for bootstrapping: " << interpolation);
             }
         }
     }

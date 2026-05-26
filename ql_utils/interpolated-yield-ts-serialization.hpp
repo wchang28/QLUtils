@@ -99,7 +99,7 @@ namespace QuantLib {
                 }
                 else if (pLinearContForwardCurve != nullptr) {
                     return std::make_pair(YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont, getCurveTermStructRows(pLinearContForwardCurve->dates(), pLinearContForwardCurve->data(), curve, QLUtils::RateUnit::Percent));
-				}
+                }
                 else {
                     QL_FAIL("unsupported yield term structure traits/interpolation type");
                 }
