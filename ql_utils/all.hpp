@@ -14,6 +14,7 @@
 #include <ql_utils/yield-termstructure-shocker.hpp>
 #include <ql_utils/monthly-yield-termstructure-shocker.hpp>
 #include <ql_utils/instantaneous-fwd-yield-curve-shocker.hpp>
+#include <ql_utils/curves-forward-spread-calculator.hpp>
 #include <ql_utils/interpolated-yield-ts-serialization.hpp>
 #include <ql_utils/paryieldsplinebootstrap.hpp>
 #include <ql_utils/swap-fixing.hpp>
