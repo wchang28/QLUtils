@@ -273,7 +273,7 @@ namespace QuantLib {
         template<
             typename VALUE_TYPE = Real
         >
-        class InterpolatedFowardSpreadTermStructSerializer {
+        class InterpolatedForwardSpreadTermStructSerializer {
         public:
             typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
             typedef VALUE_TYPE value_type;
@@ -361,7 +361,7 @@ namespace QuantLib {
                 }
             }    
         public:
-            InterpolatedFowardSpreadTermStructSerializer(
+            InterpolatedForwardSpreadTermStructSerializer(
                 const YieldTermStructurePtr& curve,
                 Date marketDate = Date()
             ) :
@@ -406,7 +406,7 @@ namespace QuantLib {
         template<
             typename VALUE_TYPE = Real
         >
-        class InterpolatedFowardSpreadTermStructDeserializer {
+        class InterpolatedForwardSpreadTermStructDeserializer {
         public:
             typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
             typedef VALUE_TYPE value_type;
@@ -425,7 +425,7 @@ namespace QuantLib {
                 QL_ASSERT(values_.size() == n, "the number of pillar values (" << values_.size() << ") is not what's expected (" << n << ") for the term structure");
             }
         public:
-            InterpolatedFowardSpreadTermStructDeserializer() :
+            InterpolatedForwardSpreadTermStructDeserializer() :
                 dayCountConv_(MonotonicDayCountConv::mdccActual365Fixed),
                 interpolation_(InterpolationType::fsiStep)
             {}
@@ -454,11 +454,11 @@ namespace QuantLib {
                     QL_FAIL("unsupported forward spread term structure interpolation type: " << interpolation_);
                 }
             }
-            InterpolatedFowardSpreadTermStructSerializer<value_type> get_serializer(
+            InterpolatedForwardSpreadTermStructSerializer<value_type> get_serializer(
                 Date marketDate = Date()
             ) const {
                 YieldTermStructurePtr curve = *this;
-                return InterpolatedFowardSpreadTermStructSerializer<value_type>(curve, marketDate);
+                return InterpolatedForwardSpreadTermStructSerializer<value_type>(curve, marketDate);
             }
             YieldTermStructurePtr forwardSpreadedTermStructure (
                 const Handle<YieldTermStructure>& baseCurve
