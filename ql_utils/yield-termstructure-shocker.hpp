@@ -23,7 +23,7 @@ namespace QuantLib {
                 return yieldTermStructure->referenceDate();
             }
         public:
-            // pure virtaul interface
+            // pure virtual interface
             ///////////////////////////////////////////////////////////////////////////////
             virtual YieldTermStructurePtr outputShockedTermStructure() const = 0;
             virtual void monthlyRampShock(

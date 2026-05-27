@@ -236,15 +236,12 @@ namespace QLUtils {
             const QuantLib::Date& datedDate = QuantLib::Date()
         ) : BootstrapInstrument(BootstrapInstrument::vtRate, tenor, datedDate) {}
     protected:
-        // fixed rate bond factory
-        // the output bod will have a fixed rate of par coupon rate
-        FixedRateBondPtr fixedRateBond() const {
+        // bond factory
+        BondPtr bond() const {
             auto helper = this->fixedRateBondHelper();
             QL_ASSERT(helper != nullptr, "Fixed rate bond helper is null");
             auto bond = helper->bond(); // bond behind the helper
-            auto fixedRateBond = QuantLib::ext::dynamic_pointer_cast<QuantLib::FixedRateBond>(bond);
-            QL_ASSERT(fixedRateBond != nullptr, "The bond is not a fixed rate bond");
-            return fixedRateBond;
+            return bond;
         }
     public:
         const QuantLib::Rate& parRate() const {
@@ -254,10 +251,10 @@ namespace QLUtils {
             return rate();
         }
         QuantLib::Date startDate() const override { // BootstrapInstrument
-            return fixedRateBond()->settlementDate();
+            return bond()->settlementDate();
         }
         QuantLib::Date maturityDate() const override {  // BootstrapInstrument
-            return fixedRateBond()->maturityDate();
+            return bond()->maturityDate();
         }
         QuantLib::ext::shared_ptr<QuantLib::RateHelper> rateHelper(
             const YieldTermStructureHandle& discountingTermStructure = {}
@@ -278,7 +275,7 @@ namespace QLUtils {
         }
         QuantLib::Time parTerm() const override {    // IParYieldSplineNode
             auto dc = this->parYieldSplineDayCounter();
-            auto bond = fixedRateBond();
+            auto bond = this->bond();
             return dc.yearFraction(bond->settlementDate(), bond->maturityDate());
         }
     };

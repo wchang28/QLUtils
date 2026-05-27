@@ -259,7 +259,7 @@ namespace QLUtils {
 
     // par coupon fixed rate bond instrument interface
     struct IParRateInstrument {
-        typedef QuantLib::ext::shared_ptr<QuantLib::FixedRateBond> FixedRateBondPtr;
+        typedef QuantLib::ext::shared_ptr<QuantLib::Bond> BondPtr;
         typedef QuantLib::ext::shared_ptr<QuantLib::FixedRateBondHelper> FixedRateBondHelperPtr;
         virtual FixedRateBondHelperPtr fixedRateBondHelper() const = 0; // fixed rate bond helper factory
         virtual QuantLib::Rate impliedParRate(
