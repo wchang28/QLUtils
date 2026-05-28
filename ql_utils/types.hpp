@@ -273,6 +273,18 @@ namespace QLUtils {
 
 namespace QuantLib {
     namespace Utils {
+        struct FixingInfo {
+            Calendar fixingCalendar;
+            Natural settlementDays;
+            FixingInfo(
+                Calendar fixingCalendar = Calendar(),
+                Natural settlementDays = 0
+            ):
+            fixingCalendar(fixingCalendar),
+            settlementDays(settlementDays)
+            {}
+        };
+
         template <
             typename ENUM
         >
@@ -313,6 +325,17 @@ namespace QuantLib {
             ytsiSmoothForwardCont = 3,
             ytsiPiecewiseLinearForwardCont = 4,
         };
+        template <>
+        inline const std::set<YieldTermStructureInterpolation>& possible_enum_values<YieldTermStructureInterpolation>::get() {
+            static std::set<YieldTermStructureInterpolation> s {
+                YieldTermStructureInterpolation::ytsiPiecewiseLinearCont,
+                YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple,
+                YieldTermStructureInterpolation::ytsiStepForwardCont,
+                YieldTermStructureInterpolation::ytsiSmoothForwardCont,
+                YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont
+            };
+            return s;
+        }
 
         enum ForwardSpreadInterpolation {
             fsiStep = 0,
