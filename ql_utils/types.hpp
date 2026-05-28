@@ -7,7 +7,7 @@
 #include <ostream>
 #include <vector>
 #include <memory>
-#include <set>
+#include <ql_utils/possible-enum-values.hpp>
 
 namespace QLUtils {
     template<typename _Elem> using string_t = std::basic_string<_Elem>;
@@ -285,16 +285,6 @@ namespace QuantLib {
             {}
         };
 
-        template <
-            typename ENUM
-        >
-        struct possible_enum_values {
-            // get() is to be specialized by the enum type
-            static const std::set<ENUM>& get() {
-                static std::set<ENUM> s;
-                return s;
-            }
-        };
         // monotonic day counter types which are nice for term structure curve building
         // monotonic means given a year fraction, it will correspond to a unique future/past date from a base reference date 
         enum MonotonicDayCountConv {

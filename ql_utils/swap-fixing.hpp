@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
+#include <ql_utils/possible-enum-values.hpp>
 #include <utility>
 
 namespace QuantLib {
@@ -9,18 +10,18 @@ namespace QuantLib {
     class SwapFixing {
     public:
         enum FixingMethod {
-            sfmForwardSwap = 0,		// settling a forward swap, advance on swap settlement days first then advance on forward
-            sfmSwaption = 1,		// for swaption related calculation, advance on forward first then advance on swap settlement days
+            sfmForwardSwap = 0, // settling a forward swap, advance on swap settlement days first then advance on forward
+            sfmSwaption = 1,    // for swaption related calculation, advance on forward first then advance on swap settlement days
         };
-		typedef Date FixingDate;
-		typedef Date StartDate;
+        typedef Date FixingDate;
+        typedef Date StartDate;
     protected:
         Calendar fixingCalendar_;
         Natural settlementDays_;
         FixingMethod fixingMethod_;
     public:
         SwapFixing(
-            const Calendar& fixingCalendar,	// fixing calendar of the swap
+            const Calendar& fixingCalendar, // fixing calendar of the swap
             Natural settlementDays = 0,
             FixingMethod fixingMethod = FixingMethod::sfmForwardSwap
         ) :
@@ -51,12 +52,12 @@ namespace QuantLib {
             }
         }
         static Date baseReferenceDate(
-            const Calendar& fixingCalendar,	// swap fixing calendar
+            const Calendar& fixingCalendar, // swap fixing calendar
             Natural settlementDays,
             const Date& today = Date()
         ) {
-            auto refDate = (today == Date() ? (Date)Settings::instance().evaluationDate() : today);	// reference date/today
-			Utils::FixingDateAdjustment fixingAdj(settlementDays, fixingCalendar);	// make sure the base reference day is a business day on the fixing calendar by adjusting it with swap settlement days
+            auto refDate = (today == Date() ? (Date)Settings::instance().evaluationDate() : today); // reference date/today
+            Utils::FixingDateAdjustment fixingAdj(settlementDays, fixingCalendar);  // make sure the base reference day is a business day on the fixing calendar by adjusting it with swap settlement days
             refDate = fixingAdj.adjust(refDate);
             return refDate;
         }
@@ -67,7 +68,7 @@ namespace QuantLib {
         }
         // returns fixing date for a spot swap, given a swap fixing calendar and a "today" as a base reference
         static Date spotSwapFixingDate(
-            const Calendar& fixingCalendar,	// swap fixing calendar
+            const Calendar& fixingCalendar, // swap fixing calendar
             Natural settlementDays,
             const Date& today = Date()
         ) {
@@ -85,16 +86,16 @@ namespace QuantLib {
             const Date& today = Date()
         ) const {
             QL_REQUIRE(forwardStart.length() >= 0, "foward start must be either spot or in the future");
-            auto refDate = baseReferenceDate(today);	// start with a base reference date
+            auto refDate = baseReferenceDate(today);    // start with a base reference date
             if (fixingMethod_ == FixingMethod::sfmForwardSwap) {
-                auto spotDate = fixingCalendar_.advance(refDate, settlementDays_ * Days);	// advance swap settlement days to get the spot date. spot date is the spot starting swap's effective date
-                auto effectiveDate = fixingCalendar_.advance(spotDate, forwardStart, forwardBusinessDayAdj());	// advance on forward time period to get the swap start date
+                auto spotDate = fixingCalendar_.advance(refDate, settlementDays_ * Days);   // advance swap settlement days to get the spot date. spot date is the spot starting swap's effective date
+                auto effectiveDate = fixingCalendar_.advance(spotDate, forwardStart, forwardBusinessDayAdj());  // advance on forward time period to get the swap start date
                 auto fixingDate = fixingCalendar_.advance(effectiveDate, -static_cast<Integer>(settlementDays_), Days);
                 return std::make_pair(fixingDate, effectiveDate);
             }
             else if (fixingMethod_ == FixingMethod::sfmSwaption) {
-                auto fixingDate = fixingCalendar_.advance(refDate, forwardStart, forwardBusinessDayAdj());	// advance on forward time period to get the swap fixing date/option excercise date
-                auto effectiveDate = fixingCalendar_.advance(fixingDate, settlementDays_ * Days);	// advance swap settlement days to get the swap start date
+                auto fixingDate = fixingCalendar_.advance(refDate, forwardStart, forwardBusinessDayAdj());  // advance on forward time period to get the swap fixing date/option excercise date
+                auto effectiveDate = fixingCalendar_.advance(fixingDate, settlementDays_ * Days);   // advance swap settlement days to get the swap start date
                 return std::make_pair(fixingDate, effectiveDate);
             }
             else {
@@ -118,4 +119,15 @@ namespace QuantLib {
             return fixingDate;
         }
     };
+
+    namespace Utils {
+        template <>
+        inline const std::set<SwapFixing::FixingMethod>& possible_enum_values<SwapFixing::FixingMethod>::get() {
+            static std::set<SwapFixing::FixingMethod> s {
+                SwapFixing::FixingMethod::sfmForwardSwap,
+                SwapFixing::FixingMethod::sfmSwaption
+            };
+            return s;
+        }
+    }
 }
