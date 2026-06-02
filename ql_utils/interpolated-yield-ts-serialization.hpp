@@ -215,6 +215,7 @@ namespace QuantLib {
             typedef Row Row_Type;
             typedef YieldTermStructureInterpolation InterpolationType;
         private:
+            Date marketDate_;
             Date referenceDate_;
             MonotonicDayCountConv dayCountConv_;
             InterpolationType interpolation_;
@@ -231,6 +232,8 @@ namespace QuantLib {
                 dayCountConv_(MonotonicDayCountConv::mdccActual365Fixed),
                 interpolation_(InterpolationType::ytsiPiecewiseLinearCont)
             {}
+            const Date& marketDate() const { return marketDate_; }
+            Date& marketDate() { return marketDate_; }
             Date& referenceDate() { return referenceDate_; }
             const Date& referenceDate() const { return referenceDate_; }
             MonotonicDayCountConv& dayCountConv() { return dayCountConv_; }
@@ -266,6 +269,7 @@ namespace QuantLib {
                 Date marketDate = Date()
             ) const {
                 YieldTermStructurePtr curve = *this;
+                marketDate = (marketDate == Date() ? (marketDate_ == Date() ? Settings::instance().evaluationDate() : marketDate_) : marketDate);
                 return InterpolatedYieldTermStructSerializer<value_type>(curve, marketDate);
             }
         };
@@ -413,6 +417,7 @@ namespace QuantLib {
             typedef typename InterpolatedYieldTermStructDeserializer<VALUE_TYPE>::Row_Type Row_Type;
             typedef ForwardSpreadInterpolation InterpolationType;
         private:
+            Date marketDate_;
             Date referenceDate_;
             MonotonicDayCountConv dayCountConv_;
             InterpolationType interpolation_;
@@ -429,6 +434,8 @@ namespace QuantLib {
                 dayCountConv_(MonotonicDayCountConv::mdccActual365Fixed),
                 interpolation_(InterpolationType::fsiStep)
             {}
+            const Date& marketDate() const { return marketDate_; }
+            Date& marketDate() { return marketDate_; }
             Date& referenceDate() { return referenceDate_; }
             const Date& referenceDate() const { return referenceDate_; }
             MonotonicDayCountConv& dayCountConv() { return dayCountConv_; }
@@ -458,6 +465,7 @@ namespace QuantLib {
                 Date marketDate = Date()
             ) const {
                 YieldTermStructurePtr curve = *this;
+				marketDate = (marketDate == Date() ? (marketDate_ == Date() ? Settings::instance().evaluationDate(): marketDate_) : marketDate);
                 return InterpolatedForwardSpreadTermStructSerializer<value_type>(curve, marketDate);
             }
             YieldTermStructurePtr forwardSpreadedTermStructure (
