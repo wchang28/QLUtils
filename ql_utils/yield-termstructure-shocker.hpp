@@ -5,6 +5,7 @@
 #include <ql_utils/utilities/ramp.hpp>
 #include <ios>
 #include <iostream>
+#include <memory>
 
 namespace QuantLib {
     namespace Utils {
@@ -48,6 +49,8 @@ namespace QuantLib {
                 QL_ASSERT(shockedTS->referenceDate() == curveRefDate, "shocked curve's reference date (" << ISODateConv::to_str(shockedTS->referenceDate()) << ") is not what's expected (" << ISODateConv::to_str(curveRefDate) << ")");
             }
         };
+        typedef std::shared_ptr<YieldTermStructureShocker> YieldTermStructureShockerPtr;
+
         template <
             typename OUTPUT_CURVE_TYPE
         >

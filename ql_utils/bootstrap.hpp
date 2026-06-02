@@ -68,7 +68,7 @@ namespace QuantLib {
                 return std::sqrt(err);
             }
         };
-        
+
         class IYieldCurvesBootstrap : public Bootstrapper {
         public:
             enum BootstrapMode {
@@ -100,6 +100,7 @@ namespace QuantLib {
                 std::streamsize precision = 16
             ) const = 0;
         };
+        typedef std::shared_ptr<IYieldCurvesBootstrap> YieldCurvesBootstrapPtr;
 
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
@@ -212,8 +213,9 @@ namespace QuantLib {
         template <typename Interpolator>
         using SimpleZeroCurvesBootstrap = YieldCurvesBootstrap<SimpleZeroYield, Interpolator>;
 
-        using YieldCurvesBootstrapPtr = std::shared_ptr<IYieldCurvesBootstrap>;
-        inline YieldCurvesBootstrapPtr make_yield_curve_bootstrapper(YieldTermStructureInterpolation interpolation) {
+        inline YieldCurvesBootstrapPtr make_yield_curve_bootstrapper(
+            YieldTermStructureInterpolation interpolation
+        ) {
             switch(interpolation) {
             case YieldTermStructureInterpolation::ytsiPiecewiseLinearCont:
                 return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<ZeroYield, Linear>());
