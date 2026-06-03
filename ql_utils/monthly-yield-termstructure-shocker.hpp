@@ -18,15 +18,17 @@ namespace QuantLib {
     namespace Utils {
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename Interpolator = Linear
+            typename Interpolator = Linear  // Linear, BackwardFlat, ConvexMonotone
         >
         struct MonthlyYieldCurveShockerTraits {
         public:
             typedef typename Traits::template curve<Interpolator>::type BaseCurveType;	// InterpolatedZeroCurve<Interpolator>, InterpolatedDiscountCurve<Interpolator>, InterpolatedForwardCurve<Interpolator>, or InterpolatedSimpleZeroCurve<Interpolator>
         };
+
+        // base class for all monthly yield curve shockers that requires a final bootstrap to get the shocked curve
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear
+            typename I = Linear  // Linear, BackwardFlat, ConvexMonotone
         >
         class MonthlyYieldTermStructureShocker:
             public YieldCurveShocker<typename MonthlyYieldCurveShockerTraits<Traits, I>::BaseCurveType>,
@@ -34,7 +36,7 @@ namespace QuantLib {
         public:
             typedef I Interp;
             typedef typename MonthlyYieldCurveShockerTraits<Traits, I>::BaseCurveType OutputCurveType;
-            typedef YieldCurvesBootstrap<Traits, I> BootstrapperType;
+            typedef YieldCurvesBootstrap<Traits, I> BootstrapperType;   // the final bootstrapper type for the shocked curve
             typedef Natural MonthNumber;
             typedef Ramp<Frequency::Monthly> monthly_ramp;
         protected:
@@ -138,10 +140,10 @@ namespace QuantLib {
             } 
         };
 
-        // spot par yield shocker
+        // monthly spot par yield shocker
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear,
+            typename I = Linear,  // Linear, BackwardFlat, ConvexMonotone
             Frequency PAR_YIELD_COUPON_FREQ = Frequency::Semiannual,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis
         >
@@ -191,9 +193,10 @@ namespace QuantLib {
             }
         };
 
+        // monthly FRA/simple forward rate based shocker
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear
+            typename I = Linear  // Linear, BackwardFlat, ConvexMonotone
         >
         class SimpleForwardTermStructureShocker: public MonthlyYieldTermStructureShocker<Traits, I> {
         private:
@@ -249,9 +252,10 @@ namespace QuantLib {
             }
         };
 
+        // monthly nominal forward rate based shocker
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear,
+            typename I = Linear,  // Linear, BackwardFlat, ConvexMonotone
             Integer TENOR_MONTHS = 1,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis,
             Compounding COMPOUNDING = Compounding::Continuous,

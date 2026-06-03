@@ -9,6 +9,7 @@
 
 namespace QuantLib {
     namespace Utils {
+        // base class for all yield curve shockers
         class YieldTermStructureShocker {
         public:
             typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
@@ -51,6 +52,7 @@ namespace QuantLib {
         };
         typedef std::shared_ptr<YieldTermStructureShocker> YieldTermStructureShockerPtr;
 
+        // base class for all yield curve shockers of the output curve type
         template <
             typename OUTPUT_CURVE_TYPE
         >
