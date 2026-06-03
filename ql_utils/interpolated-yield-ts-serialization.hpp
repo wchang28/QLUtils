@@ -19,7 +19,7 @@ namespace QuantLib {
                 Date date;
                 Time term;
                 value_type value;
-                QLUtils::RateUnit valueUnit;
+                QLUtils::RateUnit valueUnit;    // hint for the actual serializer on how to serialize the value
                 Rate zeroRate;
                 Rate forwardRate;
                 Rate simpleRate;
@@ -89,7 +89,7 @@ namespace QuantLib {
                 auto pBackwardFlatContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<BackwardFlat>>(curve);
                 auto pSmoothContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<ConvexMonotone>>(curve);
                 auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(curve);
-                auto valueUnit = QLUtils::RateUnit::Percent;
+                auto valueUnit = QLUtils::RateUnit::Percent;    // hint for the actual serializer on how to serialize the rate/yield value (in this case, in percentage unit)
                 if (pLinearContZeroCurve != nullptr) {
                     return std::make_pair(
                         InterpolationType::ytsiPiecewiseLinearCont,
@@ -189,6 +189,14 @@ namespace QuantLib {
                 }
                 return ret;
             }
+            std::vector<std::pair<Date, Real>> nodes() const {
+                std::vector<std::pair<Date, Real>> results(termStructure_.size());
+                for (Size i=0; i<termStructure_.size(); ++i) {
+                    const auto& row = termStructure_[i];
+                    results[i] = std::make_pair(row.date, row.value);
+                }
+                return results;
+            }
         };
         
         template<
@@ -244,9 +252,19 @@ namespace QuantLib {
             const std::vector<Date>& dates() const { return dates_; }
             std::vector<value_type>& values() { return values_; }
             const std::vector<value_type>& values() const { return values_; }
+            std::vector<std::pair<Date, Real>> nodes() const {
+                checkPillars();
+                auto n = dates_.size();
+                std::vector<std::pair<Date, Real>> results(n);
+                for (Size i=0; i < n; ++i) {
+                    results[i] = std::make_pair(dates_[i], values[i]);
+                }
+                return results;
+            }
             DayCounter dayCounter() const {
                 return MonotonicDayCountHelper::to_daycounter(dayCountConv_);
             }
+            // get the actual yield term structure out of it
             operator YieldTermStructurePtr() const {
                 checkPillars();
                 DayCounter dc = this->dayCounter();
@@ -285,7 +303,7 @@ namespace QuantLib {
                 Date date;
                 Time term;
                 value_type value;
-                QLUtils::RateUnit valueUnit;
+                QLUtils::RateUnit valueUnit;    // hint for the actual serializer on how to serialize the value
                 Real primitive;
                 Row(
                     Date date = Date(),
@@ -313,38 +331,38 @@ namespace QuantLib {
             static std::vector<Row> getCurveTermStructRows(
                 const std::vector<Date>& dates,
                 const std::vector<value_type>& data,
-                const YieldTermStructure& curve,
+                const YieldTermStructure& spreadsOnlyCurve,
                 QLUtils::RateUnit valueUnit
             ) {
                 QL_ASSERT(dates.size() == data.size(), "dates and data size mismatch");
-                Date curveRefDate = curve.referenceDate();
-                DayCounter dc = curve.dayCounter();
+                Date curveRefDate = spreadsOnlyCurve.referenceDate();
+                DayCounter dc = spreadsOnlyCurve.dayCounter();
                 Size n = dates.size();
                 std::vector<Row> rows;
                 for (Size i = 0; i < n; ++i) {  // for each row
                     const auto& date = dates[i];
                     const auto& value = data[i];
                     Time term = dc.yearFraction(curveRefDate, date);
-                    Rate R_Spread = curve.zeroRate(date, dc, Continuous, NoFrequency, true).rate();
+                    Rate R_Spread = spreadsOnlyCurve.zeroRate(date, dc, Continuous, NoFrequency, true).rate();
                     Real primitive_spread = R_Spread * term;
                     rows.push_back(Row{date, term, value, valueUnit, primitive_spread});
                 }
                 return rows;
             }
             static std::pair<InterpolationType, std::vector<Row>> from_termstructure(
-                const YieldTermStructurePtr& curve
+                const YieldTermStructurePtr& spreadsOnlyCurve
             ) {
-                QL_ASSERT(curve != nullptr, "yield term structure cannot be null");
-                auto pBackwardFlatContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<BackwardFlat>>(curve);
-                auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(curve);
-                auto valueUnit = QLUtils::RateUnit::BasisPoint;
+                QL_ASSERT(spreadsOnlyCurve != nullptr, "yield term structure cannot be null");
+                auto pBackwardFlatContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<BackwardFlat>>(spreadsOnlyCurve);
+                auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(spreadsOnlyCurve);
+				auto valueUnit = QLUtils::RateUnit::BasisPoint; // hint for the actual serializer on how to serialize the forward spread values (in this case, in bps unit)
                 if (pBackwardFlatContForwardCurve != nullptr) {
                     return std::make_pair(
                         InterpolationType::fsiStep,
                         getCurveTermStructRows(
                             pBackwardFlatContForwardCurve->dates(),
                             pBackwardFlatContForwardCurve->data(),
-                            *curve,
+                            *spreadsOnlyCurve,
                             valueUnit
                         )
                     );
@@ -355,7 +373,7 @@ namespace QuantLib {
                         getCurveTermStructRows(
                             pLinearContForwardCurve->dates(),
                             pLinearContForwardCurve->data(),
-                            *curve,
+                            *spreadsOnlyCurve,
                             valueUnit
                         )
                     );
@@ -366,15 +384,15 @@ namespace QuantLib {
             }    
         public:
             InterpolatedForwardSpreadTermStructSerializer(
-                const YieldTermStructurePtr& curve,
+                const YieldTermStructurePtr& spreadsOnlyCurve,
                 Date marketDate = Date()
             ) :
                 marketDate_(marketDate == Date() ? Settings::instance().evaluationDate() : marketDate),
-                referenceDate_(curve->referenceDate()),
-                dayCountConv_(MonotonicDayCountHelper::from_daycounter(curve->dayCounter())),
+                referenceDate_(spreadsOnlyCurve->referenceDate()),
+                dayCountConv_(MonotonicDayCountHelper::from_daycounter(spreadsOnlyCurve->dayCounter())),
                 interpolation_(InterpolationType::fsiStep)
             {
-                auto [interp, rows] = from_termstructure(curve);
+                auto [interp, rows] = from_termstructure(spreadsOnlyCurve);
                 interpolation_ = interp;
                 termStructure_ = rows;
             }
@@ -404,6 +422,14 @@ namespace QuantLib {
                     ret.push_back(row.term);
                 }
                 return ret;
+            }
+            std::vector<std::pair<Date, Real>> nodes() const {
+                std::vector<std::pair<Date, Real>> results(termStructure_.size());
+                for (Size i=0; i<termStructure_.size(); ++i) {
+                    const auto& row = termStructure_[i];
+                    results[i] = std::make_pair(row.date, row.value);
+                }
+                return results;
             }
         };
         
@@ -446,10 +472,28 @@ namespace QuantLib {
             const std::vector<Date>& dates() const { return dates_; }
             std::vector<value_type>& values() { return values_; }
             const std::vector<value_type>& values() const { return values_; }
+            const std::vector<Spread>& forwardSpreads() const { return values_; }
+            std::vector<std::pair<Date, Real>> nodes() const {
+                checkPillars();
+                auto n = dates_.size();
+                std::vector<std::pair<Date, Real>> results(n);
+                for (Size i=0; i < n; ++i) {
+                    results[i] = std::make_pair(dates_[i], values[i]);
+                }
+                return results;
+            }
+            std::vector<Handle<Quote>> forwardSpreadQuotes() const {
+                std::vector<Handle<Quote>> quotes;
+                for (Size i = 0; i < values_.size(); ++i) {
+                    const auto& spread = values_[i];
+                    quotes.push_back(Handle<Quote>(ext::make_shared<SimpleQuote>(spread)));
+                }
+                return quotes;
+			}
             DayCounter dayCounter() const {
                 return MonotonicDayCountHelper::to_daycounter(dayCountConv_);
             }
-            operator YieldTermStructurePtr() const {
+            YieldTermStructurePtr spreadsOnlyTermStructure() const {
                 checkPillars();
                 DayCounter dc = this->dayCounter();
                 switch (interpolation_) {
@@ -461,12 +505,15 @@ namespace QuantLib {
                     QL_FAIL("unsupported forward spread term structure interpolation type: " << interpolation_);
                 }
             }
+            operator YieldTermStructurePtr() const {
+                return spreadsOnlyTermStructure();
+			}
             InterpolatedForwardSpreadTermStructSerializer<value_type> get_serializer(
                 Date marketDate = Date()
             ) const {
-                YieldTermStructurePtr curve = *this;
+                YieldTermStructurePtr spreadsOnlyCurve = *this;
 				marketDate = (marketDate == Date() ? (marketDate_ == Date() ? Settings::instance().evaluationDate(): marketDate_) : marketDate);
-                return InterpolatedForwardSpreadTermStructSerializer<value_type>(curve, marketDate);
+                return InterpolatedForwardSpreadTermStructSerializer<value_type>(spreadsOnlyCurve, marketDate);
             }
             YieldTermStructurePtr forwardSpreadedTermStructure (
                 const Handle<YieldTermStructure>& baseCurve
@@ -475,11 +522,7 @@ namespace QuantLib {
                 QL_REQUIRE(referenceDate_ != Date(), "curve's reference date is not set");
                 QL_REQUIRE(baseCurve->referenceDate() == referenceDate_, "base curve's reference date (" << ISODateConv::to_str(baseCurve->referenceDate()) << ") is not what's expected (" << ISODateConv::to_str(referenceDate_) << ")");
                 QL_REQUIRE(baseCurve->dayCounter().name() == this->dayCounter().name(), "base curve's day counter (" << baseCurve->dayCounter().name() << ") is not what's expected (" << this->dayCounter().name() << ")");
-                std::vector<Handle<Quote>> quotes;
-                for (Size i = 0; i < dates_.size(); ++i) {
-                    const auto& spread = values_[i];
-                    quotes.push_back(Handle<Quote>(ext::make_shared<SimpleQuote>(spread)));
-                }
+                auto quotes = forwardSpreadQuotes();
                 switch (interpolation_) {
                 case InterpolationType::fsiStep:
                     return ext::make_shared<InterpolatedPiecewiseForwardSpreadedTermStructure<BackwardFlat>>(baseCurve, quotes, dates_);
