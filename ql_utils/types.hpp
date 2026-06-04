@@ -326,7 +326,7 @@ namespace QuantLib {
             };
             return s;
         }
-
+        
         enum ForwardSpreadInterpolation {
             fsiStep = 0,
             fsiLinear = 1,

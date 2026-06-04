@@ -5,6 +5,7 @@
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/dateformat.hpp>
 #include <ql_utils/types.hpp>
+#include <ql_utils/interpolation-traits.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -104,7 +105,7 @@ namespace QuantLib {
 
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename Interpolator = Linear
+            typename Interpolator = Linear  // Linear, BackwardFlat, ConvexMonotone
         >
         class YieldCurvesBootstrap : public IYieldCurvesBootstrap {
         public:
@@ -213,23 +214,26 @@ namespace QuantLib {
         template <typename Interpolator>
         using SimpleZeroCurvesBootstrap = YieldCurvesBootstrap<SimpleZeroYield, Interpolator>;
 
+#define HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(INTERP) case YieldTermStructureInterpolation::INTERP: {\
+        using InterpTraits = YieldTermStructureInterpTraits<YieldTermStructureInterpolation::INTERP>;   \
+        using TraitsType = typename InterpTraits::TraitsType;   \
+        using InterpType = typename InterpTraits::InterpType;   \
+        using BootstrapperType = YieldCurvesBootstrap<TraitsType, InterpType>;  \
+        return YieldCurvesBootstrapPtr(new BootstrapperType()); \
+    }
         inline YieldCurvesBootstrapPtr make_yield_curve_bootstrapper(
             YieldTermStructureInterpolation interpolation
         ) {
             switch(interpolation) {
-            case YieldTermStructureInterpolation::ytsiPiecewiseLinearCont:
-                return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<ZeroYield, Linear>());
-            case YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple:
-                return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<SimpleZeroYield, Linear>());
-            case YieldTermStructureInterpolation::ytsiStepForwardCont:
-                return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<ForwardRate, BackwardFlat>());
-            case YieldTermStructureInterpolation::ytsiSmoothForwardCont:
-                return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<ForwardRate, ConvexMonotone>());
-            case YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont:
-                return YieldCurvesBootstrapPtr(new YieldCurvesBootstrap<ForwardRate, Linear>());
+            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearSimple)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiStepForwardCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiSmoothForwardCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearForwardCont)
             default:
                 QL_FAIL("unsupported yield term structure interpolation for bootstrapping: " << interpolation);
             }
         }
+#undef HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER
     }
 }

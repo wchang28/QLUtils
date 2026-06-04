@@ -313,63 +313,30 @@ namespace QuantLib {
                 return pInstrument->impliedRate(discountingTermStructure);
             }
         };
-        
+#define HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(INTERP) case YieldTermStructureInterpolation::INTERP: { \
+        using InterpTraits = YieldTermStructureInterpTraits<YieldTermStructureInterpolation::INTERP>;   \
+        using TraitsType = typename InterpTraits::TraitsType;   \
+        using InterpType = typename InterpTraits::InterpType;   \
+        using ShockerType = ParShockYieldTermStructure<TraitsType, InterpType, PAR_YIELD_COUPON_FREQ, THIRTY_360_DC_CONVENTION>;    \
+        return YieldTermStructureShockerPtr(new ShockerType()); \
+    }
         template <
             Frequency PAR_YIELD_COUPON_FREQ = Frequency::Semiannual,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis
         >
-        inline YieldTermStructureShockerPtr make_yield_curve_par_rate_shocker(
+        inline YieldTermStructureShockerPtr make_yield_curve_par_shocker(
             YieldTermStructureInterpolation interpolation
         ) {
             switch(interpolation) {
-            case YieldTermStructureInterpolation::ytsiPiecewiseLinearCont:
-                return YieldTermStructureShockerPtr(
-                    new ParShockYieldTermStructure<
-                        ZeroYield,
-                        Linear,
-                        PAR_YIELD_COUPON_FREQ,
-                        THIRTY_360_DC_CONVENTION
-                    >()
-                );
-            case YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple:
-                return YieldTermStructureShockerPtr(
-                    new ParShockYieldTermStructure<
-                        SimpleZeroYield,
-                        Linear,
-                        PAR_YIELD_COUPON_FREQ,
-                        THIRTY_360_DC_CONVENTION
-                    >()
-                );
-            case YieldTermStructureInterpolation::ytsiStepForwardCont:
-                return YieldTermStructureShockerPtr(
-                    new ParShockYieldTermStructure<
-                        ForwardRate,
-                        BackwardFlat,
-                        PAR_YIELD_COUPON_FREQ,
-                        THIRTY_360_DC_CONVENTION
-                    >()
-                );
-            case YieldTermStructureInterpolation::ytsiSmoothForwardCont:
-                return YieldTermStructureShockerPtr(
-                    new ParShockYieldTermStructure<
-                        ForwardRate,
-                        ConvexMonotone,
-                        PAR_YIELD_COUPON_FREQ,
-                        THIRTY_360_DC_CONVENTION
-                    >()
-                );
-            case YieldTermStructureInterpolation::ytsiPiecewiseLinearForwardCont:
-                return YieldTermStructureShockerPtr(
-                    new ParShockYieldTermStructure<
-                        ForwardRate,
-                        Linear,
-                        PAR_YIELD_COUPON_FREQ,
-                        THIRTY_360_DC_CONVENTION
-                    >()
-                );
+            HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiPiecewiseLinearCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiPiecewiseLinearSimple)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiStepForwardCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiSmoothForwardCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiPiecewiseLinearForwardCont)
             default:
                 QL_FAIL("unsupported yield term structure interpolation for curve shock: " << interpolation);
             }
         }
+#undef HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER
     }
 }

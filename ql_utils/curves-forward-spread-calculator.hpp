@@ -113,6 +113,7 @@ namespace QuantLib {
                 std::streamsize precision = 16
             ) const = 0;
         };
+        typedef std::shared_ptr<ICurvesForwardSpreadCalculator> CurvesForwardSpreadCalculatorPtr;
 
         template <
             typename Interpolator    // can be BackwardFlat or Linear
@@ -331,9 +332,10 @@ namespace QuantLib {
                 return error;
             }
         };
-        
-        using CurvesForwardSpreadCalculatorPtr = std::shared_ptr<ICurvesForwardSpreadCalculator>;
-        inline CurvesForwardSpreadCalculatorPtr make_curves_forward_spreads_calculator(ForwardSpreadInterpolation interpolation) {
+
+        inline CurvesForwardSpreadCalculatorPtr make_curves_forward_spreads_calculator(
+            ForwardSpreadInterpolation interpolation
+        ) {
             switch(interpolation) {
             case ForwardSpreadInterpolation::fsiStep:
                 return CurvesForwardSpreadCalculatorPtr(new CurvesForwardSpreadCalculator<BackwardFlat>());

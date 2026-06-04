@@ -3,8 +3,23 @@
 #include <ql/quantlib.hpp>
 #include <vector>
 #include <ql_utils/types.hpp>
+#include <ql_utils/interpolation-traits.hpp>
 #include <ql_utils/daycounters/monotonic-day-count-helper.hpp>
 #include <ql_utils/utilities/iso-date-conv.hpp>
+
+#define INTERP_BASE_CURVE_TYPE(INTERP)  typename InterpTraits<InterpolationType::INTERP>::BaseCurveType
+#define INTERP_FORWARD_SPREADED_CURVE_TYPE(INTERP)  typename InterpTraits<InterpolationType::INTERP>::ForwardSpreadedCurveType
+#define INTERP_TRY_CAST_BASE_CURVE(INTERP, CURVE)   auto INTERP##_curve = ext::dynamic_pointer_cast<INTERP_BASE_CURVE_TYPE(INTERP)>(CURVE)
+#define HANDLE_INTERP_MAKE_PAIR(INTERP, CURVE)    else if (INTERP##_curve != nullptr) { \
+        return std::make_pair( \
+            InterpolationType::INTERP, \
+            getCurveTermStructRows(INTERP##_curve->dates(), INTERP##_curve->data(), *CURVE, valueUnit) \
+        ); \
+    }
+#define HANDLE_INTERP_RETURN_BASE_CURVE(INTERP) case InterpolationType::INTERP: \
+        return YieldTermStructurePtr(new INTERP_BASE_CURVE_TYPE(INTERP)(dates_, values_, dc))
+#define HANDLE_INTERP_RETURN_FORWARD_SPREADED_CURVE(INTERP) case InterpolationType::INTERP: \
+        return YieldTermStructurePtr(new INTERP_FORWARD_SPREADED_CURVE_TYPE(INTERP)(baseCurve, quotes, dates_))
 
 namespace QuantLib {
     namespace Utils {
@@ -49,6 +64,10 @@ namespace QuantLib {
             };
             typedef Row Row_Type;
             typedef YieldTermStructureInterpolation InterpolationType;
+            template <
+                InterpolationType INTERP
+            >
+            using InterpTraits = YieldTermStructureInterpTraits<INTERP>;
         private:
             Date marketDate_;
             Date referenceDate_;
@@ -84,70 +103,22 @@ namespace QuantLib {
                 const YieldTermStructurePtr& curve
             ) {
                 QL_ASSERT(curve != nullptr, "yield term structure cannot be null");
-                auto pLinearContZeroCurve = ext::dynamic_pointer_cast<InterpolatedZeroCurve<Linear>>(curve);
-                auto pLinearSimpleZeroCurve = ext::dynamic_pointer_cast<InterpolatedSimpleZeroCurve<Linear>>(curve);
-                auto pBackwardFlatContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<BackwardFlat>>(curve);
-                auto pSmoothContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<ConvexMonotone>>(curve);
-                auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(curve);
+                INTERP_TRY_CAST_BASE_CURVE(ytsiPiecewiseLinearCont, curve);
+                INTERP_TRY_CAST_BASE_CURVE(ytsiPiecewiseLinearSimple, curve);
+                INTERP_TRY_CAST_BASE_CURVE(ytsiStepForwardCont, curve);
+                INTERP_TRY_CAST_BASE_CURVE(ytsiSmoothForwardCont, curve);
+                INTERP_TRY_CAST_BASE_CURVE(ytsiPiecewiseLinearForwardCont, curve);
                 auto valueUnit = QLUtils::RateUnit::Percent;    // hint for the actual serializer on how to serialize the rate/yield value (in this case, in percentage unit)
-                if (pLinearContZeroCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::ytsiPiecewiseLinearCont,
-                        getCurveTermStructRows(
-                            pLinearContZeroCurve->dates(),
-                            pLinearContZeroCurve->data(),
-                            *curve,
-                            valueUnit
-                        )
-                    );
-                }
-                else if (pLinearSimpleZeroCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::ytsiPiecewiseLinearSimple,
-                        getCurveTermStructRows(
-                            pLinearSimpleZeroCurve->dates(),
-                            pLinearSimpleZeroCurve->data(),
-                            *curve,
-                            valueUnit
-                        )
-                    );
-                }
-                else if (pBackwardFlatContForwardCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::ytsiStepForwardCont,
-                        getCurveTermStructRows(
-                            pBackwardFlatContForwardCurve->dates(),
-                            pBackwardFlatContForwardCurve->data(),
-                            *curve,
-                            valueUnit
-                        )
-                    );
-                }
-                else if (pSmoothContForwardCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::ytsiSmoothForwardCont,
-                        getCurveTermStructRows(
-                            pSmoothContForwardCurve->dates(),
-                            pSmoothContForwardCurve->data(),
-                            *curve,
-                            valueUnit
-                        ));
-                }
-                else if (pLinearContForwardCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::ytsiPiecewiseLinearForwardCont,
-                        getCurveTermStructRows(
-                            pLinearContForwardCurve->dates(),
-                            pLinearContForwardCurve->data(),
-                            *curve,
-                            valueUnit
-                        )
-                    );
-                }
+                if (false) {}
+                HANDLE_INTERP_MAKE_PAIR(ytsiPiecewiseLinearCont, curve)
+                HANDLE_INTERP_MAKE_PAIR(ytsiPiecewiseLinearSimple, curve)
+                HANDLE_INTERP_MAKE_PAIR(ytsiStepForwardCont, curve)
+                HANDLE_INTERP_MAKE_PAIR(ytsiSmoothForwardCont, curve)
+                HANDLE_INTERP_MAKE_PAIR(ytsiPiecewiseLinearForwardCont, curve)
                 else {
                     QL_FAIL("unsupported yield term structure traits/interpolation type");
                 }
-            }    
+            }
         public:
             InterpolatedYieldTermStructSerializer(
                 const YieldTermStructurePtr& curve,
@@ -222,6 +193,10 @@ namespace QuantLib {
             };
             typedef Row Row_Type;
             typedef YieldTermStructureInterpolation InterpolationType;
+            template <
+                InterpolationType INTERP
+            >
+            using InterpTraits = YieldTermStructureInterpTraits<INTERP>;
         private:
             Date marketDate_;
             Date referenceDate_;
@@ -269,16 +244,11 @@ namespace QuantLib {
                 checkPillars();
                 DayCounter dc = this->dayCounter();
                 switch (interpolation_) {
-                case InterpolationType::ytsiPiecewiseLinearCont:
-                    return ext::make_shared<InterpolatedZeroCurve<Linear>>(dates_, values_, dc);
-                case InterpolationType::ytsiPiecewiseLinearSimple:
-                    return ext::make_shared<InterpolatedSimpleZeroCurve<Linear>>(dates_, values_, dc);
-                case InterpolationType::ytsiStepForwardCont:
-                    return ext::make_shared<InterpolatedForwardCurve<BackwardFlat>>(dates_, values_, dc);
-                case InterpolationType::ytsiSmoothForwardCont:
-                    return ext::make_shared<InterpolatedForwardCurve<ConvexMonotone>>(dates_, values_, dc);
-                case InterpolationType::ytsiPiecewiseLinearForwardCont:
-                    return ext::make_shared<InterpolatedForwardCurve<Linear>>(dates_, values_, dc);
+                HANDLE_INTERP_RETURN_BASE_CURVE(ytsiPiecewiseLinearCont);
+                HANDLE_INTERP_RETURN_BASE_CURVE(ytsiPiecewiseLinearSimple);
+                HANDLE_INTERP_RETURN_BASE_CURVE(ytsiStepForwardCont);
+                HANDLE_INTERP_RETURN_BASE_CURVE(ytsiSmoothForwardCont);
+                HANDLE_INTERP_RETURN_BASE_CURVE(ytsiPiecewiseLinearForwardCont);
                 default:
                     QL_FAIL("unsupported yield term structure traits/interpolation type: " << interpolation_);
                 }
@@ -321,6 +291,10 @@ namespace QuantLib {
             };
             typedef Row Row_Type;
             typedef ForwardSpreadInterpolation InterpolationType;
+            template <
+                InterpolationType INTERP
+            >
+            using InterpTraits = ForwardSpreadInterpTraits<INTERP>;
         private:
             Date marketDate_;
             Date referenceDate_;
@@ -353,31 +327,12 @@ namespace QuantLib {
                 const YieldTermStructurePtr& spreadsOnlyCurve
             ) {
                 QL_ASSERT(spreadsOnlyCurve != nullptr, "yield term structure cannot be null");
-                auto pBackwardFlatContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<BackwardFlat>>(spreadsOnlyCurve);
-                auto pLinearContForwardCurve = ext::dynamic_pointer_cast<InterpolatedForwardCurve<Linear>>(spreadsOnlyCurve);
+                INTERP_TRY_CAST_BASE_CURVE(fsiStep, spreadsOnlyCurve);
+                INTERP_TRY_CAST_BASE_CURVE(fsiLinear, spreadsOnlyCurve);
 				auto valueUnit = QLUtils::RateUnit::BasisPoint; // hint for the actual serializer on how to serialize the forward spread values (in this case, in bps unit)
-                if (pBackwardFlatContForwardCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::fsiStep,
-                        getCurveTermStructRows(
-                            pBackwardFlatContForwardCurve->dates(),
-                            pBackwardFlatContForwardCurve->data(),
-                            *spreadsOnlyCurve,
-                            valueUnit
-                        )
-                    );
-                }
-                else if (pLinearContForwardCurve != nullptr) {
-                    return std::make_pair(
-                        InterpolationType::fsiLinear,
-                        getCurveTermStructRows(
-                            pLinearContForwardCurve->dates(),
-                            pLinearContForwardCurve->data(),
-                            *spreadsOnlyCurve,
-                            valueUnit
-                        )
-                    );
-                }
+                if (false) {}
+                HANDLE_INTERP_MAKE_PAIR(fsiStep, spreadsOnlyCurve)
+                HANDLE_INTERP_MAKE_PAIR(fsiLinear, spreadsOnlyCurve)
                 else {
                     QL_FAIL("unsupported forward spread term structure interpolation type");
                 }
@@ -442,6 +397,10 @@ namespace QuantLib {
             typedef VALUE_TYPE value_type;
             typedef typename InterpolatedYieldTermStructDeserializer<VALUE_TYPE>::Row_Type Row_Type;
             typedef ForwardSpreadInterpolation InterpolationType;
+            template <
+                InterpolationType INTERP
+            >
+            using InterpTraits = ForwardSpreadInterpTraits<INTERP>;
         private:
             Date marketDate_;
             Date referenceDate_;
@@ -493,20 +452,18 @@ namespace QuantLib {
             DayCounter dayCounter() const {
                 return MonotonicDayCountHelper::to_daycounter(dayCountConv_);
             }
-            YieldTermStructurePtr spreadsOnlyTermStructure() const {
+            operator YieldTermStructurePtr() const {
                 checkPillars();
                 DayCounter dc = this->dayCounter();
                 switch (interpolation_) {
-                case InterpolationType::fsiStep:
-                    return ext::make_shared<InterpolatedForwardCurve<BackwardFlat>>(dates_, values_, dc);
-                case InterpolationType::fsiLinear:
-                    return ext::make_shared<InterpolatedForwardCurve<Linear>>(dates_, values_, dc);
+                HANDLE_INTERP_RETURN_BASE_CURVE(fsiStep);
+                HANDLE_INTERP_RETURN_BASE_CURVE(fsiLinear);
                 default:
                     QL_FAIL("unsupported forward spread term structure interpolation type: " << interpolation_);
                 }
             }
-            operator YieldTermStructurePtr() const {
-                return spreadsOnlyTermStructure();
+            YieldTermStructurePtr spreadsOnlyTermStructure() const {
+                return this->operator YieldTermStructurePtr();
 			}
             InterpolatedForwardSpreadTermStructSerializer<value_type> get_serializer(
                 Date marketDate = Date()
@@ -524,10 +481,8 @@ namespace QuantLib {
                 QL_REQUIRE(baseCurve->dayCounter().name() == this->dayCounter().name(), "base curve's day counter (" << baseCurve->dayCounter().name() << ") is not what's expected (" << this->dayCounter().name() << ")");
                 auto quotes = forwardSpreadQuotes();
                 switch (interpolation_) {
-                case InterpolationType::fsiStep:
-                    return ext::make_shared<InterpolatedPiecewiseForwardSpreadedTermStructure<BackwardFlat>>(baseCurve, quotes, dates_);
-                case InterpolationType::fsiLinear:
-                    return ext::make_shared<InterpolatedPiecewiseForwardSpreadedTermStructure<Linear>>(baseCurve, quotes, dates_);
+                HANDLE_INTERP_RETURN_FORWARD_SPREADED_CURVE(fsiStep);
+                HANDLE_INTERP_RETURN_FORWARD_SPREADED_CURVE(fsiLinear);
                 default:
                     QL_FAIL("unsupported forward spread term structure interpolation type: " << interpolation_);
                 }
@@ -535,3 +490,10 @@ namespace QuantLib {
         };
     }
 }
+
+#undef INTERP_BASE_CURVE_TYPE
+#undef INTERP_FORWARD_SPREADED_CURVE_TYPE
+#undef INTERP_TRY_CAST_BASE_CURVE
+#undef HANDLE_YIELD_TERM_STRUCT_INTERP_MAKE_PAIR
+#undef HANDLE_INTERP_RETURN_BASE_CURVE
+#undef HANDLE_INTERP_RETURN_FORWARD_SPREADED_CURVE

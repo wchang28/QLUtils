@@ -2,6 +2,7 @@
 
 #include <ql_utils/possible-enum-values.hpp>
 #include <ql_utils/types.hpp>
+#include <ql_utils/interpolation-traits.hpp>
 #include <ql_utils/dateformat.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
 #include <ql_utils/ParYield.hpp>
