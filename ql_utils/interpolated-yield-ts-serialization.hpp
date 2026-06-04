@@ -9,12 +9,14 @@
 
 #define INTERP_BASE_CURVE_TYPE(INTERP)  typename InterpTraits<InterpolationType::INTERP>::BaseCurveType
 #define INTERP_FORWARD_SPREADED_CURVE_TYPE(INTERP)  typename InterpTraits<InterpolationType::INTERP>::ForwardSpreadedCurveType
-#define INTERP_TRY_CAST_BASE_CURVE(INTERP, CURVE)   auto INTERP##_curve = ext::dynamic_pointer_cast<INTERP_BASE_CURVE_TYPE(INTERP)>(CURVE)
-#define HANDLE_INTERP_MAKE_PAIR(INTERP, CURVE)    else if (INTERP##_curve != nullptr) { \
-        return std::make_pair( \
-            InterpolationType::INTERP, \
-            getCurveTermStructRows(INTERP##_curve->dates(), INTERP##_curve->data(), *CURVE, valueUnit) \
-        ); \
+#define HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(INTERP, CURVE) { \
+        auto base_curve = ext::dynamic_pointer_cast<INTERP_BASE_CURVE_TYPE(INTERP)>(CURVE); \
+        if (base_curve != nullptr) {\
+            return std::make_pair( \
+                InterpolationType::INTERP, \
+                getCurveTermStructRows(base_curve->dates(), base_curve->data(), *CURVE, valueUnit) \
+            ); \
+        }   \
     }
 #define HANDLE_INTERP_RETURN_BASE_CURVE(INTERP) case InterpolationType::INTERP: \
         return YieldTermStructurePtr(new INTERP_BASE_CURVE_TYPE(INTERP)(dates_, values_, dc))
@@ -103,21 +105,13 @@ namespace QuantLib {
                 const YieldTermStructurePtr& curve
             ) {
                 QL_ASSERT(curve != nullptr, "yield term structure cannot be null");
-                INTERP_TRY_CAST_BASE_CURVE(ytsiPiecewiseLinearCont, curve);
-                INTERP_TRY_CAST_BASE_CURVE(ytsiPiecewiseLinearSimple, curve);
-                INTERP_TRY_CAST_BASE_CURVE(ytsiStepForwardCont, curve);
-                INTERP_TRY_CAST_BASE_CURVE(ytsiSmoothForwardCont, curve);
-                INTERP_TRY_CAST_BASE_CURVE(ytsiPiecewiseLinearForwardCont, curve);
                 auto valueUnit = QLUtils::RateUnit::Percent;    // hint for the actual serializer on how to serialize the rate/yield value (in this case, in percentage unit)
-                if (false) {}
-                HANDLE_INTERP_MAKE_PAIR(ytsiPiecewiseLinearCont, curve)
-                HANDLE_INTERP_MAKE_PAIR(ytsiPiecewiseLinearSimple, curve)
-                HANDLE_INTERP_MAKE_PAIR(ytsiStepForwardCont, curve)
-                HANDLE_INTERP_MAKE_PAIR(ytsiSmoothForwardCont, curve)
-                HANDLE_INTERP_MAKE_PAIR(ytsiPiecewiseLinearForwardCont, curve)
-                else {
-                    QL_FAIL("unsupported yield term structure traits/interpolation type");
-                }
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearCont, curve)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearSimple, curve)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiStepForwardCont, curve)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiSmoothForwardCont, curve)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearForwardCont, curve)
+                QL_FAIL("unsupported yield term structure traits/interpolation type");
             }
         public:
             InterpolatedYieldTermStructSerializer(
@@ -327,15 +321,10 @@ namespace QuantLib {
                 const YieldTermStructurePtr& spreadsOnlyCurve
             ) {
                 QL_ASSERT(spreadsOnlyCurve != nullptr, "yield term structure cannot be null");
-                INTERP_TRY_CAST_BASE_CURVE(fsiStep, spreadsOnlyCurve);
-                INTERP_TRY_CAST_BASE_CURVE(fsiLinear, spreadsOnlyCurve);
-				auto valueUnit = QLUtils::RateUnit::BasisPoint; // hint for the actual serializer on how to serialize the forward spread values (in this case, in bps unit)
-                if (false) {}
-                HANDLE_INTERP_MAKE_PAIR(fsiStep, spreadsOnlyCurve)
-                HANDLE_INTERP_MAKE_PAIR(fsiLinear, spreadsOnlyCurve)
-                else {
-                    QL_FAIL("unsupported forward spread term structure interpolation type");
-                }
+                auto valueUnit = QLUtils::RateUnit::BasisPoint;    // hint for the actual serializer on how to serialize the rate/yield value (in this case, in bps unit)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(fsiStep, spreadsOnlyCurve)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(fsiLinear, spreadsOnlyCurve)
+                QL_FAIL("unsupported forward spread term structure interpolation type");
             }    
         public:
             InterpolatedForwardSpreadTermStructSerializer(
@@ -493,7 +482,6 @@ namespace QuantLib {
 
 #undef INTERP_BASE_CURVE_TYPE
 #undef INTERP_FORWARD_SPREADED_CURVE_TYPE
-#undef INTERP_TRY_CAST_BASE_CURVE
-#undef HANDLE_YIELD_TERM_STRUCT_INTERP_MAKE_PAIR
+#undef HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR
 #undef HANDLE_INTERP_RETURN_BASE_CURVE
 #undef HANDLE_INTERP_RETURN_FORWARD_SPREADED_CURVE

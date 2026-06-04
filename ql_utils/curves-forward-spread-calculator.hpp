@@ -332,18 +332,20 @@ namespace QuantLib {
                 return error;
             }
         };
-
+#define HANDLE_FWD_SPREAD_INTERP_MAKE_CALCULATOR(INTERP) case ForwardSpreadInterpolation::INTERP: {\
+        using InterpTraits = ForwardSpreadInterpTraits<ForwardSpreadInterpolation::INTERP>;   \
+        return CurvesForwardSpreadCalculatorPtr(new CurvesForwardSpreadCalculator<typename InterpTraits::InterpType>()); \
+    }
         inline CurvesForwardSpreadCalculatorPtr make_curves_forward_spreads_calculator(
             ForwardSpreadInterpolation interpolation
         ) {
             switch(interpolation) {
-            case ForwardSpreadInterpolation::fsiStep:
-                return CurvesForwardSpreadCalculatorPtr(new CurvesForwardSpreadCalculator<BackwardFlat>());
-            case ForwardSpreadInterpolation::fsiLinear:
-                return CurvesForwardSpreadCalculatorPtr(new CurvesForwardSpreadCalculator<Linear>());
+            HANDLE_FWD_SPREAD_INTERP_MAKE_CALCULATOR(fsiStep)
+            HANDLE_FWD_SPREAD_INTERP_MAKE_CALCULATOR(fsiLinear)
             default:
                 QL_FAIL("unsupported forward spread interpolation: " << interpolation);
             }
         }
     }
+#undef HANDLE_FWD_SPREAD_INTERP_MAKE_CALCULATOR
 }
