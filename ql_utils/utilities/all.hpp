@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ql_utils/utilities/possible-enum-values.hpp>
 #include <ql_utils/utilities/rate-unit-multipliers.hpp>
 #include <ql_utils/utilities/dataformatters.hpp>
 #include <ql_utils/utilities/historical-index-database.hpp>

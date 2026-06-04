@@ -2,7 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
-#include <ql_utils/possible-enum-values.hpp>
+#include <ql_utils/utilities/possible-enum-values.hpp>
 #include <utility>
 
 namespace QuantLib {

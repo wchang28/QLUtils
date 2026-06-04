@@ -7,7 +7,7 @@
 #include <ostream>
 #include <vector>
 #include <memory>
-#include <ql_utils/possible-enum-values.hpp>
+#include <ql_utils/utilities/possible-enum-values.hpp>
 
 namespace QLUtils {
     template<typename _Elem> using string_t = std::basic_string<_Elem>;
