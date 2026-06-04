@@ -65,6 +65,7 @@ namespace QuantLib {
                 {}
             };
             typedef Row Row_Type;
+            typedef std::vector<Row_Type> TermStructureRows;
             typedef YieldTermStructureInterpolation InterpolationType;
             template <
                 InterpolationType INTERP
@@ -75,9 +76,9 @@ namespace QuantLib {
             Date referenceDate_;
             MonotonicDayCountConv dayCountConv_;
             InterpolationType interpolation_;
-            std::vector<Row> termStructure_;
+            TermStructureRows termStructure_;
         protected:
-            static std::vector<Row> getCurveTermStructRows(
+            static TermStructureRows getCurveTermStructRows(
                 const std::vector<Date>& dates,
                 const std::vector<value_type>& data,
                 const YieldTermStructure& curve,
@@ -87,7 +88,7 @@ namespace QuantLib {
                 Date curveRefDate = curve.referenceDate();
                 DayCounter dc = curve.dayCounter();
                 Size n = dates.size();
-                std::vector<Row> rows;
+                TermStructureRows rows;
                 for (Size i = 0; i < n; ++i) {  // for each row
                     const auto& date = dates[i];
                     const auto& value = data[i];
@@ -101,7 +102,7 @@ namespace QuantLib {
                 }
                 return rows;
             }
-            static std::pair<InterpolationType, std::vector<Row>> from_termstructure(
+            static std::pair<InterpolationType, TermStructureRows> from_termstructure(
                 const YieldTermStructurePtr& curve
             ) {
                 QL_ASSERT(curve != nullptr, "yield term structure cannot be null");
@@ -132,7 +133,7 @@ namespace QuantLib {
             const Date& referenceDate() const { return referenceDate_; }
             MonotonicDayCountConv dayCountConv() const { return dayCountConv_; }
             InterpolationType interpolation() const { return interpolation_; }
-            const std::vector<Row>& termStructure() const { return termStructure_; }
+            const TermStructureRows& termStructure() const { return termStructure_; }
             std::vector<Date> dates() const {
                 std::vector<Date> ret;
                 for (const auto& row : termStructure_) {
@@ -186,6 +187,7 @@ namespace QuantLib {
                 {}
             };
             typedef Row Row_Type;
+            typedef std::vector<Row_Type> TermStructureRows;
             typedef YieldTermStructureInterpolation InterpolationType;
             template <
                 InterpolationType INTERP
@@ -284,6 +286,7 @@ namespace QuantLib {
                 {}
             };
             typedef Row Row_Type;
+            typedef std::vector<Row_Type> TermStructureRows;
             typedef ForwardSpreadInterpolation InterpolationType;
             template <
                 InterpolationType INTERP
@@ -294,9 +297,9 @@ namespace QuantLib {
             Date referenceDate_;
             MonotonicDayCountConv dayCountConv_;
             InterpolationType interpolation_;
-            std::vector<Row> termStructure_;
+            TermStructureRows termStructure_;
         protected:
-            static std::vector<Row> getCurveTermStructRows(
+            static TermStructureRows getCurveTermStructRows(
                 const std::vector<Date>& dates,
                 const std::vector<value_type>& data,
                 const YieldTermStructure& spreadsOnlyCurve,
@@ -306,7 +309,7 @@ namespace QuantLib {
                 Date curveRefDate = spreadsOnlyCurve.referenceDate();
                 DayCounter dc = spreadsOnlyCurve.dayCounter();
                 Size n = dates.size();
-                std::vector<Row> rows;
+                TermStructureRows rows;
                 for (Size i = 0; i < n; ++i) {  // for each row
                     const auto& date = dates[i];
                     const auto& value = data[i];
@@ -317,7 +320,7 @@ namespace QuantLib {
                 }
                 return rows;
             }
-            static std::pair<InterpolationType, std::vector<Row>> from_termstructure(
+            static std::pair<InterpolationType, TermStructureRows> from_termstructure(
                 const YieldTermStructurePtr& spreadsOnlyCurve
             ) {
                 QL_ASSERT(spreadsOnlyCurve != nullptr, "yield term structure cannot be null");
@@ -345,7 +348,7 @@ namespace QuantLib {
             const Date& referenceDate() const { return referenceDate_; }
             MonotonicDayCountConv dayCountConv() const { return dayCountConv_; }
             InterpolationType interpolation() const { return interpolation_; }
-            const std::vector<Row>& termStructure() const { return termStructure_; }
+            const TermStructureRows& termStructure() const { return termStructure_; }
             std::vector<Date> dates() const {
                 std::vector<Date> ret;
                 for (const auto& row : termStructure_) {
@@ -385,6 +388,7 @@ namespace QuantLib {
             typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
             typedef VALUE_TYPE value_type;
             typedef typename InterpolatedYieldTermStructDeserializer<VALUE_TYPE>::Row_Type Row_Type;
+            typedef std::vector<Row_Type> TermStructureRows;
             typedef ForwardSpreadInterpolation InterpolationType;
             template <
                 InterpolationType INTERP
