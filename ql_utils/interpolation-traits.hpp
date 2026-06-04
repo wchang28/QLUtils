@@ -3,6 +3,14 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 
+#define INTERP_FROM_CURVE(INTERP_TRAITS, INTERP, CURVE)    {\
+        using BaseCurveType = typename INTERP_TRAITS<InterpolationType::INTERP>::BaseCurveType;  \
+        auto base_curve = ext::dynamic_pointer_cast<BaseCurveType>(CURVE); \
+        if (base_curve != nullptr) {\
+            return InterpolationType::INTERP;   \
+        }   \
+    }
+    
 namespace QuantLib {
     namespace Utils {
         template<
@@ -44,6 +52,18 @@ namespace QuantLib {
             typedef InterpolatedForwardCurve<InterpType> BaseCurveType;
         };
 
+        inline YieldTermStructureInterpolation get_yield_term_structure_interp_from_curve(
+            const ext::shared_ptr<YieldTermStructure>& curve
+        ) {
+            using InterpolationType = YieldTermStructureInterpolation;
+            INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiPiecewiseLinearCont, curve)
+            INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiPiecewiseLinearSimple, curve)
+            INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiStepForwardCont, curve)
+            INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiSmoothForwardCont, curve)
+            INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiPiecewiseLinearForwardCont, curve)
+            QL_FAIL("unsupported yield term structure interpolation type");
+        }
+
         template<
             ForwardSpreadInterpolation INTERP
         >
@@ -67,5 +87,16 @@ namespace QuantLib {
             typedef InterpolatedPiecewiseForwardSpreadedTermStructure<InterpType> ForwardSpreadedCurveType;
             typedef SpreadsOnlyCurveType BaseCurveType;
         };
+        
+        inline ForwardSpreadInterpolation get_forward_spread_interp_from_curve(
+            const ext::shared_ptr<YieldTermStructure>& spreadsOnlyCurve
+        ) {
+            using InterpolationType = ForwardSpreadInterpolation;
+            INTERP_FROM_CURVE(ForwardSpreadInterpTraits, fsiStep, spreadsOnlyCurve)
+            INTERP_FROM_CURVE(ForwardSpreadInterpTraits, fsiLinear, spreadsOnlyCurve)
+            QL_FAIL("unsupported forward spread term structure interpolation type");
+        }
     }
 }
+
+#undef INTERP_FROM_CURVE

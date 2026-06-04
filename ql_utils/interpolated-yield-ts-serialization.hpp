@@ -112,7 +112,7 @@ namespace QuantLib {
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiStepForwardCont, curve)
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiSmoothForwardCont, curve)
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearForwardCont, curve)
-                QL_FAIL("unsupported yield term structure traits/interpolation type");
+                QL_FAIL("unsupported yield term structure interpolation type");
             }
         public:
             InterpolatedYieldTermStructSerializer(
@@ -246,7 +246,7 @@ namespace QuantLib {
                 HANDLE_INTERP_RETURN_BASE_CURVE(ytsiSmoothForwardCont);
                 HANDLE_INTERP_RETURN_BASE_CURVE(ytsiPiecewiseLinearForwardCont);
                 default:
-                    QL_FAIL("unsupported yield term structure traits/interpolation type: " << interpolation_);
+                    QL_FAIL("unsupported yield term structure interpolation type: " << interpolation_);
                 }
             }
             InterpolatedYieldTermStructSerializer<value_type> get_serializer(

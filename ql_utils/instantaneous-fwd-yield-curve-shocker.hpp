@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <ql_utils/yield-termstructure-shocker.hpp>
 #include <ql_utils/utilities/iso-date-conv.hpp>
+#include <ql_utils/utilities/possible-enum-values.hpp>
 #include <ql_utils/types.hpp>
 
 namespace QuantLib {
