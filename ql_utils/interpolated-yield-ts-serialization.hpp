@@ -106,7 +106,8 @@ namespace QuantLib {
                 const YieldTermStructurePtr& curve
             ) {
                 QL_ASSERT(curve != nullptr, "yield term structure cannot be null");
-                auto valueUnit = QLUtils::RateUnit::Percent;    // hint for the actual serializer on how to serialize the rate/yield value (in this case, in percentage unit)
+                auto interp = get_yield_term_structure_interp_from_curve(curve);
+                auto valueUnit = (interp == YieldTermStructureInterpolation::ytsiLogLinearDiscount ? QLUtils::RateUnit::Decimal: QLUtils::RateUnit::Percent);    // hint for the actual serializer on how to serialize the rate/yield/discount factor
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearCont, curve)
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearSimple, curve)
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiStepForwardCont, curve)
