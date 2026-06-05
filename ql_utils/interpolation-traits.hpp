@@ -25,7 +25,7 @@ namespace QuantLib {
         struct YieldTermStructureInterpTraits<YieldTermStructureInterpolation::ytsiPiecewiseLinearCont> {
             typedef ZeroYield TraitsType;
             typedef Linear InterpType;
-            typedef InterpolatedZeroCurve<InterpType> BaseCurveType;
+            typedef InterpolatedZeroCurve<InterpType> BaseCurveType;    // = QuantLib::ZeroCurve
         };
         template<>
         struct YieldTermStructureInterpTraits<YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple> {
@@ -37,7 +37,7 @@ namespace QuantLib {
         struct YieldTermStructureInterpTraits<YieldTermStructureInterpolation::ytsiStepForwardCont> {
             typedef ForwardRate TraitsType;
             typedef BackwardFlat InterpType;
-            typedef InterpolatedForwardCurve<InterpType> BaseCurveType;
+            typedef InterpolatedForwardCurve<InterpType> BaseCurveType; // = QuantLib::ForwardCurve
         };
         template<>
         struct YieldTermStructureInterpTraits<YieldTermStructureInterpolation::ytsiSmoothForwardCont> {
@@ -51,6 +51,12 @@ namespace QuantLib {
             typedef Linear InterpType;
             typedef InterpolatedForwardCurve<InterpType> BaseCurveType;
         };
+        template<>
+        struct YieldTermStructureInterpTraits<YieldTermStructureInterpolation::ytsiLogLinearDiscount> {
+            typedef Discount TraitsType;
+            typedef LogLinear InterpType;
+            typedef InterpolatedDiscountCurve<InterpType> BaseCurveType;    // = QuantLib::DiscountCurve
+        };
 
         inline YieldTermStructureInterpolation get_yield_term_structure_interp_from_curve(
             const ext::shared_ptr<YieldTermStructure>& curve
@@ -61,6 +67,7 @@ namespace QuantLib {
             INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiStepForwardCont, curve)
             INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiSmoothForwardCont, curve)
             INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiPiecewiseLinearForwardCont, curve)
+            INTERP_FROM_CURVE(YieldTermStructureInterpTraits, ytsiLogLinearDiscount, curve)
             QL_FAIL("unsupported yield term structure interpolation type");
         }
 

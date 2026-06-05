@@ -230,6 +230,7 @@ namespace QuantLib {
             HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiStepForwardCont)
             HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiSmoothForwardCont)
             HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearForwardCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiLogLinearDiscount)
             default:
                 QL_FAIL("unsupported yield term structure interpolation for bootstrapping: " << interpolation);
             }

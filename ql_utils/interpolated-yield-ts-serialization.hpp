@@ -112,6 +112,7 @@ namespace QuantLib {
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiStepForwardCont, curve)
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiSmoothForwardCont, curve)
                 HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiPiecewiseLinearForwardCont, curve)
+                HANDLE_INTERP_MAKE_INTERP_ROWS_PAIR(ytsiLogLinearDiscount, curve)
                 QL_FAIL("unsupported yield term structure interpolation type");
             }
         public:
@@ -245,6 +246,7 @@ namespace QuantLib {
                 HANDLE_INTERP_RETURN_BASE_CURVE(ytsiStepForwardCont);
                 HANDLE_INTERP_RETURN_BASE_CURVE(ytsiSmoothForwardCont);
                 HANDLE_INTERP_RETURN_BASE_CURVE(ytsiPiecewiseLinearForwardCont);
+                HANDLE_INTERP_RETURN_BASE_CURVE(ytsiLogLinearDiscount);
                 default:
                     QL_FAIL("unsupported yield term structure interpolation type: " << interpolation_);
                 }
