@@ -80,8 +80,9 @@ namespace QuantLib {
             ) {
                 auto days = (Date::serial_type)std::round(yearFraction * 365.25);
                 Date d = baseDate + days;
-                Date d1 = d - 15;
-                Date d2 = d + 15;
+                const Date::serial_type daysWindow = 2;
+                Date d1 = d - daysWindow;
+                Date d2 = d + daysWindow;
                 std::vector<std::pair<Date, Real>> v;
                 DayCounter dc = ActualActual(ActualActual::ISDA);
                 d = d1;
