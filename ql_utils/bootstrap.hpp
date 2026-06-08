@@ -104,7 +104,7 @@ namespace QuantLib {
 
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename Interpolator = Linear  // Linear, BackwardFlat, ConvexMonotone
+            typename Interpolator = Linear  // Linear, BackwardFlat, ConvexMonotone, or LogLinear
         >
         class YieldCurvesBootstrap : public IYieldCurvesBootstrap {
         public:

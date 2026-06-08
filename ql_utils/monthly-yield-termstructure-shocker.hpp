@@ -16,33 +16,23 @@
 
 namespace QuantLib {
     namespace Utils {
-        template <
-            typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename Interpolator = Linear  // Linear, BackwardFlat, ConvexMonotone
-        >
-        struct MonthlyYieldCurveShockerTraits {
-        public:
-            typedef typename Traits::template curve<Interpolator>::type BaseCurveType;	// InterpolatedZeroCurve<Interpolator>, InterpolatedDiscountCurve<Interpolator>, InterpolatedForwardCurve<Interpolator>, or InterpolatedSimpleZeroCurve<Interpolator>
-        };
-
         // base class for all monthly yield curve shockers that requires a final bootstrap to get the shocked curve
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear  // Linear, BackwardFlat, ConvexMonotone
+            typename I = Linear  // Linear, BackwardFlat, ConvexMonotone, or LogLinear
         >
         class MonthlyYieldTermStructureShocker:
-            public YieldCurveShocker<typename MonthlyYieldCurveShockerTraits<Traits, I>::BaseCurveType>,
+            public YieldCurveShocker<typename Traits::template curve<I>::type>,
             public Bootstrapper {
         public:
-            typedef I Interp;
-            typedef typename MonthlyYieldCurveShockerTraits<Traits, I>::BaseCurveType OutputCurveType;
+            //typedef I Interp;
             typedef YieldCurvesBootstrap<Traits, I> BootstrapperType;   // the final bootstrapper type for the shocked curve
             typedef Natural MonthNumber;
             typedef Ramp<Frequency::Monthly> monthly_ramp;
         protected:
             typedef std::function<Rate(MonthNumber)> MonthlyRateShocker;
         private:
-            typedef YieldCurveShocker<OutputCurveType> BaseClass;
+            typedef YieldCurveShocker<typename Traits::template curve<I>::type> BaseClass;
         public:
             // output
             std::vector<Period> monthlyMaturities;   // monthly maturities (can be tenors or forwards periods)
@@ -143,7 +133,7 @@ namespace QuantLib {
         // monthly spot par yield shocker
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear,  // Linear, BackwardFlat, ConvexMonotone
+            typename I = Linear,  // Linear, BackwardFlat, ConvexMonotone, or LogLinear
             Frequency PAR_YIELD_COUPON_FREQ = Frequency::Semiannual,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis
         >
@@ -196,7 +186,7 @@ namespace QuantLib {
         // monthly FRA/simple forward rate based shocker
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear  // Linear, BackwardFlat, ConvexMonotone
+            typename I = Linear  // Linear, BackwardFlat, ConvexMonotone, or LogLinear
         >
         class SimpleForwardTermStructureShocker: public MonthlyYieldTermStructureShocker<Traits, I> {
         private:
@@ -255,7 +245,7 @@ namespace QuantLib {
         // monthly nominal forward rate based shocker
         template <
             typename Traits = ZeroYield,   // ZeroYield, Discount, ForwardRate, or SimpleZeroYield
-            typename I = Linear,  // Linear, BackwardFlat, ConvexMonotone
+            typename I = Linear,  // Linear, BackwardFlat, ConvexMonotone, or LogLinear
             Integer TENOR_MONTHS = 1,
             Thirty360::Convention THIRTY_360_DC_CONVENTION = Thirty360::BondBasis,
             Compounding COMPOUNDING = Compounding::Continuous,
@@ -333,8 +323,9 @@ namespace QuantLib {
             HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiStepForwardCont)
             HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiSmoothForwardCont)
             HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiPiecewiseLinearForwardCont)
+            HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER(ytsiLogLinearDiscount)
             default:
-                QL_FAIL("unsupported yield term structure interpolation for curve shock: " << interpolation);
+                QL_FAIL("unknown/unsupported yield term structure interpolation type for curve shock: " << interpolation);
             }
         }
 #undef HANDLE_YIELD_TERM_STRUCT_INTERP_PAR_SHOCKER

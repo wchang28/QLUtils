@@ -29,5 +29,6 @@
 #include <ql_utils/ratehelpers/all.hpp>
 #include <ql_utils/utilities/all.hpp>
 #include <ql_utils/simple/all.hpp>
+#include <ql_utils/termstructures/all.hpp>
 #include <ql_utils/processes/all.hpp>
 #include <ql_utils/legacy/all.hpp>

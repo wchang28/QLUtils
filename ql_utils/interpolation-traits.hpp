@@ -3,6 +3,7 @@
 #include <ql/quantlib.hpp>
 #include <ql_utils/types.hpp>
 #include <ql_utils/bootstrap.hpp>
+#include <ql_utils/termstructures/yield/bootstraptraits.hpp>
 
 #define INTERP_FROM_CURVE(INTERP_TRAITS, INTERP, CURVE)    {\
         using BaseCurveType = typename INTERP_TRAITS<InterpolationType::INTERP>::BaseCurveType;  \
@@ -39,7 +40,8 @@ namespace QuantLib {
         };
         template<>
         struct YieldTermStructureInterpTraits<YieldTermStructureInterpolation::ytsiPiecewiseLinearSimple> {
-            typedef SimpleZeroYield TraitsType;
+            //typedef SimpleZeroYield TraitsType;
+            typedef BugFix::SimpleZeroYield TraitsType;
             typedef Linear InterpType;
             typedef typename TraitsType::template curve<InterpType>::type BaseCurveType;
             typedef YieldCurvesBootstrap<TraitsType, InterpType> BootstrapperType;
