@@ -174,7 +174,7 @@ namespace QuantLib {
             ) override {
                 verifyInputs();
                 clearOutputs();
-                ForwardCurvesBootstrap<Interpolator> bootstrapper;
+                YieldCurvesBootstrap<ForwardRate, Interpolator> bootstrapper;
                 // bootstrap the base forward curve
                 //////////////////////////////////////////////////////////////////////////
                 bootstrapper.instruments = baseInstruments;

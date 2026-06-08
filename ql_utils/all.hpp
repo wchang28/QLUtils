@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ql_utils/types.hpp>
-#include <ql_utils/interpolation-traits.hpp>
 #include <ql_utils/dateformat.hpp>
 #include <ql_utils/fixing-date-adjustment.hpp>
 #include <ql_utils/ParYield.hpp>
@@ -11,6 +10,7 @@
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/fixed-rate-bond-securities.hpp>
 #include <ql_utils/bootstrap.hpp>
+#include <ql_utils/interpolation-traits.hpp>
 #include <ql_utils/bootstrap-quote.hpp>
 #include <ql_utils/yield-termstructure-shocker.hpp>
 #include <ql_utils/monthly-yield-termstructure-shocker.hpp>

@@ -5,7 +5,6 @@
 #include <ql_utils/instrument.hpp>
 #include <ql_utils/dateformat.hpp>
 #include <ql_utils/types.hpp>
-#include <ql_utils/interpolation-traits.hpp>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -201,40 +200,5 @@ namespace QuantLib {
                 return this->verify<DefaultActualVsImpliedComparison>(os, precision);
             }
         };
-
-        template <typename Interpolator>
-        using ZeroCurvesBootstrap = YieldCurvesBootstrap<ZeroYield, Interpolator>;
-
-        template <typename Interpolator>
-        using DiscountCurvesBootstrap = YieldCurvesBootstrap<Discount, Interpolator>;
-
-        template <typename Interpolator>
-        using ForwardCurvesBootstrap = YieldCurvesBootstrap<ForwardRate, Interpolator>;
-
-        template <typename Interpolator>
-        using SimpleZeroCurvesBootstrap = YieldCurvesBootstrap<SimpleZeroYield, Interpolator>;
-
-#define HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(INTERP) case YieldTermStructureInterpolation::INTERP: {\
-        using InterpTraits = YieldTermStructureInterpTraits<YieldTermStructureInterpolation::INTERP>;   \
-        using TraitsType = typename InterpTraits::TraitsType;   \
-        using InterpType = typename InterpTraits::InterpType;   \
-        using BootstrapperType = YieldCurvesBootstrap<TraitsType, InterpType>;  \
-        return YieldCurvesBootstrapPtr(new BootstrapperType()); \
-    }
-        inline YieldCurvesBootstrapPtr make_yield_curve_bootstrapper(
-            YieldTermStructureInterpolation interpolation
-        ) {
-            switch(interpolation) {
-            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearCont)
-            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearSimple)
-            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiStepForwardCont)
-            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiSmoothForwardCont)
-            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiPiecewiseLinearForwardCont)
-            HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER(ytsiLogLinearDiscount)
-            default:
-                QL_FAIL("unsupported yield term structure interpolation for bootstrapping: " << interpolation);
-            }
-        }
-#undef HANDLE_YIELD_TERM_STRUCT_INTERP_BOOTSTRAPPER
     }
 }
