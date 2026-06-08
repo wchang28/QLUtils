@@ -25,7 +25,6 @@ namespace QuantLib {
             public YieldCurveShocker<typename Traits::template curve<I>::type>,
             public Bootstrapper {
         public:
-            //typedef I Interp;
             typedef YieldCurvesBootstrap<Traits, I> BootstrapperType;   // the final bootstrapper type for the shocked curve
             typedef Natural MonthNumber;
             typedef Ramp<Frequency::Monthly> monthly_ramp;
