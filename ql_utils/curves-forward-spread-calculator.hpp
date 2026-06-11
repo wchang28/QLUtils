@@ -2,6 +2,7 @@
 
 #include <ql/quantlib.hpp>
 #include <ql_utils/bootstrap.hpp>
+#include <ql_utils/interpolation-traits.hpp>
 #include <ql_utils/math/strip-interval-end-value-calculator.hpp>
 #include <ql_utils/math/interpolations/both-ends-flat-extrapolate-interpolation.hpp>
 #include <ql_utils/utilities/iso-date-conv.hpp>
