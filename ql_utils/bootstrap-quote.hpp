@@ -108,5 +108,36 @@ namespace QuantLib {
                 return BootstrapQuote::hasUse<OISSwapQuote>(quotes);
             }
         };
+        
+        struct OISBasisSwapQuote : public BootstrapQuote {
+            enum QuoteType {
+                obsqtDeposit = 0,
+                obsqtBasisSwap = 1
+			};
+            Period tenor;
+            QuoteType quoteType;
+            Frequency couponFreq;
+            ext::optional<bool> spreadIsOnBaseLeg;
+            OISBasisSwapQuote(
+                const std::string& ticker = "",
+                const Period& tenor = Period(),
+                QuoteType quoteType = QuoteType::obsqtDeposit,
+                Real value = Null<Real>(),
+                Frequency couponFreq = Frequency::NoFrequency,
+                ext::optional<bool> spreadIsOnBaseLeg = ext::nullopt,
+                bool use = true
+            ) :
+                BootstrapQuote(ticker, value, use),
+                tenor(tenor),
+                quoteType(quoteType),
+                couponFreq(couponFreq),
+                spreadIsOnBaseLeg(spreadIsOnBaseLeg)
+            {}
+            static bool hasUse(
+                const std::vector<OISBasisSwapQuote>& quotes
+            ) {
+                return BootstrapQuote::hasUse<OISBasisSwapQuote>(quotes);
+            }
+        };
     }
 }
