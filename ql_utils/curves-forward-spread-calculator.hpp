@@ -107,7 +107,8 @@ namespace QuantLib {
             virtual YieldTermStructurePtr forwardSpreadedTermStructure() const = 0;
             virtual void calculate(
                 const Date& curveRefDate,
-                const DayCounter& curveDayCounter = Actual365Fixed()
+                const DayCounter& curveDayCounter = Actual365Fixed(),
+                bool dualBoootstrapsMode = false // if true, target curve can only be bootstarpped when the base curve is served as an exogenous discount term structure
             ) = 0;
             virtual Spread verify(
                 std::ostream& os,
@@ -171,23 +172,26 @@ namespace QuantLib {
             }
             void calculate(
                 const Date& curveRefDate,
-                const DayCounter& curveDayCounter
+                const DayCounter& curveDayCounter,
+                bool dualBoootstrapsMode
             ) override {
                 verifyInputs();
                 clearOutputs();
                 YieldCurvesBootstrap<ForwardRate, Interpolator> bootstrapper;
                 // bootstrap the base forward curve
                 //////////////////////////////////////////////////////////////////////////
+                bootstrapper.exogenousDiscountTermStructure = nullptr;
                 bootstrapper.instruments = baseInstruments;
                 bootstrapper.bootstrap(curveRefDate, curveDayCounter);
-                baseForwardCurve = bootstrapper.discountCurve;
+                baseForwardCurve = bootstrapper.estimatingCurve;
                 baseForwardCurve->enableExtrapolation(true);
                 //////////////////////////////////////////////////////////////////////////
                 // bootstrap the target forward curve
                 //////////////////////////////////////////////////////////////////////////
+				bootstrapper.exogenousDiscountTermStructure = (dualBoootstrapsMode ? baseForwardCurve : nullptr);
                 bootstrapper.instruments = targetInstruments;
                 bootstrapper.bootstrap(curveRefDate, curveDayCounter);
-                targetForwardCurve = bootstrapper.discountCurve;
+                targetForwardCurve = bootstrapper.estimatingCurve;
                 targetForwardCurve->enableExtrapolation(true);
                 //////////////////////////////////////////////////////////////////////////
                 // union/join the pillar dates of the two curves

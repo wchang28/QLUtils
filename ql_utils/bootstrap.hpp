@@ -72,8 +72,8 @@ namespace QuantLib {
         class IYieldCurvesBootstrap : public Bootstrapper {
         public:
             enum BootstrapMode {
-                BothCurvesConcurrently = 0,
-                EstimatingCurveOnly = 1
+                BothCurvesConcurrently = 0, // regular bootstrap mode (exogenousDiscountTermStructure == nullptr)
+                EstimatingCurveOnly = 1 // dual bootstraps mode (exogenousDiscountTermStructure != nullptr)
             };
         public:
             // input for the yield curve bootstrap
@@ -116,7 +116,7 @@ namespace QuantLib {
         public:
             // output
             ext::shared_ptr<BaseCurveType> discountCurve;   // this can be nullptr (mode==EstimatingCurveOnly)
-            ext::shared_ptr<BaseCurveType> estimatingCurve;
+            ext::shared_ptr<BaseCurveType> estimatingCurve; // as a valid bootstrap output, this is never null
         public:
             YieldCurvesBootstrap() {}
             YieldTermStructurePtr discounTermStructure() const override {
