@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <sstream>
 #include <iostream>
+#include <cmath>
 
 namespace QuantLib {
     namespace Utils {
@@ -19,40 +20,6 @@ namespace QuantLib {
         public:
             typedef Bootstrapper::pInstruments pInstruments;
             typedef ext::shared_ptr<YieldTermStructure> YieldTermStructurePtr;
-        protected:
-            class YieldCurveBootstrapVerifier : public IYieldCurvesBootstrap {
-            public:
-                void piecewiseBootstrap(
-                    const Date&,
-                    const DayCounter&
-                ) override {
-                    QL_FAIL("Bootstrapping is not supported");
-                }
-                YieldTermStructurePtr discounTermStructure() const override {
-                    return exogenousDiscountTermStructure;
-                }
-                YieldTermStructurePtr estimatingTermStructure() const override {
-                    return exogenousDiscountTermStructure;
-                }
-                Rate verifyBootstrap(
-                    std::ostream& os,
-                    std::streamsize precision
-                ) const override {
-                    checkInstruments();
-                    YieldTermStructureHandle hDiscountTS(discounTermStructure());
-                    YieldTermStructureHandle hEstimatingTS(estimatingTermStructure());
-                    DefaultActualVsImpliedComparison compare;
-                    return verifyImpl(
-                        *instruments,
-                        [&hDiscountTS, &hEstimatingTS](const pInstrument& inst) -> Real {
-                            return inst->impliedQuote(hEstimatingTS, hDiscountTS);
-                        },
-                        os,
-                        precision,
-                        compare
-                    );
-                }
-            };
         public:
             // input
             pInstruments baseInstruments;
@@ -122,12 +89,16 @@ namespace QuantLib {
         >
         class CurvesForwardSpreadCalculator: public ICurvesForwardSpreadCalculator {
         public:
+            typedef YieldCurvesBootstrap<ForwardRate, Interpolator> BootstrapperType;
+            typedef std::shared_ptr<BootstrapperType> BootstrapperPtr;
             typedef InterpolatedForwardCurve<Interpolator> InterpolatedForwardCurve;
             typedef InterpolatedPiecewiseForwardSpreadedTermStructure<Interpolator> InterpolatedForwardSpreadedCurve;
             typedef ext::shared_ptr<InterpolatedForwardCurve> InterpolatedForwardCurvePtr;
             typedef ext::shared_ptr<InterpolatedForwardSpreadedCurve> InterpolatedForwardSpreadedCurvePtr;
         public:
             // output
+            BootstrapperPtr baseCurveBootstrapper;
+            BootstrapperPtr targetCurveBootstrapper;
             InterpolatedForwardCurvePtr baseForwardCurve;
             InterpolatedForwardCurvePtr targetForwardCurve;
             InterpolatedForwardCurvePtr spreadsOnlyForwardCurve;
@@ -136,6 +107,8 @@ namespace QuantLib {
             // protected interface
             void clearOutputs() override {
                 ICurvesForwardSpreadCalculator::clearOutputs();
+                baseCurveBootstrapper = nullptr;
+                targetCurveBootstrapper = nullptr;
                 baseForwardCurve = nullptr;
                 targetForwardCurve = nullptr;
                 spreadsOnlyForwardCurve = nullptr;
@@ -143,6 +116,8 @@ namespace QuantLib {
             }
             void verifyOutputs() const override {
                 ICurvesForwardSpreadCalculator::verifyOutputs();
+                QL_ASSERT(baseCurveBootstrapper != nullptr, "base forward curve bootstrapper is null");
+                QL_ASSERT(targetCurveBootstrapper != nullptr, "target forward curve bootstrapper is null");
                 QL_ASSERT(baseForwardCurve != nullptr, "base forward curve is not calculated");
                 Date curveRefDate = baseForwardCurve->referenceDate();
 				DayCounter curveDayCounter = baseForwardCurve->dayCounter();
@@ -177,21 +152,22 @@ namespace QuantLib {
             ) override {
                 verifyInputs();
                 clearOutputs();
-                YieldCurvesBootstrap<ForwardRate, Interpolator> bootstrapper;
                 // bootstrap the base forward curve
                 //////////////////////////////////////////////////////////////////////////
-                bootstrapper.exogenousDiscountTermStructure = nullptr;
-                bootstrapper.instruments = baseInstruments;
-                bootstrapper.bootstrap(curveRefDate, curveDayCounter);
-                baseForwardCurve = bootstrapper.estimatingCurve;
+                baseCurveBootstrapper.reset(new BootstrapperType());
+                baseCurveBootstrapper->exogenousDiscountTermStructure = nullptr;
+                baseCurveBootstrapper->instruments = baseInstruments;
+                baseCurveBootstrapper->bootstrap(curveRefDate, curveDayCounter);
+                baseForwardCurve = baseCurveBootstrapper->estimatingCurve;
                 baseForwardCurve->enableExtrapolation(true);
                 //////////////////////////////////////////////////////////////////////////
                 // bootstrap the target forward curve
                 //////////////////////////////////////////////////////////////////////////
-				bootstrapper.exogenousDiscountTermStructure = (dualBoootstrapsMode ? baseForwardCurve : nullptr);
-                bootstrapper.instruments = targetInstruments;
-                bootstrapper.bootstrap(curveRefDate, curveDayCounter);
-                targetForwardCurve = bootstrapper.estimatingCurve;
+                targetCurveBootstrapper.reset(new BootstrapperType());
+				targetCurveBootstrapper->exogenousDiscountTermStructure = (dualBoootstrapsMode ? baseForwardCurve : nullptr);
+                targetCurveBootstrapper->instruments = targetInstruments;
+                targetCurveBootstrapper->bootstrap(curveRefDate, curveDayCounter);
+                targetForwardCurve = targetCurveBootstrapper->estimatingCurve;
                 targetForwardCurve->enableExtrapolation(true);
                 //////////////////////////////////////////////////////////////////////////
                 // union/join the pillar dates of the two curves
@@ -287,7 +263,7 @@ namespace QuantLib {
                 }
 #endif
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                // construct a forward spread term structure with the spreeads and the base forward curve
+                // construct a forward spreaded term structure with the spreeads and the base forward curve
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 Handle<YieldTermStructure> baseCurve(baseForwardCurve);
                 std::vector<Handle<Quote>> spreadQuotes;
@@ -303,38 +279,63 @@ namespace QuantLib {
                 fwdSpreadedCurve->enableExtrapolation(true);
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             }
+        protected:
+            // compare forward spreaded curve and target forward curve
+            // compare their zero rates on the spread dates
+            Spread verifyForwardSpreadedCurveImpl(
+                std::ostream& os,
+                std::streamsize precision = 16
+            ) const {
+                DayCounter dc = fwdSpreadedCurve->dayCounter();
+                Spread err = 0.0;
+                std::ostringstream oss;
+                oss << std::fixed << std::setprecision(precision);
+                for (Size i = 0; i < spreadDates.size(); ++i) {
+                    const auto& date = spreadDates[i];
+                    Rate forwardSpreadedZeroRate = fwdSpreadedCurve->zeroRate(date, dc, Continuous, NoFrequency, true).rate();
+                    Rate expectedZeroRate = targetForwardCurve->zeroRate(date, dc, Continuous, NoFrequency, true).rate();
+                    Spread diff = forwardSpreadedZeroRate - expectedZeroRate;
+                    oss << i;
+                    oss << ": " << "[" << ISODateConv::to_str(date) << "]";
+                    oss << "," << "fwdSpreadedZeroRate=" << forwardSpreadedZeroRate * 100.0 << "%";
+                    oss << "," << "expectedZeroRate=" << expectedZeroRate * 100.0 << "%";
+                    oss << "," << "diff=" << diff * 10000.0 << " bp";
+                    oss << std::endl;
+                    err += std::pow(diff, 2.0);
+                }
+                os << oss.str();
+                return std::sqrt(err);
+            }
+        public:
             Spread verify(
                 std::ostream& os,
                 std::streamsize precision = 16
             ) const override {
                 verifyInputs();
                 verifyOutputs();
-                Spread error = 0.0;
-                YieldCurveBootstrapVerifier verifier;
+                Spread errorTotal = 0.0;
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(precision);
+
                 oss << "Verifying base forward curve..." << std::endl;
-                verifier.instruments = baseInstruments;
-                verifier.exogenousDiscountTermStructure = baseForwardCurve;
-                Spread err = verifier.verifyBootstrap(oss, precision);
+                Spread err = baseCurveBootstrapper->verifyBootstrap(oss, precision);
                 oss << "err=" << err * 10000.0 << " bp" << std::endl;
-                error += err;
+                errorTotal += err;
+
                 oss << std::endl;
                 oss << "Verifying target forward curve..." << std::endl;
-                verifier.instruments = targetInstruments;
-                verifier.exogenousDiscountTermStructure = targetForwardCurve;
-                err = verifier.verifyBootstrap(oss, precision);
+                err = targetCurveBootstrapper->verifyBootstrap(oss, precision);
                 oss << "err=" << err * 10000.0 << " bp" << std::endl;
-                error += err;
+                errorTotal += err;
+                
                 oss << std::endl;
                 oss << "Verifying forward spreaded curve..." << std::endl;
-                verifier.instruments = targetInstruments;
-                verifier.exogenousDiscountTermStructure = fwdSpreadedCurve;
-                err = verifier.verifyBootstrap(oss, precision);
+                err = verifyForwardSpreadedCurveImpl(oss, precision);
                 oss << "err=" << err * 10000.0 << " bp" << std::endl;
-                error += err;
+                errorTotal += err;
+
                 os << oss.str();
-                return error;
+                return errorTotal;
             }
         };
 #define HANDLE_FWD_SPREAD_INTERP_MAKE_CALCULATOR(INTERP) case ForwardSpreadInterpolation::INTERP: {\
