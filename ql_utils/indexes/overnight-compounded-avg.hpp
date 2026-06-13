@@ -29,6 +29,7 @@ namespace QuantLib {
     public:
         OvernightCompoundedAverageInArrearsIndex(
             Natural fixingDays, // fixing days of the index, this usually matches with the settlement days of the vanilla swap that has this index on its floating leg
+            const Calendar& fixingCalendar = Calendar(),    // fixing calendar of the index
             const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             IborIndex
@@ -36,11 +37,11 @@ namespace QuantLib {
                 makeFamilyName(fixingDays),	// familyName
                 Period(FREQ),  // tenor
                 fixingDays,  // fixingDays
-                OvernightIndex().currency(),    // currency = overnight index's currency
-                OvernightIndex().fixingCalendar(),	// fixingCalendar = overnight index's fixing calendar
+                OvernightIndex{}.currency(),    // currency = overnight index's currency
+                (fixingCalendar == Calendar() ? OvernightIndex{}.fixingCalendar() : fixingCalendar),	// fixingCalendar
                 ModifiedFollowing,	// convention = ModifiedFollowing since the fixed leg of the swap is also ModifiedFollowing
                 true,   // endOfMonth = true since monthly/yearly tenor libor's endOfMonth is always true
-                OvernightIndex().dayCounter(),	// dayCounter = overnight index's day counter
+                OvernightIndex{}.dayCounter(),	// dayCounter = overnight index's day counter
                 h	// index estimating term structure
             )
         {}

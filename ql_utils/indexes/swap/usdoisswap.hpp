@@ -28,8 +28,6 @@ namespace QuantLib {
         Frequency FREQ = Frequency::Annual  // cashflow frequency for both legs
     >
     class UsdOvernightIndexedSwapIsdaFix: public OvernightIndexedSwapIndexEx<OVERNIGHTINDEX, FREQ> {
-    private:
-        UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX> fixingCalendarAdaptor_;
     public:
         UsdOvernightIndexedSwapIsdaFix(
             const Period& tenor,
@@ -43,7 +41,7 @@ namespace QuantLib {
                 h,
                 2,   // 2 days payment lag on the payment calendar
                 UnitedStates(UnitedStates::FederalReserve),    // payment calendar: uses FederalReserve calendar due to backward compatibility with FedFunds OIS
-                fixingCalendarAdaptor_()  // fixing calendar
+                UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}()  // swap fixing calendar
             )
         {}
     };
@@ -58,6 +56,7 @@ namespace QuantLib {
             const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
             2,  // T+2 index fixing
+            Calendar(), // index fixing calendar, TODO: change this to UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}()
             h
         ) {}
     };
@@ -78,6 +77,7 @@ namespace QuantLib {
             (
                 tenor,
                 2,  // T+2 swap settlement
+                Calendar(), // swap fixing calendar, TODO: change this to UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}()
                 h
             )
         {}

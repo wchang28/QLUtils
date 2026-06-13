@@ -23,8 +23,8 @@ namespace QuantLib {
                 GBPCurrency(),
                 h,
                 0,   // 0 day payment lag on the payment calendar
-                OVERNIGHTINDEX().fixingCalendar(),    // payment calendar: uses overnight index's fixing calendar
-                OVERNIGHTINDEX().fixingCalendar()   // fixing calendar: uses overnight index's fixing calendar
+                OVERNIGHTINDEX{}.fixingCalendar(),    // payment calendar: uses overnight index's fixing calendar
+                OVERNIGHTINDEX{}.fixingCalendar()   // swap fixing calendar: uses overnight index's fixing calendar
             )
         {}
     };
@@ -39,6 +39,7 @@ namespace QuantLib {
             const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
             0,  // T+0 index fixing
+            OVERNIGHTINDEX{}.fixingCalendar(), // index fixing calendar: uses overnight index's fixing calendar
             h
         ) {}
     };
@@ -59,6 +60,7 @@ namespace QuantLib {
             (
                 tenor,
                 0,  // T+0 swap settlement
+                OVERNIGHTINDEX{}.fixingCalendar(), // swap fixing calendar: uses overnight index's fixing calendar
                 h
             )
         {}

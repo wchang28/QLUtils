@@ -425,20 +425,22 @@ namespace QuantLib {
         FwdOISVanillaSwapIndex(
             const Period& tenor,        // tenor of the swap
             Natural settlementDays,     // number of days required to settle the swap
+            const Calendar& fixingCalendar = Calendar(),    // swap fixing calendar
             const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :
             SwapIndexEx(
-                makeFamilyName(OvernightIndex().currency(), settlementDays), // familyName
+                makeFamilyName(OvernightIndex{}.currency(), settlementDays), // familyName
                 tenor,  // tenor
                 settlementDays, // settlementDays
-                OvernightIndex().currency(),	// currency = overnight index's currency
-                OvernightIndex().fixingCalendar(),	// swap fixingCalendar =  overnight index's fixing calendar
+                OvernightIndex{}.currency(),	// currency = overnight index's currency
+                (fixingCalendar == Calendar() ? OvernightIndex{}.fixingCalendar() : fixingCalendar),	// swap fixingCalendar
                 legsTenor(), // fixedLegTenor, fixed leg tenor is usually one year
                 ModifiedFollowing, // fixedLegConvention, = ModifiedFollowing since all OIS swap's fixed leg convention is ModifiedFollowing
-                OvernightIndex().dayCounter(), // fixedLegDaycounter = overnight index's day counter
+                OvernightIndex{}.dayCounter(), // fixedLegDaycounter = overnight index's day counter
                 ext::shared_ptr<IborIndex>(
                     new IndexType(
                         settlementDays, // fixingDays of the index matches with the settlementDays of the swap
+                        (fixingCalendar == Calendar() ? OvernightIndex{}.fixingCalendar() : fixingCalendar),    // fixingCalendar of the index matches with the swap's
                         h
                     )
                 ),  // iborIndex
