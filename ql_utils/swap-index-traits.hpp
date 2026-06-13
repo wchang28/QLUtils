@@ -53,6 +53,8 @@ namespace QLUtils {
         virtual QuantLib::Natural settlementDays() const = 0;
         // fixing calendar for both legs
         virtual QuantLib::Calendar fixingCalendar() const = 0;
+        // currency of the swap
+        virtual QuantLib::Currency currency() const = 0;
         // end of month flag for both legs
         virtual bool endOfMonth() const = 0;
         // whether cashflow/coupon for both legs aligned (accrual dates + payment dates + couponday counter)
@@ -168,6 +170,10 @@ namespace QLUtils {
         // fixing calendar for both legs
         QuantLib::Calendar fixingCalendar() const override {
             return pSwapIndex_->fixingCalendar();
+        }
+        // currency of the swap
+        QuantLib::Currency currency() const override {
+            return pSwapIndex_->currency();
         }
         // end of month flag for both legs
         bool endOfMonth() const override {
@@ -353,6 +359,10 @@ namespace QLUtils {
         // fixing calendar for both legs
         QuantLib::Calendar fixingCalendar() const override {
             return pSwapIndex_->fixingCalendar();
+        }
+        // currency of the swap
+        QuantLib::Currency currency() const override {
+            return pSwapIndex_->currency();
         }
         // end of month flag for both legs
         bool endOfMonth() const override {
