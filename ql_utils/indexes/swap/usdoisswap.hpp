@@ -16,7 +16,7 @@ namespace QuantLib {
     inline Calendar UsdOISFixingCalendarAdaptor<FedFunds>::operator() () const {
         return UnitedStates(UnitedStates::FederalReserve);
     }
-    // Sofr OIS swap's fixing calendar is for both legs UnitedStates(UnitedStates::GovernmentBond)
+    // Sofr OIS swap's fixing calendar for both legs is UnitedStates(UnitedStates::GovernmentBond)
     template<>
     inline Calendar UsdOISFixingCalendarAdaptor<Sofr>::operator() () const {
         return UnitedStates(UnitedStates::GovernmentBond);
