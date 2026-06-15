@@ -56,7 +56,7 @@ namespace QuantLib {
             const Handle<YieldTermStructure>& h = {} // index estimating term structure
         ) :OvernightCompoundedAverageInArrearsIndex<OVERNIGHTINDEX, FREQ>(
             2,  // T+2 index fixing
-            Calendar(), // index fixing calendar, TODO: change this to UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}()
+            UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}(), // index fixing calendar
             h
         ) {}
     };
@@ -77,7 +77,7 @@ namespace QuantLib {
             (
                 tenor,
                 2,  // T+2 swap settlement
-                Calendar(), // swap fixing calendar, TODO: change this to UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}()
+                UsdOISFixingCalendarAdaptor<OVERNIGHTINDEX>{}(), // swap fixing calendar
                 h
             )
         {}
