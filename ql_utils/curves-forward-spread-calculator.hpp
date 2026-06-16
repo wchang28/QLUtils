@@ -91,9 +91,8 @@ namespace QuantLib {
         public:
             typedef YieldCurvesBootstrap<ForwardRate, Interpolator> BootstrapperType;
             typedef std::shared_ptr<BootstrapperType> BootstrapperPtr;
-            typedef InterpolatedForwardCurve<Interpolator> InterpolatedForwardCurve;
             typedef InterpolatedPiecewiseForwardSpreadedTermStructure<Interpolator> InterpolatedForwardSpreadedCurve;
-            typedef ext::shared_ptr<InterpolatedForwardCurve> InterpolatedForwardCurvePtr;
+            typedef ext::shared_ptr<InterpolatedForwardCurve<Interpolator>> InterpolatedForwardCurvePtr;
             typedef ext::shared_ptr<InterpolatedForwardSpreadedCurve> InterpolatedForwardSpreadedCurvePtr;
         public:
             // output
@@ -228,13 +227,14 @@ namespace QuantLib {
                 // create a spread-only interpolated forward curve
 				// this curve can be used to serialize/deserialize the calculated spreads
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
-                spreadsOnlyForwardCurve = ext::make_shared<InterpolatedForwardCurve>(spreadDates, spreads, curveDayCounter);
+                spreadsOnlyForwardCurve = ext::make_shared<InterpolatedForwardCurve<Interpolator>>(spreadDates, spreads, curveDayCounter);
                 spreadsOnlyForwardCurve->enableExtrapolation(true);
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef _DEBUG
                 // sanity check: verify R_Target(T) * T - R_Base(T) * T where R(t) is the continuously compounded zero rate at time t and T is the last spread time
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 {
+                    auto diff_small_enough = [](Real a, Real b) -> bool { return std::fabs(a - b) <= 1e-16; };
                     Time T = spreadTimeGrid.back();    // last spread time
                     Date lastSpreadDate = spreadDates.back();    // last spread date
 
@@ -254,12 +254,12 @@ namespace QuantLib {
                     Rate R_Spread_2 = spreadsOnlyForwardCurve->zeroRate(lastSpreadDate, curveDayCounter, Continuous, NoFrequency, true).rate();
                     Real primitive_spread_4 = R_Spread_2 * T;
 
-                    QL_ASSERT(close_enough(area_Target, primitive_Target), "primitive_Target (" << primitive_Target << ") is not close to area_Target (" << area_Target << ")");
-                    QL_ASSERT(close_enough(area_Base, primitive_Base), "primitive_Base (" << primitive_Base << ") is not close to area_Base (" << area_Base << ")");
-                    QL_ASSERT(close_enough(R_Spread_1, R_Spread_2), "R_Spread_1 (" << (R_Spread_1*10000.0) << " bp) is not close to R_Spread_2 (" << (R_Spread_2 * 10000.0) << " bp)");
-                    QL_ASSERT(close_enough(primitive_spread_1, primitive_spread_2), "primitive_spread_2 (" << primitive_spread_2 << ") is not close to primitive_spread_1 (" << primitive_spread_1 << ")");
-                    QL_ASSERT(close_enough(primitive_spread_1, primitive_spread_3), "primitive_spread_3 (" << primitive_spread_3 << ") is not close to primitive_spread_1 (" << primitive_spread_1 << ")");
-                    QL_ASSERT(close_enough(primitive_spread_1, primitive_spread_4), "primitive_spread_4 (" << primitive_spread_4 << ") is not close to primitive_spread_1 (" << primitive_spread_1 << ")");
+                    QL_ASSERT(diff_small_enough(area_Target, primitive_Target), "primitive_Target (" << primitive_Target << ") is not close to area_Target (" << area_Target << ")");
+                    QL_ASSERT(diff_small_enough(area_Base, primitive_Base), "primitive_Base (" << primitive_Base << ") is not close to area_Base (" << area_Base << ")");
+                    QL_ASSERT(diff_small_enough(R_Spread_1, R_Spread_2), "R_Spread_1 (" << (R_Spread_1*10000.0) << " bp) is not close to R_Spread_2 (" << (R_Spread_2 * 10000.0) << " bp)");
+                    QL_ASSERT(diff_small_enough(primitive_spread_1, primitive_spread_2), "primitive_spread_2 (" << primitive_spread_2 << ") is not close to primitive_spread_1 (" << primitive_spread_1 << ")");
+                    QL_ASSERT(diff_small_enough(primitive_spread_1, primitive_spread_3), "primitive_spread_3 (" << primitive_spread_3 << ") is not close to primitive_spread_1 (" << primitive_spread_1 << ")");
+                    QL_ASSERT(diff_small_enough(primitive_spread_1, primitive_spread_4), "primitive_spread_4 (" << primitive_spread_4 << ") is not close to primitive_spread_1 (" << primitive_spread_1 << ")");
                 }
 #endif
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -319,19 +319,19 @@ namespace QuantLib {
 
                 oss << "Verifying base forward curve..." << std::endl;
                 Spread err = baseCurveBootstrapper->verifyBootstrap(oss, precision);
-                oss << "err=" << err * 10000.0 << " bp" << std::endl;
+                oss << "base_curve_err=" << err * 10000.0 << " bp" << std::endl;
                 errorTotal += err;
 
                 oss << std::endl;
                 oss << "Verifying target forward curve..." << std::endl;
                 err = targetCurveBootstrapper->verifyBootstrap(oss, precision);
-                oss << "err=" << err * 10000.0 << " bp" << std::endl;
+                oss << "target_curve_err=" << err * 10000.0 << " bp" << std::endl;
                 errorTotal += err;
                 
                 oss << std::endl;
                 oss << "Verifying forward spreaded curve..." << std::endl;
                 err = verifyForwardSpreadedCurveImpl(oss, precision);
-                oss << "err=" << err * 10000.0 << " bp" << std::endl;
+                oss << "forward_spreaded_curve_err=" << err * 10000.0 << " bp" << std::endl;
                 errorTotal += err;
 
                 os << oss.str();
