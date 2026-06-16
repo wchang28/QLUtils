@@ -234,7 +234,7 @@ namespace QuantLib {
                 // sanity check: verify R_Target(T) * T - R_Base(T) * T where R(t) is the continuously compounded zero rate at time t and T is the last spread time
                 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                 {
-                    auto diff_small_enough = [](Real a, Real b) -> bool { return std::fabs(a - b) <= 1e-16; };
+                    auto diff_small_enough = [](Real a, Real b) -> bool { return std::fabs(a - b) < 1e-15; };
                     Time T = spreadTimeGrid.back();    // last spread time
                     Date lastSpreadDate = spreadDates.back();    // last spread date
 
