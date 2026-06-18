@@ -172,7 +172,7 @@ namespace QLUtils {
         ) {
             auto minDate = QuantLib::Date();
             for (const auto& pInst : instruments) {
-                if (pInst->use()) {
+                if (pInst != nullptr && pInst->use()) {
                     auto d = pInst->startDate();
                     if (minDate == QuantLib::Date() || d < minDate) {
                         minDate = d;

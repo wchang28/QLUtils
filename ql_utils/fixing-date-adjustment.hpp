@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ql/quantlib.hpp>
+#include <ql_utils/types.hpp>
 #include <utility>
 
 namespace QuantLib {
@@ -18,6 +19,10 @@ namespace QuantLib {
                 const Calendar& fixingCalendar
             ): fixingDays_(fixingDays), fixingCalendar_(fixingCalendar)
             {}
+            FixingDateAdjustment(
+                const FixingInfo& fixingInfo
+            ): fixingDays_(fixingInfo.settlementDays), fixingCalendar_(fixingInfo.fixingCalendar)
+            {}
             static BusinessDayConvention adjConvention (
                 Natural fixingDays
             ) {
@@ -29,6 +34,9 @@ namespace QuantLib {
             const Calendar& fixingCalendar() const {
                 return fixingCalendar_;
             }
+			FixingInfo fixingInfo() const {
+				return FixingInfo{ fixingCalendar_, fixingDays_ };
+			}
             // adjust a candidate fixing date to a correct fixing date base on the number of days of fixing
             Date adjust(
                 const Date& d   // candidate fixing date
