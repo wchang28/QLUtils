@@ -10,11 +10,100 @@
 
 namespace QuantLib {
     namespace Utils {
+        // fixed rate coupon bond interface
+        struct IFixedCouponBond {
+            // bond informational interfaces
+            /////////////////////////////////////////////////////////////////////////////
+            virtual const Calendar& settlementCalendar() const = 0;
+            virtual Natural settlementDays() const = 0; // T+x settlement
+            virtual Date settlementDate() const = 0;    // bond settlement date
+            virtual Real parNotional() const = 0;
+            virtual const Rate& coupon() const = 0;
+            virtual bool isZeroCoupon() const = 0;
+            virtual Frequency couponFrequency() const = 0;
+            virtual Period couponTenor() const = 0;
+            virtual const Calendar& accrualScheduleCalendar() const = 0;
+            virtual BusinessDayConvention accrualConvention() const = 0;
+            virtual bool accrualEndOfMonth() const = 0;
+            virtual const Schedule& accrualSchedule() const = 0;    // bond's accrual schedule
+            virtual const DayCounter& accrualDayCounter() const = 0;    // bond's accrual day counter
+            virtual Size numCouponPeriods() const = 0;
+            virtual const Calendar& paymentCalendar() const = 0;
+            virtual BusinessDayConvention paymentConvention() const = 0;
+            virtual Date lastPaymentDate() const = 0;
+            virtual Date currentAccrualStartDate() const = 0;
+            virtual Date currentAccrualEndDate() const = 0;
+            virtual Time accrualYearFraction() const = 0;
+            virtual Time shortCouponYearFraction() const = 0;
+            virtual void checkCleanPriceIsSet() const = 0;
+            virtual const Real& cleanPrice() const = 0;
+            virtual Real accruedAmount() const = 0;
+            virtual operator Leg() const = 0;
+            virtual const Schedule& yieldCalcSchedule() const = 0;  // yield to maturity calculation schedule
+            virtual const DayCounter& yieldCalcDayCounter() const = 0; // yield to maturity calculation day counter
+            virtual const Schedule& marketConventionYieldCalcSchedule() const = 0;  // market convention yield calculation schedule
+            virtual const DayCounter& marketConventionYieldCalcDayCounter() const = 0;  // market convention yield calculation day counter
+            virtual const DayCounter& parYieldSplineDayCounter() const = 0;
+            virtual Rate ytm() const = 0;
+            virtual Real dv01() const = 0;
+            virtual Real dirtyPrice() const = 0;
+            virtual Rate marketConventionYield() const = 0;
+            /////////////////////////////////////////////////////////////////////////////
+            // yield term structure implied value interfaces
+            /////////////////////////////////////////////////////////////////////////////
+            virtual Real impliedDirtyPrice(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            virtual Real impliedCleanPrice(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            virtual Rate impliedYTM(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            virtual Real impliedDV01(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            virtual Rate impliedMarketConventionYield(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            // given a discount term structure, what coupon would give the bond a clean price of 100
+            // !!! this can be used to calculate CMT par coupon rate !!!
+            virtual Rate impliedParCoupon(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            // given a discount term structure, what coupon would give the bond a dirty price of 100
+            virtual Rate impliedFairCoupon(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            /////////////////////////////////////////////////////////////////////////////
+        };
+        // zero coupon bill interface
+        struct IZeroCouponBill {
+            // bill informational interfaces
+            /////////////////////////////////////////////////////////////////////////////
+            virtual Date paymentDate() const = 0;   // date of the sole payment (principal/face amount) for the bill
+            virtual const DayCounter& discountRateDayCounter() const = 0;   // day counter used to calculate discount rate
+            virtual Real bondPrice() const = 0; // bill's par notional bond price (=dirty price=clean price, this is because bill is zero coupon)
+            virtual DiscountFactor discountFactor() const = 0;  // discount factor from settlement date to payment date
+            virtual Rate discountRate() const = 0;  // discount rate
+            /////////////////////////////////////////////////////////////////////////////
+            // yield term structure implied value interfaces
+            /////////////////////////////////////////////////////////////////////////////
+            virtual DiscountFactor impliedDiscountFactor(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            virtual Rate impliedDiscountRate(
+                const Handle<YieldTermStructure>& discountingTermStructure
+            ) const = 0;
+            /////////////////////////////////////////////////////////////////////////////
+        };
+
         template <
             typename BondTraits
         >
-        class FixedCoupondBond :
+        class FixedCouponBond :
             public QLUtils::BootstrapInstrument,
+            public IFixedCouponBond,
             public QLUtils::IParYieldSplineNode {
         protected:
             BondTraits bondTraits_;                 // bond traits
@@ -262,7 +351,7 @@ namespace QuantLib {
                 }
             }
         public:
-            FixedCoupondBond(
+            FixedCouponBond(
                 Period tenor,                       // bond's claimed original tenor
                 Date maturityDate = Date(),         // bond's maturity date, if not given, it will be calculated based on the settlement date and the tenor
                 Rate coupon = 0.,                   // bond's fixed coupon rate
@@ -327,33 +416,33 @@ namespace QuantLib {
                 yieldCalcDayCounter_ = bondTraits_.yieldCalcDayCounter(tenor, yieldCalcSchedule_);
                 parYieldSplineDayCounter_ = bondTraits_.parYieldSplineDayCounter(tenor, accrualSchedule_);
             }
-            const Calendar& settlementCalendar() const {
+            const Calendar& settlementCalendar() const override {
                 return settlementCalendar_;
             }
             // T+x settlement
-            Natural settlementDays() const {
+            Natural settlementDays() const override {
                 return bondTraits_.settlementDays(tenor());
             }
             // settlement date for the bond
-            Date settlementDate() const {
+            Date settlementDate() const override {
                 return settlementDate_;
             }
-            Real parNotional() const {
+            Real parNotional() const override {
                 return bondTraits_.parNotional(tenor());
             }
-            const Rate& coupon() const {
+            const Rate& coupon() const override {
                 return coupon_;
             }
             Rate& coupon() {
                 return coupon_;
             }
-            bool isZeroCoupon() const {
+            bool isZeroCoupon() const override {
                 return (coupon_ == 0.);
             }
-            Frequency couponFrequency() const {
+            Frequency couponFrequency() const override {
                 return bondTraits_.couponFrequency(tenor());
             }
-            Period couponTenor() const {
+            Period couponTenor() const override {
                 return Period(couponFrequency());
             }
             std::string instrumentTypeAlias() const override {
@@ -369,72 +458,78 @@ namespace QuantLib {
             Date maturityDate() const override {
                 return datedDate();
             }
-            const Calendar& accrualScheduleCalendar() const {
+            const Calendar& accrualScheduleCalendar() const override {
                 return accrualScheduleCalendar_;
             }
-            BusinessDayConvention accrualConvention() const {
+            BusinessDayConvention accrualConvention() const override {
                 return bondTraits_.accrualConvention(tenor());
             }
-            bool accrualEndOfMonth() const {
+            bool accrualEndOfMonth() const override {
                 return bondTraits_.accrualEndOfMonth(tenor());
             }
-            const Schedule& accrualSchedule() const {
+            const Schedule& accrualSchedule() const override {
                 return accrualSchedule_;
             }
-            const DayCounter& accrualDayCounter() const {
+            const DayCounter& accrualDayCounter() const override {
                 return accrualDayCounter_;
             }
-            Size numCouponPeriods() const {
+            Size numCouponPeriods() const override {
                 return accrualSchedule_.dates().size() - 1;
             }
-            const Calendar& paymentCalendar() const {
+            const Calendar& paymentCalendar() const override {
                 return paymentCalendar_;
             }
-            BusinessDayConvention paymentConvention() const {
+            BusinessDayConvention paymentConvention() const override {
                 return bondTraits_.paymentConvention(tenor());
             }
-            Date lastPaymentDate() const {
+            Date lastPaymentDate() const override {
                 auto lastAccrualEndDate = accrualSchedule_.dates().back();
                 auto d = paymentCalendar().adjust(lastAccrualEndDate, paymentConvention());
                 return d;
             }
-            Date currentAccrualStartDate() const {
+            Date currentAccrualStartDate() const override {
                 return currentAccrualStartDate_;
             }
-            Date currentAccrualEndDate() const {
+            Date currentAccrualEndDate() const override {
                 return currentAccrualEndDate_;
             }
-            Time accrualYearFraction() const {
+            Time accrualYearFraction() const override {
                 return accrualYearFraction_;
             }
-            Time shortCouponYearFraction() const {
+            Time shortCouponYearFraction() const override {
                 return shortCouponYearFraction_;
             }
-            void checkCleanPriceIsSet() const {
+            void checkCleanPriceIsSet() const override {
                 this->ensureValueIsSet();
             }
             // get the clean price, which is the price used for bootstrapping, from the price of the bond
-            const Real& cleanPrice() const {
+            const Real& cleanPrice() const override {
                 return price();
             }
             // set the clean price, which is the price used for bootstrapping, to the price of the bond
             Real& cleanPrice() {
                 return price();
             }
-            Real accruedAmount() const {
+            Real accruedAmount() const override {
                 auto bond = makeFixedRateBond();
                 return bond->accruedAmount(settlementDate());
             }
-            operator Leg() const {
+            operator Leg() const override {
                 return makeLeg(coupon());
             }
-            const Schedule& yieldCalcSchedule() const {
+            const Schedule& yieldCalcSchedule() const override {
                 return yieldCalcSchedule_;
             }
-            const DayCounter& yieldCalcDayCounter() const {
+            const DayCounter& yieldCalcDayCounter() const override {
                 return yieldCalcDayCounter_;
             }
-            const DayCounter& parYieldSplineDayCounter() const {
+            const Schedule& marketConventionYieldCalcSchedule() const override {
+                return yieldCalcSchedule_;
+            }
+            const DayCounter& marketConventionYieldCalcDayCounter() const override {
+                return yieldCalcDayCounter_;
+            }    
+            const DayCounter& parYieldSplineDayCounter() const override {
                 return parYieldSplineDayCounter_;
             }
         protected:
@@ -513,14 +608,14 @@ namespace QuantLib {
             }
         public:
             // given bond's quoted clean price, what is it's yield to maturity
-            Rate ytm() const {
+            Rate ytm() const override {
                 checkCleanPriceIsSet();
                 auto bond = makeFixedRateBond();
                 Bond::Price price(cleanPrice(), Bond::Price::Type::Clean);
                 return bondYield(*bond, price);
             }
             // given bond's quoted clean price, what is it's DV01
-            Real dv01() const {
+            Real dv01() const override {
                 checkCleanPriceIsSet();
                 auto bond = makeFixedRateBond();
                 Bond::Price price(cleanPrice(), Bond::Price::Type::Clean);
@@ -529,34 +624,33 @@ namespace QuantLib {
                 return dv01;
             }
             // given bond's quoted clean price, what is it's dirty price
-            Real dirtyPrice() const {
+            Real dirtyPrice() const override {
                 checkCleanPriceIsSet();
                 return cleanPrice() + accruedAmount();
             }
 			// given bond's quoted clean price, what is it's market convention yield
-            // overridable derived class
-            virtual Rate marketConventionYield() const {
+            Rate marketConventionYield() const override {
                 return ytm();
             }
         public:
             // withXXX methods
             ////////////////////////////////////////////////////////
-            FixedCoupondBond& withCleanPrice(Real cleanPrice) {
+            FixedCouponBond& withCleanPrice(Real cleanPrice) {
                 this->cleanPrice() = cleanPrice;
                 return *this;
             }
-            FixedCoupondBond& withDirtyPrice(Real dirtyPrice) {
+            FixedCouponBond& withDirtyPrice(Real dirtyPrice) {
                 auto cleanPrice = dirtyPrice - accruedAmount();
                 this->cleanPrice() = cleanPrice;
                 return *this;
             }
-            FixedCoupondBond& withYTM(Rate ytm) {
+            FixedCouponBond& withYTM(Rate ytm) {
                 auto bond = makeFixedRateBond();
                 auto cleanPrice = bondPrice(*bond, ytm, Bond::Price::Type::Clean);
                 this->cleanPrice() = cleanPrice;
                 return *this;
             }
-            FixedCoupondBond& withMarketConventionYield(
+            FixedCouponBond& withMarketConventionYield(
                 Rate yield
             ) {
                 return withYTM(yield);
@@ -576,17 +670,17 @@ namespace QuantLib {
             }
             Real impliedDirtyPrice(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 return impliedPrice(discountingTermStructure, Bond::Price::Type::Dirty);
             }
             Real impliedCleanPrice(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 return impliedPrice(discountingTermStructure, Bond::Price::Type::Clean);
             }
             Rate impliedYTM(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 auto bond = makeFixedRateBond();
                 ext::shared_ptr<PricingEngine> pricingEngine(new DiscountingBondEngine(discountingTermStructure));
                 bond->setPricingEngine(pricingEngine);
@@ -597,7 +691,7 @@ namespace QuantLib {
             }
             Real impliedDV01(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 auto bond = makeFixedRateBond();
                 ext::shared_ptr<PricingEngine> pricingEngine(new DiscountingBondEngine(discountingTermStructure));
                 bond->setPricingEngine(pricingEngine);
@@ -607,17 +701,16 @@ namespace QuantLib {
                 auto dv01 = bondDV01(*bond, ytm);
                 return dv01;
             }
-            // overridable derived class
-            virtual Rate impliedMarketConventionYield(
+            Rate impliedMarketConventionYield(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 return impliedYTM(discountingTermStructure);
             }
             // given a discount term structure, what coupon would give the bond a clean price of 100
             // !!! this can be used to calculate CMT par coupon rate !!!
             Rate impliedParCoupon(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 const auto& me = *this;
                 Real targetCleanPrice = 100.;
                 auto f = [&me, &discountingTermStructure, &targetCleanPrice](Rate coupon) -> Real {
@@ -635,7 +728,7 @@ namespace QuantLib {
             // given a discount term structure, what coupon would give the bond a dirty price of 100
             Rate impliedFairCoupon(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 const auto& me = *this;
                 Real targetDirtyPrice = 100.;
                 auto f = [&me, &discountingTermStructure, &targetDirtyPrice](Rate coupon) -> Real {
@@ -674,7 +767,9 @@ namespace QuantLib {
         template <
             typename BillTraits
         >
-        class ZeroCouponBill : public FixedCoupondBond<typename BillTraits::BondTraits> {
+        class ZeroCouponBill :
+            public FixedCouponBond<typename BillTraits::BondTraits>,
+            public IZeroCouponBill {
         protected:
             BillTraits billTraits_;
             Schedule marketConventionYieldCalcSchedule_; // forward schedule (from the settle date) of the tenor length, used for calculating market convention yield
@@ -727,7 +822,7 @@ namespace QuantLib {
                 Period tenor,                   // bond's claimed original tenor
                 Date maturityDate,              // maturity date of the bond
                 Date settlementDate = Date()    // settlement date for calculating accrued interest, prices, and yield to maturity
-            ) : FixedCoupondBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
+            ) : FixedCouponBond<typename BillTraits::BondTraits>(tenor, maturityDate, 0., settlementDate),
                 discountRateDayCounter_(billTraits_.discountRateDayCounter(tenor))
             {
                 auto settleDate = this->settlementDate();
@@ -744,16 +839,16 @@ namespace QuantLib {
                 return "zero coupon bill";
             }
             // date of the sole payment (principal/face amount) for the bill
-            Date paymentDate() const {
+            Date paymentDate() const override {
                 return this->lastPaymentDate();
             }
-            const Schedule& marketConventionYieldCalcSchedule() const {
+            const Schedule& marketConventionYieldCalcSchedule() const override {
                 return marketConventionYieldCalcSchedule_;
             }
-            const DayCounter& marketConventionYieldCalcDayCounter() const {
+            const DayCounter& marketConventionYieldCalcDayCounter() const override {
                 return marketConventionYieldCalcDayCounter_;
             }
-            const DayCounter& discountRateDayCounter() const {
+            const DayCounter& discountRateDayCounter() const override {
                 return discountRateDayCounter_;
             }
             // conversion between discount/compounding factor and market convention yield
@@ -840,17 +935,17 @@ namespace QuantLib {
             ////////////////////////////////////////////////////////////////////////////////////////////////
             // given bond's quoted clean price, what is it's discount factor, discount rate, and market convention yield
             /////////////////////////////////////////////
-            Real bondPrice() const {
+            Real bondPrice() const override {
                 this->checkCleanPriceIsSet();
                 auto dirtyPrice = this->dirtyPrice();
                 return dirtyPrice;
             }
             // discount factor from settlement date to payment date
-            DiscountFactor discountFactor() const {
+            DiscountFactor discountFactor() const override {
                 DiscountFactor df = bondPrice() / this->parNotional();
                 return df;
             }
-            Rate discountRate() const {
+            Rate discountRate() const override {
                 auto df = discountFactor();
                 return discountRateFromDiscountFactor(df);
             }
@@ -890,14 +985,14 @@ namespace QuantLib {
             ////////////////////////////////////////////////////////////////////////////////////////////////
             DiscountFactor impliedDiscountFactor(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 auto dirtyPrice = this->impliedPrice(discountingTermStructure, Bond::Price::Type::Dirty);
                 DiscountFactor df = dirtyPrice / this->parNotional();
                 return df;
             }
             Rate impliedDiscountRate(
                 const Handle<YieldTermStructure>& discountingTermStructure
-            ) const {
+            ) const override {
                 auto df = impliedDiscountFactor(discountingTermStructure);
                 return discountRateFromDiscountFactor(df);
             }
@@ -914,13 +1009,13 @@ namespace QuantLib {
         template <
             typename BondTraits
         >
-        class TheoreticalBond : public FixedCoupondBond<BondTraits> {
+        class TheoreticalBond : public FixedCouponBond<BondTraits> {
         public:
             TheoreticalBond(
                 Period tenor,                   // tenor of the bond
                 Rate coupon = 0.,               // coupon of the bond
                 Date settlementDate = Date()    // settlement date for calculating accrued interest, prices, and yield to maturity
-            ) :FixedCoupondBond<BondTraits>(tenor, Date(), coupon, settlementDate) {
+            ) :FixedCouponBond<BondTraits>(tenor, Date(), coupon, settlementDate) {
                 this->cleanPrice() = this->parNotional();   // default the clean price of the bond to par by assuming the coupon variable is a par coupon
             }
             std::string instrumentTypeAlias() const override {
@@ -933,14 +1028,14 @@ namespace QuantLib {
         template <
             typename BondTraits
         >
-        class ParCouponBond : public FixedCoupondBond<BondTraits> {
+        class ParCouponBond : public FixedCouponBond<BondTraits> {
         public:
             ParCouponBond(
                 Period tenor,                   // bond's claimed original tenor
                 Date maturityDate,              // maturity date of the bond
                 Rate parCoupon,                 // par coupon of the bond
                 Date settlementDate = Date()    // settlement date for calculating accrued interest, prices, and yield to maturity
-            ) :FixedCoupondBond<BondTraits>(tenor, maturityDate, parCoupon, settlementDate) {
+            ) :FixedCouponBond<BondTraits>(tenor, maturityDate, parCoupon, settlementDate) {
                 this->cleanPrice() = this->parNotional();   // set the clean price of the bond to par because the coupon is a par coupon
             }
             std::string instrumentTypeAlias() const override {
