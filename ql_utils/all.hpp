@@ -25,6 +25,7 @@
 #include <ql_utils/calendars/all.hpp>
 #include <ql_utils/daycounters/all.hpp>
 #include <ql_utils/indexes/all.hpp>
+#include <ql_utils/instruments/all.hpp>
 #include <ql_utils/math/all.hpp>
 #include <ql_utils/ratehelpers/all.hpp>
 #include <ql_utils/utilities/all.hpp>
