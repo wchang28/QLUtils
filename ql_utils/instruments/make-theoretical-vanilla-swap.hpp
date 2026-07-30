@@ -5,7 +5,8 @@
 namespace QuantLib {
     class MakeTheoreticalVanillaSwap {
     protected:
-        Frequency couponFreq_ = Frequency::Annual;
+        DayCounter dayCounter_ = Thirty360(Thirty360::BondBasis);   // day counter for both legs and for the ibor index
+        Frequency couponFreq_ = Frequency::Annual;  // coupon frequency for both legs and for the ibor index
         Size numCoupons_;
         Handle<YieldTermStructure> h_;
         Date fixingDate_;
@@ -43,6 +44,10 @@ namespace QuantLib {
             nominal_ = nominal;
             return *this;
         }
+        MakeTheoreticalVanillaSwap& withDayCounter(DayCounter dayCounter) {
+            dayCounter_ = dayCounter;
+            return *this;
+        }
         operator ext::shared_ptr<VanillaSwap>() const {
             Period couponTenor = Period(couponFreq_);
             Date fixingDate = fixingDate_;
@@ -58,7 +63,7 @@ namespace QuantLib {
                 dates.push_back(dt);
             }
             Schedule schedule(
-                dates,
+                dates,  // dates
                 NullCalendar(),    // calendar
                 BusinessDayConvention::Unadjusted,    // convention
                 BusinessDayConvention::Unadjusted,    // terminationDateConvention
@@ -66,13 +71,13 @@ namespace QuantLib {
                 DateGeneration::Rule::Forward,    // rule
                 false // endOfMonth
             );    // schedule for both legs
-            DayCounter dayCounter = ActualActual(ActualActual::Bond, schedule);    // fixing day counter for both legs and for the ibor index
+            DayCounter dayCounter = dayCounter_;
             ext::shared_ptr<IborIndex> iborIndex(new IborIndex(
                 "TheoreticalIborIndex",    // familyName
                 couponTenor,    // tenor
                 0, // settlementDays
                 Currency(),    // currency
-                NullCalendar(),
+                NullCalendar(), // fixingCalendar
                 BusinessDayConvention::Unadjusted,    // convention
                 false,    // endOfMonth
                 dayCounter,    // dayCounter
