@@ -10,15 +10,18 @@ namespace QuantLib {
             const Period& p1,
             const Period& p2
         ) {
-            // Basic check: if p2 is longer than p1, p1 can't be a multiple of p2 (unless 0)
+            // Basic check: if p2 is longer than p1, p1 can't be a multiple of p2 (unless p1=0)
             // Note: QuantLib throws if comparison is undecidable (e.g. 1M vs 30D)
             try {
-                if (p1 < p2) return { false, Null<Integer>()};
+                if (p1 < p2) {
+                    return (p1.length() == 0 ? std::pair<bool, Integer>(true, 0) : std::pair<bool, Integer>(false, Null<Integer>()));
+                }
             }
             catch (...) {
                 // Handle undecidable cases or return false/error
                 return { false, Null<Integer>() };
             }
+            // p1 >= p2
             // Example logic for matching units:
             if (p1.units() == p2.units()) {
                 auto multiple = (p1.length() % p2.length() == 0);
