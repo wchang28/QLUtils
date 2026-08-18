@@ -29,7 +29,6 @@ namespace QuantLib {
             std::vector<Time> spreadTimes;
             std::vector<Real> spreadAreas;
             std::vector<Spread> spreads;    // forward spreads between the target forward curve and the base forward curve at the spread times
-            std::shared_ptr<Interpolation> interp_Spreads;
         protected:
             static std::vector<Date> joinDates(
                 const std::vector<Date>& dates_1,
@@ -57,14 +56,12 @@ namespace QuantLib {
                 spreadTimes.clear();
                 spreadAreas.clear();
                 spreads.clear();
-                interp_Spreads = nullptr;
             }
             virtual void verifyOutputs() const {
                 QL_ASSERT(!spreadDates.empty(), "spread dates are not calculated");
                 QL_ASSERT(!spreadTimes.empty(), "spread times are not calculated");
                 QL_ASSERT(!spreadAreas.empty(), "spread areas are not calculated");
                 QL_ASSERT(!spreads.empty(), "spreads are not calculated");
-                QL_ASSERT(interp_Spreads != nullptr, "spread interpolation is not calculated");
             }
         public:
             // public interface
@@ -119,16 +116,16 @@ namespace QuantLib {
                 QL_ASSERT(targetCurveBootstrapper != nullptr, "target forward curve bootstrapper is null");
                 QL_ASSERT(baseForwardCurve != nullptr, "base forward curve is not calculated");
                 Date curveRefDate = baseForwardCurve->referenceDate();
-				DayCounter curveDayCounter = baseForwardCurve->dayCounter();
+                DayCounter curveDayCounter = baseForwardCurve->dayCounter();
                 QL_ASSERT(targetForwardCurve != nullptr, "target forward curve is not calculated");
-				QL_ASSERT(targetForwardCurve->referenceDate() == curveRefDate, "target forward curve reference date (" << ISODateConv::to_str(targetForwardCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
-				QL_ASSERT(targetForwardCurve->dayCounter().name() == curveDayCounter.name(), "target forward curve day counter (" << targetForwardCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
+                QL_ASSERT(targetForwardCurve->referenceDate() == curveRefDate, "target forward curve reference date (" << ISODateConv::to_str(targetForwardCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
+                QL_ASSERT(targetForwardCurve->dayCounter().name() == curveDayCounter.name(), "target forward curve day counter (" << targetForwardCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
                 QL_ASSERT(spreadsOnlyForwardCurve != nullptr, "spread-only forward curve is not calculated");
-				QL_ASSERT(spreadsOnlyForwardCurve->referenceDate() == curveRefDate, "spread-only forward curve reference date (" << ISODateConv::to_str(spreadsOnlyForwardCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
+                QL_ASSERT(spreadsOnlyForwardCurve->referenceDate() == curveRefDate, "spread-only forward curve reference date (" << ISODateConv::to_str(spreadsOnlyForwardCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
                 QL_ASSERT(spreadsOnlyForwardCurve->dayCounter().name() == curveDayCounter.name(), "spread-only forward curve day counter (" << spreadsOnlyForwardCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
                 QL_ASSERT(fwdSpreadedCurve != nullptr, "forward spreaded curve is not calculated");
-				QL_ASSERT(fwdSpreadedCurve->referenceDate() == curveRefDate, "forward spreaded curve reference date (" << ISODateConv::to_str(fwdSpreadedCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
-				QL_ASSERT(fwdSpreadedCurve->dayCounter().name() == curveDayCounter.name(), "forward spreaded curve day counter (" << fwdSpreadedCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
+                QL_ASSERT(fwdSpreadedCurve->referenceDate() == curveRefDate, "forward spreaded curve reference date (" << ISODateConv::to_str(fwdSpreadedCurve->referenceDate()) << ") does not match base forward curve reference date (" << ISODateConv::to_str(curveRefDate) << ")");
+                QL_ASSERT(fwdSpreadedCurve->dayCounter().name() == curveDayCounter.name(), "forward spreaded curve day counter (" << fwdSpreadedCurve->dayCounter().name() << ") does not match base forward curve day counter (" << curveDayCounter.name() << ")");
             }
         public:
             // public interface
@@ -163,7 +160,7 @@ namespace QuantLib {
                 // bootstrap the target forward curve
                 //////////////////////////////////////////////////////////////////////////
                 targetCurveBootstrapper.reset(new BootstrapperType());
-				targetCurveBootstrapper->exogenousDiscountTermStructure = (dualBoootstrapsMode ? baseForwardCurve : nullptr);
+                targetCurveBootstrapper->exogenousDiscountTermStructure = (dualBoootstrapsMode ? baseForwardCurve : nullptr);
                 targetCurveBootstrapper->instruments = targetInstruments;
                 targetCurveBootstrapper->bootstrap(curveRefDate, curveDayCounter);
                 targetForwardCurve = targetCurveBootstrapper->estimatingCurve;
@@ -178,16 +175,22 @@ namespace QuantLib {
                 QL_ASSERT(spreadTimes[0] == 0.0, "The first spread time must be 0.0");
                 TimeGrid spreadTimeGrid(spreadTimes.begin(), spreadTimes.end());
                 //////////////////////////////////////////////////////////////////////////////////
-                BothEndsFlatExtrapolateInterpolation<Interpolator> interp_Base(
+                // yield curves generally extrapolate flatly in the forward rate space
+                ////////////////////////////////////////////////////////////////////////////////////////////////////
+                using FlatExtrapInterpolator = typename BothEndsFlatExtrapolate<Interpolator>::FlatExtrapInterpolator;
+                Interpolation interp_Base = FlatExtrapInterpolator{}.interpolate(
                     baseForwardCurve->times().begin(),
                     baseForwardCurve->times().end(),
                     baseForwardCurve->data().begin()
                 );
-                BothEndsFlatExtrapolateInterpolation<Interpolator> interp_Target(
+                interp_Base.enableExtrapolation();  // MUST enable extrapolation
+                Interpolation interp_Target = FlatExtrapInterpolator{}.interpolate(
                     targetForwardCurve->times().begin(),
                     targetForwardCurve->times().end(),
                     targetForwardCurve->data().begin()
                 );
+                interp_Target.enableExtrapolation();  // MUST enable extrapolation
+                ////////////////////////////////////////////////////////////////////////////////////////////////////
                 // calculate the strip interval areas between the the two curves
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
                 spreadAreas.resize(spreadTimeGrid.size() - 1);
@@ -212,20 +215,16 @@ namespace QuantLib {
                     spreads[i] = endSpreadCalculator(spreads[i - 1], area, dt);
                 }
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
-				// create an interpolation of the spreads at the spread times
+                // create an interpolation of the spreads at the spread times
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
-                interp_Spreads.reset(
-                    new Interpolation(
-                        Interpolator{}.interpolate(
-                            spreadTimeGrid.begin(),
-                            spreadTimeGrid.end(),
-                            spreads.begin()
-                        )
-                    )
+                Interpolation interp_Spreads = Interpolator{}.interpolate(
+                    spreadTimeGrid.begin(),
+                    spreadTimeGrid.end(),
+                    spreads.begin()
                 );
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
                 // create a spread-only interpolated forward curve
-				// this curve can be used to serialize/deserialize the calculated spreads
+                // this curve can be used to serialize/deserialize the calculated spreads
                 ////////////////////////////////////////////////////////////////////////////////////////////////////
                 spreadsOnlyForwardCurve = ext::make_shared<InterpolatedForwardCurve<Interpolator>>(spreadDates, spreads, curveDayCounter);
                 spreadsOnlyForwardCurve->enableExtrapolation(true);
@@ -240,7 +239,7 @@ namespace QuantLib {
 
                     Rate R_Target = targetForwardCurve->zeroRate(lastSpreadDate, curveDayCounter, Continuous, NoFrequency, true).rate();    // R_Target(T)
                     Rate R_Base = baseForwardCurve->zeroRate(lastSpreadDate, curveDayCounter, Continuous, NoFrequency, true).rate();    // R_Base(T)
-					Rate R_Spread_1 = R_Target - R_Base;    // R_Spread(T)
+                    Rate R_Spread_1 = R_Target - R_Base;    // R_Spread(T)
                     Real area_Target = R_Target * T;    // R_Target(T) * T
                     Real area_Base = R_Base * T;    // R_Base(T) * T
                     Real primitive_spread_1 = area_Target - area_Base;
@@ -249,7 +248,7 @@ namespace QuantLib {
                     Real primitive_Base = interp_Base.primitive(T, true);
                     Real primitive_spread_2 = primitive_Target - primitive_Base;
 
-                    Real primitive_spread_3 = interp_Spreads->primitive(T, true);
+                    Real primitive_spread_3 = interp_Spreads.primitive(T, true);
 
                     Rate R_Spread_2 = spreadsOnlyForwardCurve->zeroRate(lastSpreadDate, curveDayCounter, Continuous, NoFrequency, true).rate();
                     Real primitive_spread_4 = R_Spread_2 * T;
