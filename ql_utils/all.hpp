@@ -21,6 +21,7 @@
 #include <ql_utils/swap-fixing.hpp>
 #include <ql_utils/bondschedulerwoissuedt.hpp>
 #include <ql_utils/government-bond-traits.hpp>
+#include <ql_utils/dated-monthly-time-grid.hpp>
 #include <ql_utils/specializations/all.hpp>
 #include <ql_utils/calendars/all.hpp>
 #include <ql_utils/daycounters/all.hpp>
