@@ -277,6 +277,14 @@ namespace QuantLib {
                     return std::vector<Time>(pTimeGrid_->begin(), pTimeGrid_->end());
                 }
             }
+            Time meanDt() const {
+                const TimeGrid& grid = this->timeGrid();
+                GeneralStatistics stats;
+                for (Size i = 0; i < grid.size() - 1; ++i) {
+                    stats.add(grid.dt(i));
+                }
+                return stats.mean();
+            }
             template<
                 typename MONTH_FILTER
             >
