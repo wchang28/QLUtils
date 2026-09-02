@@ -129,23 +129,24 @@ namespace QuantLib {
             ) const {
                 return (timeIndex <= this->maxFwdMonth());
             }
-            // makes at-the-money forward vanilla swap
+            // makes a forward vanilla swap with same coupon schedule and day counter on both legs 
             // return nullptr if swap goes out of the bound of the time grid
-            VanillaSwapPtr makeFwdATMVanillaSwap(
+            VanillaSwapPtr makeFwdVanillaSwap(
                 const Period& forward,
                 const Period& swapTenor,
                 const Period& couponTenor,
                 const DayCounter& legsDayCounter,
                 Swap::Type swapType,
-                const YieldTermStructureHandle& hTS // index estimating term structure handle
+                const YieldTermStructureHandle& hTS, // term structure for both index estimating and discounting
+                Rate fixedRate = Null<Rate>()   // if fixedRate is Null<Rate>() create a ATM fwd swap
             ) const {
-                QL_REQUIRE(!hTS.empty(), "estimating term structure handle is empty");
+                QL_REQUIRE(!hTS.empty(), "term structure handle is empty");
                 Schedule schedule = makeFwdSwapLegSchedule(forward, swapTenor, couponTenor);
                 if (!schedule.empty()) {    // swap schedule can be made on this grid
                     auto indexTenor = couponTenor;  // use the same tenor for the index as the legs
                     auto indexDayCounter = legsDayCounter;  // use the same day counter for the index as the legs
                     ext::shared_ptr<IborIndex> iborIndex(new IborIndex(
-                        "TheoreticalIborIndex",    // familyName
+                        "TimeGridBasedIborIndex",    // familyName
                         indexTenor,    // tenor
                         0, // settlementDays
                         Currency(),    // currency
@@ -170,15 +171,41 @@ namespace QuantLib {
                             legsDayCounter    // floatingDayCount
                         ));
                     };
-                    VanillaSwapPtr swap = makeSwap(0.0);
-                    ext::shared_ptr<PricingEngine> engine(new DiscountingSwapEngine(hTS));
-                    swap->setPricingEngine(engine);
-                    auto fixedRate = swap->fairRate();
+                    if (fixedRate == Null<Rate>()) {
+                        VanillaSwapPtr swap = makeSwap(0.0);
+                        ext::shared_ptr<PricingEngine> engine(
+                            new DiscountingSwapEngine(
+                                hTS // discounting term structure
+                            )
+                        );
+                        swap->setPricingEngine(engine);
+                        fixedRate = swap->fairRate();
+                    }
+                    QL_ASSERT(fixedRate != Null<Rate>(), "fixed rate is null");
                     return makeSwap(fixedRate);
                 }
                 else {  // swap schedule cannot be made on this grid
                     return nullptr; // return null pointer
                 }
+            }
+            // makes at-the-money forward vanilla swap
+            // return nullptr if swap goes out of the bound of the time grid
+            VanillaSwapPtr makeFwdATMVanillaSwap(
+                const Period& forward,
+                const Period& swapTenor,
+                const Period& couponTenor,
+                const DayCounter& legsDayCounter,
+                Swap::Type swapType,
+                const YieldTermStructureHandle& hTS // index estimating term structure handle
+            ) const {
+                return this->makeFwdVanillaSwap(
+                    forward,
+                    swapTenor,
+                    couponTenor,
+                    legsDayCounter,
+                    swapType,
+                    hTS
+                );
             }
             const DayCounter& dayCounter() const { return dayCounter_; }
             MonthNumber minMonth() const { return 0; }
@@ -294,7 +321,7 @@ namespace QuantLib {
                 std::set<MonthNumber> importantMonths;
                 for (MonthNumber month = this->minMonth(); month <= this->maxMonth(); ++month) {    // for each month in the grid
                     bool important = monthFilter(month);
-                    if (important) {
+                    if (important) {    // an important month
                         importantMonths.insert(month);
                     }
                 }
@@ -303,41 +330,37 @@ namespace QuantLib {
                 ) -> std::pair<bool, Period> {
                     MonthNumber month = DatedMonthlyTimeGrid::monthNumber(timeIndex);
                     auto important = (importantMonths.find(month) != importantMonths.end());
-                    if (important) {
-                        Period tenor =
+                    Period tenor =
+                    (
+                        month == 0 ?
+                        0 * Days :
                         (
-                            month == 0 ?
-                            0 * Days :
-                            (
-                                month % 12 == 0 ?
-                                month / 12 * Years :
-                                month * Months
-                            )
-                        );
-                        return { true, tenor };
-                    }
-                    else {
-                        return { false, month * Months };
-                    }
+                            month % 12 == 0 ?
+                            (month / 12) * Years :
+                            month * Months
+                        )
+                    );
+                    return {important, tenor};
                 };
                 return filter;
             }
-            // ZV functions
+            // yield term structure functions
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // retuns short rate vector
+            // retuns short rate vector on the time grid
             std::vector<Real> shortRates(
-                const YieldTermStructureHandle& zvCurve,
+                const YieldTermStructureHandle& hTS,
                 Real multiplier = 1.0
             ) const {
+                QL_REQUIRE(!hTS.empty(), "term structure handle is empty");
                 auto n = schedule_.size();
                 std::vector<Real> rates(n);
-                for (TimeIndex timeIndex = 0; timeIndex < n; ++timeIndex) {
+                for (TimeIndex timeIndex = 0; timeIndex < n; ++timeIndex) { // for each time slice on the time grid
                     try {
                         auto date = schedule_[timeIndex];
-                        Rate rate = zvCurve->forwardRate(
+                        Rate rate = hTS->forwardRate(
                             date,
                             0 * Days,
-                            zvCurve->dayCounter(),
+                            hTS->dayCounter(),
                             Compounding::Continuous,
                             Frequency::NoFrequency,
                             true
@@ -350,16 +373,17 @@ namespace QuantLib {
                 }
                 return rates;
             }
-            // retuns discount factor vector
+            // retuns discount factor vector on the time grid
             DiscountVector discountFactors(
-                const YieldTermStructureHandle& zvCurve
+                const YieldTermStructureHandle& hTS
             ) const {
+                QL_REQUIRE(!hTS.empty(), "term structure handle is empty");
                 auto n = schedule_.size();
                 DiscountVector dfs(n);
-                for (TimeIndex timeIndex = 0; timeIndex < n; ++timeIndex) {
+                for (TimeIndex timeIndex = 0; timeIndex < n; ++timeIndex) { // for each time slice on the time grid
                     try {
                         auto date = schedule_[timeIndex];
-                        dfs[timeIndex] = zvCurve->discount(date, true);
+                        dfs[timeIndex] = hTS->discount(date, true);
                     }
                     catch (const std::exception& e) {
                         QL_FAIL("error occurred at time index " << timeIndex << ": " << e.what());
@@ -369,14 +393,15 @@ namespace QuantLib {
             }
             // returns forward ATM swap rates projection all the way to the grid boundary for a certain swap tenor
             std::vector<Real> forwardATMSwapRates(
-                const YieldTermStructureHandle& zvCurve,
+                const YieldTermStructureHandle& hTS,
                 const Period& swapTenor,
                 const Period& couponTenor,
                 const DayCounter& legsDayCounter,
                 Real multiplier = 1.0
             ) const {
+                QL_REQUIRE(!hTS.empty(), "term structure handle is empty");
                 std::vector<Real> rates;
-                for (TimeIndex timeIndex = 0; timeIndex < schedule_.size(); ++timeIndex) {
+                for (TimeIndex timeIndex = 0; timeIndex < schedule_.size(); ++timeIndex) { // for each time slice on the time grid
                     try {
                         auto forward = this->forwardPeriod(timeIndex);
                         auto atmSwap = makeFwdATMVanillaSwap(
@@ -385,7 +410,7 @@ namespace QuantLib {
                             couponTenor,
                             legsDayCounter,
                             Swap::Type::Payer,
-                            zvCurve
+                            hTS
                         );
                         if (atmSwap != nullptr) {
                             rates.push_back(atmSwap->fixedRate() * multiplier);
@@ -411,15 +436,17 @@ namespace QuantLib {
                 QL_ASSERT(tenor.units() == TimeUnit::Months, "tenor (" << tenor << ") must have unit in months");
                 return Real(tenor.length()) / 12.0;
             }
+            /*
             void writeVector(
                 std::ostream& os,
                 const std::vector<Real>& vec,
                 Real multiplier = 1.0,
                 std::streamsize precision = 6
             ) const {
+                QL_REQUIRE(vec.size() <= schedule_.size(), "vector's length (" << vec.size() << ") is larger than the time grid size (" << schedule_.size() << ")");
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(precision);
-                for (TimeIndex timeIndex = 0; timeIndex < vec.size(); ++timeIndex) {
+                for (TimeIndex timeIndex = 0; timeIndex < vec.size(); ++timeIndex) { // for each time slice
                     auto t = outputTime(timeIndex);
                     std::vector<Real> rowVector{
                         t,
@@ -435,15 +462,17 @@ namespace QuantLib {
                 }
                 os << oss.str();
             }
+            */
             void writeMatrix(
                 std::ostream& os,
-                const Matrix& matrix,
+                const Matrix& matrix,   // row of the matrix should align with the time grid
                 Real multiplier = 1.0,
                 std::streamsize precision = 6
             ) const {
+                QL_REQUIRE(matrix.rows() <= schedule_.size(), "matrix' rows count (" << matrix.rows() << ") is larger than the time grid size (" << schedule_.size() << ")");
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(precision);
-                for (TimeIndex timeIndex = 0; timeIndex < matrix.rows(); ++timeIndex) {
+                for (TimeIndex timeIndex = 0; timeIndex < matrix.rows(); ++timeIndex) { // for each time slice
                     auto t = outputTime(timeIndex);
                     Array row(matrix.row_begin(timeIndex), matrix.row_end(timeIndex));
                     row *= multiplier;
