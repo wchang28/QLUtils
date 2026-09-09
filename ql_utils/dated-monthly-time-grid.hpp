@@ -436,33 +436,6 @@ namespace QuantLib {
                 QL_ASSERT(tenor.units() == TimeUnit::Months, "tenor (" << tenor << ") must have unit in months");
                 return Real(tenor.length()) / 12.0;
             }
-            /*
-            void writeVector(
-                std::ostream& os,
-                const std::vector<Real>& vec,
-                Real multiplier = 1.0,
-                std::streamsize precision = 6
-            ) const {
-                QL_REQUIRE(vec.size() <= schedule_.size(), "vector's length (" << vec.size() << ") is larger than the time grid size (" << schedule_.size() << ")");
-                std::ostringstream oss;
-                oss << std::fixed << std::setprecision(precision);
-                for (TimeIndex timeIndex = 0; timeIndex < vec.size(); ++timeIndex) { // for each time slice
-                    auto t = outputTime(timeIndex);
-                    std::vector<Real> rowVector{
-                        t,
-                        vec[timeIndex] * multiplier
-                    };
-                    for (Size j = 0; j < rowVector.size(); ++j) {
-                        if (j > 0) {
-                            oss << "\t";
-                        }
-                        oss << rowVector[j];
-                    }
-                    oss << std::endl;
-                }
-                os << oss.str();
-            }
-            */
             void writeMatrix(
                 std::ostream& os,
                 const Matrix& matrix,   // row of the matrix should align with the time grid
