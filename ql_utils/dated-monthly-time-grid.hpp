@@ -426,43 +426,26 @@ namespace QuantLib {
                 return rates;
             }
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // IO functions
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            Time outputTime(
-                TimeIndex timeIndex
-            ) const {
-                auto date = this->date(timeIndex);
-                auto tenor = this->tenor(date);
-                QL_ASSERT(tenor.units() == TimeUnit::Months, "tenor (" << tenor << ") must have unit in months");
-                return Real(tenor.length()) / 12.0;
-            }
+            // matrix writer function with the row of the matrix aligned with the time grid's time slices
             void writeMatrix(
                 std::ostream& os,
-                const Matrix& matrix,   // row of the matrix should align with the time grid
+                const Matrix& matrix,
                 Real multiplier = 1.0,
-                std::streamsize precision = 6
+                std::streamsize precision = 6,
+                const std::string& separator = "\t"
             ) const {
                 QL_REQUIRE(matrix.rows() <= schedule_.size(), "matrix' rows count (" << matrix.rows() << ") is larger than the time grid size (" << schedule_.size() << ")");
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(precision);
                 for (TimeIndex timeIndex = 0; timeIndex < matrix.rows(); ++timeIndex) { // for each time slice
-                    auto t = outputTime(timeIndex);
-                    Array row(matrix.row_begin(timeIndex), matrix.row_end(timeIndex));
-                    row *= multiplier;
-                    std::vector<Real> rowVector(matrix.columns() + 1);
-                    rowVector[0] = t;
-                    std::copy(row.begin(), row.end(), rowVector.begin() + 1);
-                    for (Size j = 0; j < rowVector.size(); ++j) {
-                        if (j > 0) {
-                            oss << "\t";
-                        }
-                        oss << rowVector[j];
+                    oss << monthNumber(timeIndex);
+                    for (Size j = 0; j < matrix.columns(); ++j) {
+                        oss << separator << matrix[timeIndex][j] * multiplier;
                     }
                     oss << std::endl;
                 }
                 os << oss.str();
             }
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         };
     }
 }
