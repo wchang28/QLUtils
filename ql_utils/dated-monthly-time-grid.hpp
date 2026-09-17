@@ -438,9 +438,9 @@ namespace QuantLib {
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(precision);
                 for (TimeIndex timeIndex = 0; timeIndex < matrix.rows(); ++timeIndex) { // for each time slice
-                    oss << monthNumber(timeIndex);
-                    for (Size j = 0; j < matrix.columns(); ++j) {
-                        oss << separator << matrix[timeIndex][j] * multiplier;
+                    oss << monthNumber(timeIndex);  // output the month number
+                    for (Size j = 0; j < matrix.columns(); ++j) {   // for each column
+                        oss << separator << (matrix[timeIndex][j] * multiplier);
                     }
                     oss << std::endl;
                 }
