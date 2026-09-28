@@ -432,15 +432,22 @@ namespace QuantLib {
                 const Matrix& matrix,
                 Real multiplier = 1.0,
                 std::streamsize precision = 6,
-                const std::string& separator = "\t"
+                const std::string& separator = "\t",
+                bool includeRowHeader = true
             ) const {
                 QL_REQUIRE(matrix.rows() <= schedule_.size(), "matrix' rows count (" << matrix.rows() << ") is larger than the time grid size (" << schedule_.size() << ")");
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(precision);
                 for (TimeIndex timeIndex = 0; timeIndex < matrix.rows(); ++timeIndex) { // for each time slice
-                    oss << monthNumber(timeIndex);  // output the month number
+                    if (includeRowHeader) {
+                        oss << monthNumber(timeIndex);  // output the month number
+                        oss << separator;
+                    }
                     for (Size j = 0; j < matrix.columns(); ++j) {   // for each column
-                        oss << separator << (matrix[timeIndex][j] * multiplier);
+                        if (j > 0) {
+                            oss << separator;
+                        }
+                        oss << (matrix[timeIndex][j] * multiplier);
                     }
                     oss << std::endl;
                 }
