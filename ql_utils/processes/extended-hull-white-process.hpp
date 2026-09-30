@@ -33,7 +33,6 @@ namespace QuantLib {
                 0.0    // level == 0
             ))
         {
-            QL_REQUIRE(a_ >= 0.0, "negative a given");
             // alpha(t) calculation is very slow, so we pre-calculate it for the time grid
             ///////////////////////////////////////////////////////////////////////////////////////////////
             times_.assign(timeGrid.begin(), timeGrid.end());
