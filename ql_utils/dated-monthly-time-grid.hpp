@@ -34,7 +34,6 @@ namespace QuantLib {
             Schedule schedule_;   // grid date schedule
             std::map<Date::serial_type, TimeIndex> dateToTimeIndex_;    // map from grid date to grid time index for fast date to time index lookup
             TimeGridPtr pTimeGrid_; // internal time grid
-            MonthNumber maxFwdMonthNumber_; // max forward month number allowed for the time grid system
         private:
             static Schedule makeGridSchedule(
                 const std::vector<Date>& gridDates
@@ -73,7 +72,7 @@ namespace QuantLib {
                 Size numCoupons = m_4;
                 QL_REQUIRE(numCoupons > 0, "number of coupons (" << numCoupons << ") must be greater than 0");
                 MonthNumber swapMaturityMonths = fwdMonths + swapTenorMonths;
-                auto forwardAllowed = (fwdMonths <= this->maxFwdMonth());
+                auto forwardAllowed = (fwdMonths <= this->maxMonth());
                 auto swapMaturityInBound = (swapMaturityMonths <= this->maxMonth());
                 if (forwardAllowed && swapMaturityInBound) {    // swap schedule can be made on this grid
                     std::vector<Date> dates;
@@ -103,8 +102,7 @@ namespace QuantLib {
                 MonthNumber maxFwdMonthNumber = Null<MonthNumber>()  // max forward month number (optional)
             ) :
                 dayCounter_(dayCounter),
-                schedule_(makeGridSchedule(gridDates)),
-                maxFwdMonthNumber_(maxFwdMonthNumber)
+                schedule_(makeGridSchedule(gridDates))
             {
                 if (schedule_.size() > 0) {
                     // build grid times
@@ -118,17 +116,6 @@ namespace QuantLib {
                 }
             }
             virtual ~DatedMonthlyTimeGrid() = default;
-            MonthNumber maxFwdMonth() const {
-                return (maxFwdMonthNumber_ == Null<MonthNumber>() ? maxMonth() : std::min(maxFwdMonthNumber_, maxMonth()));
-            }
-            Date maxFwdDate() const {
-                return this->date(this->maxFwdMonth());
-            }
-            bool isFwdAllowed(
-                TimeIndex timeIndex
-            ) const {
-                return (timeIndex <= this->maxFwdMonth());
-            }
             // makes a forward vanilla swap with same coupon schedule and day counter on both legs 
             // return nullptr if swap goes out of the bound of the time grid
             VanillaSwapPtr makeFwdVanillaSwap(
