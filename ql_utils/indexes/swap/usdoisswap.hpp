@@ -9,7 +9,9 @@ namespace QuantLib {
         typename OVERNIGHTINDEX // OvernightIndex can be Sofr or FedFunds
     >
     struct UsdOISFixingCalendarAdaptor {
-        Calendar operator() () const {}
+        Calendar operator() () const {
+            return Calendar();
+        }
     };
     // FedFunds OIS swap's fixing calendar for both legs is UnitedStates(UnitedStates::FederalReserve)
     template<>

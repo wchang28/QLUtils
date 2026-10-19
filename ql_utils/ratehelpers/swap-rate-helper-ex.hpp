@@ -12,7 +12,9 @@ namespace QuantLib {
             //    i.e. it can dynamically change
             // 2. input discount curve Handle might be empty now but it could
             //    be assigned a curve later; use a RelinkableHandle here
-            auto tmp = MakeVanillaSwap(tenor_, iborIndex_, 0.0, fwdStart_)
+            auto tmp = MakeVanillaSwap(tenor_, iborIndex_)
+                .withFixedRate(0.0)
+                .withForwardStart(fwdStart_)
                 .withSettlementDays(settlementDays_)  // resets effectiveDate
                 .withEffectiveDate(startDate_)
                 .withTerminationDate(endDate_)
@@ -105,8 +107,8 @@ namespace QuantLib {
            Date customPillarDate = Date(),
            bool endOfMonth = false,
            DateGeneration::Rule rule = DateGeneration::Rule::Forward,
-           const ext::optional<bool>& useIndexedCoupons = ext::nullopt,
-           const ext::optional<BusinessDayConvention>& floatConvention = ext::nullopt
+           const std::optional<bool>& useIndexedCoupons = std::nullopt,
+           const std::optional<BusinessDayConvention>& floatConvention = std::nullopt
         ):
         SwapRateHelper(
             rate,

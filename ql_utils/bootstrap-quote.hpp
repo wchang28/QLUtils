@@ -117,14 +117,14 @@ namespace QuantLib {
             Period tenor;
             QuoteType quoteType;
             Frequency couponFreq;
-            ext::optional<bool> spreadIsOnBaseLeg;
+            std::optional<bool> spreadIsOnBaseLeg;
             OISBasisSwapQuote(
                 const std::string& ticker = "",
                 const Period& tenor = Period(),
                 QuoteType quoteType = QuoteType::obsqtDeposit,
                 Real value = Null<Real>(),
                 Frequency couponFreq = Frequency::NoFrequency,
-                ext::optional<bool> spreadIsOnBaseLeg = ext::nullopt,
+                std::optional<bool> spreadIsOnBaseLeg = std::nullopt,
                 bool use = true
             ) :
                 BootstrapQuote(ticker, value, use),

@@ -183,7 +183,8 @@ namespace QuantLib {
         ) const {
             QL_REQUIRE(fixingDate != Date(), "null fixing date");
             auto startDate = this->valueDate(fixingDate);
-            ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor(), overnightIndex(), fixedRate)
+            ext::shared_ptr<OvernightIndexedSwap> swap = MakeOIS(tenor(), overnightIndex())
+                .withFixedRate(fixedRate)
                 .withType(type)
                 .withEffectiveDate(startDate)
                 .withTelescopicValueDates(telescopicValueDates())
@@ -317,7 +318,8 @@ namespace QuantLib {
             auto startDate = this->valueDate(fixingDate);
             ext::shared_ptr<VanillaSwap> swap;
             if (exogenousDiscount())
-                swap = MakeVanillaSwap(tenor(), iborIndex(), fixedRate)
+                swap = MakeVanillaSwap(tenor(), iborIndex())
+                .withFixedRate(fixedRate)
                 .withType(type)
                 .withEffectiveDate(startDate)
                 .withFixedLegCalendar(fixingCalendar())
@@ -332,7 +334,8 @@ namespace QuantLib {
                 .withDiscountingTermStructure(discountingTermStructure())
                 ;
             else
-                swap = MakeVanillaSwap(tenor(), iborIndex(), fixedRate)
+                swap = MakeVanillaSwap(tenor(), iborIndex())
+                .withFixedRate(fixedRate)
                 .withType(type)
                 .withEffectiveDate(startDate)
                 .withFixedLegCalendar(fixingCalendar())

@@ -254,7 +254,8 @@ namespace QLUtils {
             const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             auto overnightIndex = makeOvernightIndex(h);
-            SwapPtr swap = QuantLib::MakeOIS(this->tenor(), overnightIndex, fixedRate)
+            SwapPtr swap = QuantLib::MakeOIS(this->tenor(), overnightIndex)
+                .withFixedRate(fixedRate)
                 .withType(type)
                 .withOvernightLegSpread(overnightSpread)
                 .withEffectiveDate(startDate)
@@ -298,8 +299,8 @@ namespace QLUtils {
                     QuantLib::Pillar::MaturityDate, // pillar
                     QuantLib::Date(),   // customPillarDate
                     averagingMethod(),    // averagingMethod
-                    QuantLib::ext::nullopt,   // endOfMonth
-                    QuantLib::ext::nullopt,   // fixedPaymentFrequency
+                    std::nullopt,   // endOfMonth
+                    std::nullopt,   // fixedPaymentFrequency
                     fixingCalendar(), // fixedCalendar
                     QuantLib::Null<QuantLib::Natural>(),    // lookbackDays
                     0,  // lockoutDays
@@ -446,7 +447,8 @@ namespace QLUtils {
             const YieldTermStructureHandle& h = {}  // index estimating term structure
         ) const {
             auto iborIndex = makeIborIndex(h);
-            SwapPtr swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex, fixedRate)
+            SwapPtr swap = QuantLib::MakeVanillaSwap(this->tenor(), iborIndex)
+                .withFixedRate(fixedRate)
                 .withType(type)
                 .withFloatingLegSpread(floatSpread)
                 .withEffectiveDate(startDate)
